@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import ThemeToggle from '@/components/ThemeToggle';
 
 const features = [
   { emoji: '📊', title: '실시간 시세', desc: '실제 시장 데이터를 기반으로 한 실시간 주가 정보' },
@@ -40,6 +41,7 @@ export default function LandingPage() {
           <span className="text-xl font-bold tracking-wider gradient-text" style={{ fontFamily: 'Syne, sans-serif' }}>CANDLE</span>
         </div>
         <div className="flex items-center gap-3">
+          <ThemeToggle chip className="w-9 h-9 justify-center" />
           <Link href="/login" className="btn-outline text-sm px-5 py-2">로그인</Link>
           <Link href="/signup" className="btn-amber text-sm px-5 py-2">무료 시작</Link>
         </div>

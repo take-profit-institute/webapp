@@ -5,6 +5,7 @@ import {
   LayoutDashboard, TrendingUp, Briefcase, Trophy, Target, BookOpen, User, LogOut, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useUIStore, useAuthStore } from '@/store/useStore';
+import ThemeToggle from './ThemeToggle';
 
 const navItems = [
   { icon: LayoutDashboard, label: '대시보드', href: '/dashboard' },
@@ -95,6 +96,7 @@ export default function Sidebar() {
       )}
 
       <div className="px-2 pb-3 flex flex-col gap-1">
+        <ThemeToggle showLabel={!sidebarCollapsed} className="px-3 py-2 w-full" />
         <button
           className="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors w-full"
           style={{ color: 'var(--text-muted)' }}
