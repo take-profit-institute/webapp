@@ -1,18 +1,54 @@
 'use client';
 import { useState } from 'react';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { myHoldings, recentTransactions, portfolioHistory, sectorAllocation } from '@/lib/mock-data';
+import {
+  getAccount,
+  getAllocation,
+  getHoldings,
+  getPortfolioHistory,
+  getTransactions,
+  useApi,
+} from '@/apis';
+import { Loader, ErrorState } from '@/components/AsyncState';
+import { sectorColor } from '@/lib/format';
 
 const tabs = ['보유 종목', '거래 내역', '수익 분석'];
 
 export default function PortfolioPage() {
   const [activeTab, setActiveTab] = useState('보유 종목');
 
+  const { data: holdings, loading, error, refetch } = useApi(() => getHoldings(), []);
+  const { data: account } = useApi(() => getAccount(), []);
+  const { data: transactions } = useApi(() => getTransactions(), []);
+  const { data: history } = useApi(() => getPortfolioHistory(30), []);
+  const { data: allocation } = useApi(() => getAllocation(), []);
+
+  if (loading) {
+    return (
+      <div className="p-3 md:p-6 max-w-[1200px]">
+        <Loader />
+      </div>
+    );
+  }
+  if (error || !holdings) {
+    return (
+      <div className="p-3 md:p-6 max-w-[1200px]">
+        <ErrorState error={error ?? new Error('포트폴리오를 불러올 수 없습니다')} onRetry={refetch} />
+      </div>
+    );
+  }
+
+  const myHoldings = holdings;
+  const recentTransactions = transactions ?? [];
+  const portfolioHistory = history ?? [];
+  const sectorAllocation = allocation ?? [];
+  const cash = account?.cash ?? 0;
+
   const totalValue = myHoldings.reduce((s, h) => s + h.totalValue, 0);
   const totalPL = myHoldings.reduce((s, h) => s + h.profitLoss, 0);
-  const totalPLPct = (totalPL / (totalValue - totalPL)) * 100;
-  const histMin = Math.min(...portfolioHistory.map(d => d.value));
-  const histMax = Math.max(...portfolioHistory.map(d => d.value));
+  const totalPLPct = totalValue - totalPL !== 0 ? (totalPL / (totalValue - totalPL)) * 100 : 0;
+  const histMin = portfolioHistory.length ? Math.min(...portfolioHistory.map(d => d.value)) : 0;
+  const histMax = portfolioHistory.length ? Math.max(...portfolioHistory.map(d => d.value)) : 1;
 
   return (
     <div className="p-3 md:p-6 max-w-[1200px]">
@@ -29,7 +65,7 @@ export default function PortfolioPage() {
             <div>
               <p className="text-[10px] md:text-xs mb-0.5" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>총 평가 자산</p>
               <p className="text-2xl md:text-3xl font-black font-mono" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-primary)' }}>
-                {(totalValue + 2125780).toLocaleString()}<span className="text-xs ml-1" style={{ color: 'var(--text-secondary)' }}>원</span>
+                {(totalValue + cash).toLocaleString()}<span className="text-xs ml-1" style={{ color: 'var(--text-secondary)' }}>원</span>
               </p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <ArrowUpRight size={13} style={{ color: 'var(--gain)' }} />
@@ -40,7 +76,7 @@ export default function PortfolioPage() {
             </div>
             <div className="text-right hidden sm:block">
               <p className="text-xs mb-1" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>가용 현금</p>
-              <p className="text-lg font-mono font-bold" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-secondary)' }}>2,125,780원</p>
+              <p className="text-lg font-mono font-bold" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-secondary)' }}>{cash.toLocaleString()}원</p>
             </div>
           </div>
           <svg width="100%" height="90" viewBox="0 0 500 90" preserveAspectRatio="none">
@@ -50,7 +86,7 @@ export default function PortfolioPage() {
                 <stop offset="100%" stopColor="#F5A623" stopOpacity="0" />
               </linearGradient>
             </defs>
-            {(() => {
+            {portfolioHistory.length > 1 && (() => {
               const vals = portfolioHistory.map(d => d.value);
               const r = histMax - histMin || 1;
               const pts = vals.map((v, i) => `${(i / (vals.length - 1)) * 500},${85 - ((v - histMin) / r) * 75}`);
@@ -80,15 +116,15 @@ export default function PortfolioPage() {
                   const ix1 = cx + ir * Math.cos(angle), iy1 = cy + ir * Math.sin(angle);
                   const ix2 = cx + ir * Math.cos(angle - sweep), iy2 = cy + ir * Math.sin(angle - sweep);
                   const lg = sweep > Math.PI ? 1 : 0;
-                  return <path key={i} d={`M${x1} ${y1} A${r} ${r} 0 ${lg} 1 ${x2} ${y2} L${ix1} ${iy1} A${ir} ${ir} 0 ${lg} 0 ${ix2} ${iy2}Z`} fill={s.color} opacity={0.85} />;
+                  return <path key={i} d={`M${x1} ${y1} A${r} ${r} 0 ${lg} 1 ${x2} ${y2} L${ix1} ${iy1} A${ir} ${ir} 0 ${lg} 0 ${ix2} ${iy2}Z`} fill={sectorColor(s.sector, i)} opacity={0.85} />;
                 });
               })()}
             </svg>
             <div className="flex-1 md:w-full space-y-1.5">
-              {sectorAllocation.map(s => (
+              {sectorAllocation.map((s, i) => (
                 <div key={s.sector} className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-sm shrink-0" style={{ background: s.color }} />
+                    <div className="w-2 h-2 rounded-sm shrink-0" style={{ background: sectorColor(s.sector, i) }} />
                     <span className="text-xs" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>{s.sector}</span>
                   </div>
                   <span className="text-xs font-mono" style={{ color: 'var(--text-primary)' }}>{s.percent}%</span>
@@ -207,10 +243,10 @@ export default function PortfolioPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{t.name}</p>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{t.date} {t.time} · {t.quantity}주 @ {t.price.toLocaleString()}원</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{t.executedAt.slice(0, 10)} {t.executedAt.slice(11, 16)} · {t.quantity}주 @ {t.price.toLocaleString()}원</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-mono font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>{(t.total / 10000).toFixed(0)}만원</p>
+                  <p className="text-sm font-mono font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>{(t.amount / 10000).toFixed(0)}만원</p>
                   <p className="text-xs" style={{ color: t.type === 'buy' ? 'var(--gain)' : 'var(--loss)', fontFamily: 'Noto Sans KR' }}>
                     {t.type === 'buy' ? '▲ 매수' : '▼ 매도'}
                   </p>

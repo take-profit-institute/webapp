@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import type { Candle } from '@/lib/mock-data';
+import type { Candle } from '@/lib/api-types';
 
 interface Props {
   data: Candle[];

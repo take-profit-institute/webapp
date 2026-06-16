@@ -3,19 +3,63 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ArrowUpRight, ArrowDownRight, Star } from 'lucide-react';
 import CandleChart from '@/components/CandleChart';
-import { stockList, generateCandleData } from '@/lib/mock-data';
+import { getStock, getCandles, getStockNews, placeOrder, useApi } from '@/apis';
+import { Loader, ErrorState } from '@/components/AsyncState';
+import { formatMarketCap, formatVolume } from '@/lib/format';
 
 export default function StockDetailClient({ symbol }: { symbol: string }) {
-  const stock = stockList.find(s => s.symbol === symbol) ?? stockList[0];
-  const candles = generateCandleData(stock.price, 60, parseInt(symbol.replace(/\D/g, '') || '42'));
+  const { data: stock, loading, error, refetch } = useApi(() => getStock(symbol), [symbol]);
+  const { data: candles } = useApi(() => getCandles(symbol, { limit: 60 }), [symbol]);
+  const { data: news } = useApi(() => getStockNews(symbol), [symbol]);
 
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [quantity, setQuantity] = useState('');
   const [activeTab, setActiveTab] = useState('차트');
+  const [orderStatus, setOrderStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  const [placing, setPlacing] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="p-3 md:p-6 max-w-[1400px]">
+        <Loader />
+      </div>
+    );
+  }
+  if (error || !stock) {
+    return (
+      <div className="p-3 md:p-6 max-w-[1400px]">
+        <ErrorState error={error ?? new Error(`종목을 찾을 수 없습니다: ${symbol}`)} onRetry={refetch} />
+      </div>
+    );
+  }
 
   const tabs = ['차트', '기업정보', '재무', '뉴스'];
   const qty = parseInt(quantity) || 0;
   const total = qty * stock.price;
+
+  const handleOrder = async () => {
+    if (qty < 1) return;
+    setPlacing(true);
+    setOrderStatus(null);
+    try {
+      const tx = await placeOrder({ symbol: stock.symbol, type: tradeType, quantity: qty });
+      setOrderStatus({ ok: true, message: `${tradeType === 'buy' ? '매수' : '매도'} 체결 완료 · ${tx.amount.toLocaleString()}원` });
+      setQuantity('');
+    } catch (e) {
+      setOrderStatus({ ok: false, message: e instanceof Error ? e.message : '주문에 실패했습니다' });
+    } finally {
+      setPlacing(false);
+    }
+  };
+
+  const financialRows: { label: string; value: string }[] = [
+    { label: '매출액', value: formatMarketCap(stock.financials.revenue, stock.currency) },
+    { label: '영업이익', value: formatMarketCap(stock.financials.operatingProfit, stock.currency) },
+    { label: '순이익', value: formatMarketCap(stock.financials.netIncome, stock.currency) },
+    { label: 'PER', value: `${stock.financials.per}x` },
+    { label: 'PBR', value: `${stock.financials.pbr}x` },
+    { label: 'ROE', value: `${stock.financials.roe}%` },
+  ];
 
   return (
     <div className="p-3 md:p-6 max-w-[1400px]">
@@ -55,7 +99,7 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
               <span className="text-2xl md:text-4xl font-black font-mono" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-primary)' }}>
                 {stock.price.toLocaleString()}
               </span>
-              <span className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>KRW</span>
+              <span className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>{stock.currency}</span>
             </div>
             <div className="flex items-center gap-2">
               {stock.change >= 0 ? <ArrowUpRight size={15} style={{ color: 'var(--gain)' }} /> : <ArrowDownRight size={15} style={{ color: 'var(--loss)' }} />}
@@ -66,10 +110,10 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
             {/* Key stats — scroll on mobile */}
             <div className="flex gap-4 overflow-x-auto mt-3 pt-3 scrollbar-none" style={{ borderTop: '1px solid var(--border-subtle)' }}>
               {[
-                { label: '시가총액', value: stock.marketCap },
-                { label: '거래량', value: stock.volume },
-                { label: '52주 최고', value: Math.round(stock.price * 1.35).toLocaleString() },
-                { label: '52주 최저', value: Math.round(stock.price * 0.72).toLocaleString() },
+                { label: '시가총액', value: formatMarketCap(stock.marketCap, stock.currency) },
+                { label: '거래량', value: formatVolume(stock.volume) },
+                { label: '52주 최고', value: stock.high52w.toLocaleString() },
+                { label: '52주 최저', value: stock.low52w.toLocaleString() },
               ].map(({ label, value }) => (
                 <div key={label} className="shrink-0">
                   <p className="text-[10px] mb-0.5" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</p>
@@ -96,19 +140,18 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
               ))}
             </div>
 
-            {activeTab === '차트' && <CandleChart data={candles} height={220} />}
+            {activeTab === '차트' && (candles ? <CandleChart data={candles} height={220} /> : <Loader label="차트 불러오는 중..." />)}
 
             {activeTab === '기업정보' && (
               <div className="space-y-3">
                 <div className="p-3 rounded-xl" style={{ background: 'var(--bg-surface)' }}>
                   <h3 className="text-sm font-bold mb-2" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>기업 개요</h3>
                   <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>
-                    {stock.name}은(는) {stock.sector} 분야의 선도적인 기업으로, 글로벌 시장에서 혁신적인 제품과 서비스를 제공하고 있습니다.
-                    지속적인 R&D 투자와 기술 혁신을 통해 시장 점유율을 확대하고 있습니다.
+                    {stock.description}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  {[{ label: '업종', value: stock.sector }, { label: '거래소', value: stock.exchange }, { label: '시가총액', value: stock.marketCap }, { label: '코드', value: symbol }].map(({ label, value }) => (
+                  {[{ label: '업종', value: stock.sector }, { label: '거래소', value: stock.exchange }, { label: '시가총액', value: formatMarketCap(stock.marketCap, stock.currency) }, { label: '코드', value: symbol }].map(({ label, value }) => (
                     <div key={label} className="p-3 rounded-xl" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
                       <p className="text-[10px] mb-1" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</p>
                       <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{value}</p>
@@ -120,33 +163,29 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
 
             {activeTab === '재무' && (
               <div className="space-y-0">
-                {['매출액', '영업이익', '순이익', 'PER', 'PBR', 'ROE'].map((item, i) => {
-                  const values = ['42.6조', '6.8조', '4.2조', '18.4x', '1.82x', '9.8%'];
-                  return (
-                    <div key={item} className="flex items-center justify-between py-2.5"
-                      style={{ borderBottom: i < 5 ? '1px solid var(--border-subtle)' : 'none' }}>
-                      <span className="text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>{item}</span>
-                      <span className="text-sm font-mono font-semibold" style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>{values[i]}</span>
-                    </div>
-                  );
-                })}
+                {financialRows.map((row, i) => (
+                  <div key={row.label} className="flex items-center justify-between py-2.5"
+                    style={{ borderBottom: i < financialRows.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                    <span className="text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>{row.label}</span>
+                    <span className="text-sm font-mono font-semibold" style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>{row.value}</span>
+                  </div>
+                ))}
               </div>
             )}
 
             {activeTab === '뉴스' && (
               <div className="space-y-2">
-                {[
-                  { title: `${stock.name}, 2분기 실적 시장 예상치 상회`, time: '2시간 전', source: '한국경제' },
-                  { title: `외국인 투자자 ${stock.name} 순매수세 지속`, time: '4시간 전', source: '매일경제' },
-                  { title: `${stock.sector} 업황 개선 전망`, time: '어제', source: '이데일리' },
-                ].map((n, i) => (
-                  <div key={i} className="p-3 rounded-xl" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+                {(news ?? []).map((n) => (
+                  <div key={n.id} className="p-3 rounded-xl" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
                     <p className="text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{n.title}</p>
                     <div className="flex gap-2 text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
-                      <span>{n.source}</span><span>·</span><span>{n.time}</span>
+                      <span>{n.source}</span><span>·</span><span>{new Date(n.publishedAt).toLocaleDateString('ko-KR')}</span>
                     </div>
                   </div>
                 ))}
+                {news && news.length === 0 && (
+                  <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>관련 뉴스가 없습니다</p>
+                )}
               </div>
             )}
           </div>
@@ -220,12 +259,16 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
               </div>
             </div>
 
-            <button className={`${tradeType === 'buy' ? 'btn-gain' : 'btn-loss'} text-sm`}>
-              {tradeType === 'buy' ? '매수 주문' : '매도 주문'}
+            <button onClick={handleOrder} disabled={qty < 1 || placing}
+              className={`${tradeType === 'buy' ? 'btn-gain' : 'btn-loss'} text-sm`}
+              style={{ opacity: qty < 1 || placing ? 0.5 : 1 }}>
+              {placing ? '처리 중...' : tradeType === 'buy' ? '매수 주문' : '매도 주문'}
             </button>
-            <p className="text-center text-xs mt-2" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
-              가용 현금: <span style={{ color: 'var(--text-secondary)' }}>2,125,780원</span>
-            </p>
+            {orderStatus && (
+              <p className="text-center text-xs mt-2" style={{ color: orderStatus.ok ? 'var(--gain)' : 'var(--loss)', fontFamily: 'Noto Sans KR' }}>
+                {orderStatus.message}
+              </p>
+            )}
           </div>
         </div>
       </div>

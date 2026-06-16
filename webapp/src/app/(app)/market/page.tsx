@@ -3,7 +3,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Search, ArrowUpRight, ArrowDownRight, SlidersHorizontal } from 'lucide-react';
 import MiniSparkline from '@/components/MiniSparkline';
-import { stockList, generateSparkline } from '@/lib/mock-data';
+import { getStocks, useApi } from '@/apis';
+import { Loader, ErrorState } from '@/components/AsyncState';
+import { formatVolume } from '@/lib/format';
+import { generateSparkline, symbolSeed } from '@/lib/chart-utils';
 
 const exchanges = ['전체', 'KOSPI', 'KOSDAQ', 'NASDAQ'];
 const sectors = ['전체', '반도체', 'IT', '배터리', '자동차', '바이오'];
@@ -13,6 +16,9 @@ export default function MarketPage() {
   const [activeSector, setActiveSector] = useState('전체');
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState<'none' | 'gain' | 'loss'>('none');
+
+  const { data, loading, error, refetch } = useApi(() => getStocks(), []);
+  const stockList = data ?? [];
 
   let filtered = stockList.filter(s => {
     const matchExchange = activeExchange === '전체' || s.exchange === activeExchange;
@@ -93,12 +99,16 @@ export default function MarketPage() {
         </div>
       </div>
 
+      {loading && <Loader />}
+      {error && <ErrorState error={error} onRetry={refetch} />}
+
       {/* Mobile: card list | Desktop: table */}
+      {!loading && !error && (
       <>
         {/* Mobile card list */}
         <div className="md:hidden space-y-2">
           {filtered.map(s => {
-            const spark = generateSparkline(s.price, 12, parseInt(s.symbol.replace(/\D/g, '') || '42'));
+            const spark = generateSparkline(s.price, 12, symbolSeed(s.symbol));
             return (
               <Link key={s.symbol} href={`/market/${s.symbol}`}
                 className="card-interactive flex items-center px-4 py-3 gap-3"
@@ -148,7 +158,7 @@ export default function MarketPage() {
             <span className="text-right">거래</span>
           </div>
           {filtered.map((s, i) => {
-            const spark = generateSparkline(s.price, 15, parseInt(s.symbol.replace(/\D/g, '') || '42'));
+            const spark = generateSparkline(s.price, 15, symbolSeed(s.symbol));
             return (
               <Link key={s.symbol} href={`/market/${s.symbol}`}
                 className="grid px-4 py-3 transition-colors"
@@ -186,7 +196,7 @@ export default function MarketPage() {
                   </div>
                 </div>
                 <div className="flex items-center justify-end">
-                  <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>{s.volume}</span>
+                  <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>{formatVolume(s.volume)}</span>
                 </div>
                 <div className="flex items-center justify-end">
                   <MiniSparkline data={spark} width={64} height={28} positive={s.change >= 0} />
@@ -202,6 +212,7 @@ export default function MarketPage() {
           })}
         </div>
       </>
+      )}
     </div>
   );
 }

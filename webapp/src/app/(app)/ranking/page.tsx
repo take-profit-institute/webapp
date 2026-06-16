@@ -1,12 +1,17 @@
 'use client';
 import { useState } from 'react';
 import { ArrowUpRight, ArrowDownRight, Crown } from 'lucide-react';
-import { rankings } from '@/lib/mock-data';
+import { getRankings, getMyRanking, useApi } from '@/apis';
+import { Loader, ErrorState } from '@/components/AsyncState';
 
 const periods = ['오늘', '이번 주', '이번 달', '전체'];
 
 export default function RankingPage() {
   const [period, setPeriod] = useState('이번 달');
+
+  const { data, loading, error, refetch } = useApi(() => getRankings(), []);
+  const { data: myRanking } = useApi(() => getMyRanking(), []);
+  const rankings = data ?? [];
 
   return (
     <div className="p-3 md:p-6 max-w-[900px]">
@@ -15,25 +20,34 @@ export default function RankingPage() {
         <p className="text-xs md:text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>수익률 기준 순위</p>
       </div>
 
+      {loading && <Loader />}
+      {error && <ErrorState error={error} onRetry={refetch} />}
+
+      {!loading && !error && rankings.length >= 3 && (
+      <>
       {/* My rank banner */}
+      {myRanking && (
       <div className="card p-4 mb-4" style={{ border: '1px solid rgba(245,166,35,0.3)', background: 'var(--amber-subtle)' }}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center text-xl md:text-2xl shrink-0"
-            style={{ background: 'var(--bg-card)' }}>🐯</div>
+            style={{ background: 'var(--bg-card)' }}>{myRanking.avatar}</div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-xl font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--amber)' }}>#4</span>
-              <span className="text-base font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>박유빈</span>
-              <span className="badge-gain text-xs">▲2 상승</span>
+              <span className="text-xl font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--amber)' }}>#{myRanking.rank}</span>
+              <span className="text-base font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{myRanking.username}</span>
+              <span className={`text-xs ${myRanking.dayChangePercent >= 0 ? 'badge-gain' : 'badge-loss'}`}>
+                {myRanking.dayChangePercent >= 0 ? '▲' : '▼'} {Math.abs(myRanking.dayChangePercent)}%p
+              </span>
             </div>
-            <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>전체 12,480명 중</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>전체 {rankings.length.toLocaleString()}명 중</p>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-xl md:text-2xl font-black" style={{ fontFamily: 'JetBrains Mono', color: 'var(--gain)' }}>+18.36%</p>
+            <p className="text-xl md:text-2xl font-black" style={{ fontFamily: 'JetBrains Mono', color: 'var(--gain)' }}>+{myRanking.returnPercent}%</p>
             <p className="text-xs" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>총 수익률</p>
           </div>
         </div>
       </div>
+      )}
 
       {/* Period filter */}
       <div className="flex gap-2 overflow-x-auto pb-1 mb-4 scrollbar-none">
@@ -94,7 +108,7 @@ export default function RankingPage() {
         </div>
 
         {rankings.map((user, i) => {
-          const isMe = user.username === '박유빈';
+          const isMe = !!myRanking && user.userId === myRanking.userId;
           const medalEmoji = ['🥇', '🥈', '🥉'][user.rank - 1];
           return (
             <div key={user.rank}
@@ -133,8 +147,8 @@ export default function RankingPage() {
                   <div className="flex items-center gap-2 md:hidden">
                     <span className="text-xs font-mono font-bold" style={{ color: 'var(--gain)', fontFamily: 'JetBrains Mono' }}>+{user.returnPercent}%</span>
                     <div className="flex items-center gap-0.5">
-                      {user.change >= 0 ? <ArrowUpRight size={10} style={{ color: 'var(--gain)' }} /> : <ArrowDownRight size={10} style={{ color: 'var(--loss)' }} />}
-                      <span className="text-[10px] font-mono" style={{ color: user.change >= 0 ? 'var(--gain)' : 'var(--loss)' }}>{user.change >= 0 ? '+' : ''}{user.change}%</span>
+                      {user.dayChangePercent >= 0 ? <ArrowUpRight size={10} style={{ color: 'var(--gain)' }} /> : <ArrowDownRight size={10} style={{ color: 'var(--loss)' }} />}
+                      <span className="text-[10px] font-mono" style={{ color: user.dayChangePercent >= 0 ? 'var(--gain)' : 'var(--loss)' }}>{user.dayChangePercent >= 0 ? '+' : ''}{user.dayChangePercent}%</span>
                     </div>
                   </div>
                 </div>
@@ -148,9 +162,9 @@ export default function RankingPage() {
                 <span className="text-sm font-mono" style={{ color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono' }}>{(user.totalAsset / 100000000).toFixed(1)}억</span>
               </div>
               <div className="hidden md:flex items-center justify-end gap-1">
-                {user.change >= 0 ? <ArrowUpRight size={12} style={{ color: 'var(--gain)' }} /> : <ArrowDownRight size={12} style={{ color: 'var(--loss)' }} />}
-                <span className="text-xs font-mono" style={{ color: user.change >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
-                  {user.change >= 0 ? '+' : ''}{user.change}%
+                {user.dayChangePercent >= 0 ? <ArrowUpRight size={12} style={{ color: 'var(--gain)' }} /> : <ArrowDownRight size={12} style={{ color: 'var(--loss)' }} />}
+                <span className="text-xs font-mono" style={{ color: user.dayChangePercent >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
+                  {user.dayChangePercent >= 0 ? '+' : ''}{user.dayChangePercent}%
                 </span>
               </div>
 
@@ -162,6 +176,8 @@ export default function RankingPage() {
           );
         })}
       </div>
+      </>
+      )}
     </div>
   );
 }

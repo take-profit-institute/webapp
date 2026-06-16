@@ -1,12 +1,16 @@
 'use client';
 import { useState } from 'react';
 import { Check } from 'lucide-react';
-import { missions } from '@/lib/mock-data';
+import { getMissions, useApi } from '@/apis';
+import { Loader, ErrorState } from '@/components/AsyncState';
 
 const categories = ['전체', '일일', '주간', '특별'];
 
 export default function MissionsPage() {
   const [activeCategory, setActiveCategory] = useState('전체');
+
+  const { data, loading, error, refetch } = useApi(() => getMissions(), []);
+  const missions = data ?? [];
 
   const filtered = missions.filter(m => {
     if (activeCategory === '전체') return true;
@@ -65,7 +69,11 @@ export default function MissionsPage() {
         ))}
       </div>
 
+      {loading && <Loader />}
+      {error && <ErrorState error={error} onRetry={refetch} />}
+
       {/* Mission cards */}
+      {!loading && !error && (
       <div className="space-y-2 md:space-y-3">
         {(['daily', 'weekly', 'special'] as const).filter(cat => {
           if (activeCategory !== '전체') {
@@ -128,6 +136,7 @@ export default function MissionsPage() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }

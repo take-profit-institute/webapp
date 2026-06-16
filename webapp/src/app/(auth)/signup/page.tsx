@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Check } from 'lucide-react';
+import { authApi } from '@/apis';
 
 const steps = ['기본 정보', '투자 성향', '완료'];
 
@@ -13,6 +14,8 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [style, setStyle] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const investStyles = [
     { id: 'conservative', emoji: '🛡️', label: '안정형', desc: '안전한 우량주 위주 투자' },
@@ -21,7 +24,21 @@ export default function SignupPage() {
     { id: 'momentum', emoji: '⚡', label: '모멘텀형', desc: '상승 추세 종목에 집중 투자' },
   ];
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    setErrorMessage(null);
+    // Step 0 → create the account on the BFF before continuing.
+    if (step === 0) {
+      setSubmitting(true);
+      try {
+        await authApi.signup({ username, email, password });
+        setStep(1);
+      } catch (err) {
+        setErrorMessage(err instanceof Error ? err.message : '회원가입에 실패했습니다');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
     if (step < 2) setStep(step + 1);
     else router.push('/dashboard');
   };
@@ -126,8 +143,12 @@ export default function SignupPage() {
             </div>
           )}
 
-          <button onClick={handleNext} className="btn-amber w-full py-3 mt-6 text-sm">
-            {step === 2 ? '투자 시작하기 →' : '다음'}
+          {errorMessage && (
+            <p className="text-xs mt-4 text-center" style={{ color: 'var(--loss)', fontFamily: 'Noto Sans KR' }}>{errorMessage}</p>
+          )}
+
+          <button onClick={handleNext} disabled={submitting} className="btn-amber w-full py-3 mt-6 text-sm" style={{ opacity: submitting ? 0.6 : 1 }}>
+            {submitting ? '처리 중...' : step === 2 ? '투자 시작하기 →' : '다음'}
           </button>
 
           {step === 0 && (

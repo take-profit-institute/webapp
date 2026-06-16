@@ -3,16 +3,28 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Eye, EyeOff, TrendingUp } from 'lucide-react';
+import { authApi } from '@/apis';
 
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    router.push('/dashboard');
+    setSubmitting(true);
+    setErrorMessage(null);
+    try {
+      await authApi.login({ email, password });
+      router.push('/dashboard');
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : '로그인에 실패했습니다');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -115,8 +127,12 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <button type="submit" className="btn-amber w-full text-sm py-3 mt-2">
-              로그인
+            {errorMessage && (
+              <p className="text-xs" style={{ color: 'var(--loss)', fontFamily: 'Noto Sans KR' }}>{errorMessage}</p>
+            )}
+
+            <button type="submit" disabled={submitting} className="btn-amber w-full text-sm py-3 mt-2" style={{ opacity: submitting ? 0.6 : 1 }}>
+              {submitting ? '로그인 중...' : '로그인'}
             </button>
           </form>
 

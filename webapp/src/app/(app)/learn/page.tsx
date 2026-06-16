@@ -1,7 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { Clock, Eye, BookOpen } from 'lucide-react';
-import { learnContents } from '@/lib/mock-data';
+import { getLearnContents, useApi } from '@/apis';
+import { Loader, ErrorState } from '@/components/AsyncState';
 
 const levels = ['전체', '초급', '중급', '고급'];
 const categories = ['전체', '기술적분석', '기본적분석', '투자전략', '고급전략'];
@@ -15,6 +16,9 @@ const levelColors: Record<string, { bg: string; color: string; label: string }> 
 export default function LearnPage() {
   const [activeLevel, setActiveLevel] = useState('전체');
   const [activeCategory, setActiveCategory] = useState('전체');
+
+  const { data, loading, error, refetch } = useApi(() => getLearnContents(), []);
+  const learnContents = data ?? [];
 
   const levelMap: Record<string, string> = { '초급': 'beginner', '중급': 'intermediate', '고급': 'advanced' };
 
@@ -88,7 +92,12 @@ export default function LearnPage() {
         ))}
       </div>
 
+      {loading && <Loader />}
+      {error && <ErrorState error={error} onRetry={refetch} />}
+
       {/* Grid: 1 col mobile, 2 col sm, 3 col lg */}
+      {!loading && !error && (
+      <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {filtered.map(content => {
           const lvl = levelColors[content.level];
@@ -121,6 +130,8 @@ export default function LearnPage() {
           <BookOpen size={28} className="mx-auto mb-2" style={{ color: 'var(--text-muted)' }} />
           <p className="text-sm" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>해당 조건의 콘텐츠가 없습니다</p>
         </div>
+      )}
+      </>
       )}
     </div>
   );
