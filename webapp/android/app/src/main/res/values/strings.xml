@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Candle</string>
+    <string name="title_activity_main">Candle</string>
+    <string name="package_name">com.candle.app</string>
+    <string name="custom_url_scheme">com.candle.app</string>
+</resources>
