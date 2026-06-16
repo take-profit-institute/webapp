@@ -1,36 +1,20 @@
 {
-  "name": "webapp",
+  "name": "candle",
   "version": "0.1.0",
   "private": true,
+  "description": "Candle — 학습형 모의투자 플랫폼 (monorepo)",
+  "workspaces": [
+    "shared",
+    "bff",
+    "webapp"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "cap:sync": "next build && cap sync",
-    "cap:android": "next build && cap sync android && cap open android",
-    "cap:ios": "next build && cap sync ios && cap open ios"
-  },
-  "dependencies": {
-    "@capacitor/android": "^8.4.0",
-    "@capacitor/cli": "^8.4.0",
-    "@capacitor/core": "^8.4.0",
-    "@capacitor/ios": "^8.4.0",
-    "lucide-react": "^1.18.0",
-    "next": "16.2.9",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "zustand": "^5.0.14"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "babel-plugin-react-compiler": "1.0.0",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.9",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "build": "npm run build -w @candle/shared && npm run build -w @candle/bff && npm run build -w @candle/webapp",
+    "build:shared": "npm run build -w @candle/shared",
+    "dev:shared": "npm run dev -w @candle/shared",
+    "dev:bff": "npm run dev -w @candle/bff",
+    "dev:webapp": "npm run dev -w @candle/webapp",
+    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
   }
 }

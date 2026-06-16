@@ -1,0 +1,33 @@
+{
+  "name": "@candle/bff",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Backend-for-Frontend for the Candle mock-investment app",
+  "type": "commonjs",
+  "main": "dist/server.js",
+  "scripts": {
+    "predev": "tsc -p ../shared/tsconfig.json",
+    "dev": "tsx watch src/server.ts",
+    "prebuild": "tsc -p ../shared/tsconfig.json",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "pretypecheck": "tsc -p ../shared/tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@candle/shared": "*",
+    "@fastify/cors": "^11.0.0",
+    "@fastify/swagger": "^9.4.0",
+    "@fastify/swagger-ui": "^5.2.0",
+    "@fastify/type-provider-typebox": "^5.1.0",
+    "@sinclair/typebox": "^0.34.0",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "pino-pretty": "^13.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
