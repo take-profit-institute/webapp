@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Check } from 'lucide-react';
 import { authApi } from '@/apis';
+import OAuthButtons from '@/components/OAuthButtons';
 
 const steps = ['기본 정보', '투자 성향', '완료'];
 
@@ -85,8 +86,18 @@ export default function SignupPage() {
             <div className="space-y-5">
               <div>
                 <h2 className="text-2xl font-black mb-1" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-primary)' }}>계정 만들기</h2>
-                <p className="text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>기본 정보를 입력해주세요</p>
+                <p className="text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>소셜 계정으로 3초 만에 시작하세요</p>
               </div>
+
+              {/* OAuth 회원가입 — 최초 로그인 시 자동 가입 (AUTH-002) */}
+              <OAuthButtons scenario="new" redirectTo="/dashboard" />
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px" style={{ background: 'var(--border-subtle)' }} />
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>또는 이메일로 가입</span>
+                <div className="flex-1 h-px" style={{ background: 'var(--border-subtle)' }} />
+              </div>
+
               <div>
                 <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>닉네임</label>
                 <input className="input-dark text-sm" placeholder="투자왕김철수" value={username} onChange={e => setUsername(e.target.value)} />

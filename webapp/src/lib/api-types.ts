@@ -36,11 +36,19 @@ export type {
   LearnContent,
   LearnLevel,
   LearnProgressResult,
-  // user
+  // user / auth
   UserProfile,
   AuthResponse,
   InvestStyle,
   UpdateProfileBody,
+  UserRole,
+  UserStatus,
+  OAuthProvider,
+  ProviderInfo,
+  AuthTokens,
+  OAuthLoginResult,
+  RefreshTokenResult,
+  TokenValidateResult,
   // common
   Exchange,
   Currency,

@@ -32,6 +32,25 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
 }
 
+// ── Auth wiring (set by the auth store, kept here to avoid a React dependency) ──
+let tokenGetter: (() => string | null) | null = null;
+let tokenRefresher: (() => Promise<string | null>) | null = null;
+
+/** Register how to read the current access token (Authorization header). */
+export function setAuthTokenGetter(fn: (() => string | null) | null): void {
+  tokenGetter = fn;
+}
+
+/** Register how to refresh the access token when a request gets a 401 (AUTH-007/009). */
+export function setTokenRefresher(fn: (() => Promise<string | null>) | null): void {
+  tokenRefresher = fn;
+}
+
+/** Auth endpoints must not trigger the 401→refresh interceptor (avoids loops). */
+function isAuthPath(path: string): boolean {
+  return path.startsWith('/api/auth/');
+}
+
 function buildUrl(path: string, query?: Query): string {
   const url = new URL(`${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`);
   if (query) {
@@ -43,18 +62,26 @@ function buildUrl(path: string, query?: Query): string {
 }
 
 /** Core request helper. Returns parsed JSON typed as `T`; throws {@link ApiError} on failure. */
-export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestOptions = {}, allowRetry = true): Promise<T> {
   const { query, body, headers, ...init } = options;
+  const token = tokenGetter?.();
 
   const res = await fetch(buildUrl(path, query), {
     ...init,
     headers: {
       Accept: 'application/json',
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
+
+  // AUTH-009: on 401, try a one-time token refresh and replay the request.
+  if (res.status === 401 && allowRetry && tokenRefresher && !isAuthPath(path)) {
+    const refreshed = await tokenRefresher();
+    if (refreshed) return request<T>(path, options, false);
+  }
 
   const isJson = res.headers.get('content-type')?.includes('application/json');
   const payload = isJson ? await res.json().catch(() => undefined) : await res.text().catch(() => undefined);

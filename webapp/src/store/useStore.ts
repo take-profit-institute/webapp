@@ -1,29 +1,97 @@
 'use client';
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { refreshToken as apiRefreshToken, setAuthTokenGetter, setTokenRefresher } from '@/apis';
+import type { OAuthLoginResult, UserProfile, UserRole } from '@/lib/api-types';
 
 interface AuthState {
+  // ── session (persisted) ──
+  accessToken: string | null;
+  refreshToken: string | null;
+  /** Access token expiry (epoch ms), for proactive refresh / display. */
+  expiresAt: number | null;
+  user: UserProfile | null;
   isLoggedIn: boolean;
+  /** True right after an OAuth auto-signup (AUTH-002). */
+  isNewUser: boolean;
+  // ── display compatibility (read by Sidebar) ──
   username: string;
   avatar: string;
   cash: number;
-  totalAsset: number;
-  returnPercent: number;
   rank: number;
-  login: (username: string) => void;
-  logout: () => void;
+  // ── actions ──
+  setSession: (result: OAuthLoginResult) => void;
+  setAccessToken: (token: string, expiresInSec: number) => void;
+  clearSession: () => void;
+  hasRole: (role: UserRole) => boolean;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  isLoggedIn: false,
-  username: '박유빈',
-  avatar: '🐯',
-  cash: 2125780,
-  totalAsset: 118360000,
-  returnPercent: 18.36,
-  rank: 4,
-  login: (username) => set({ isLoggedIn: true, username }),
-  logout: () => set({ isLoggedIn: false }),
-}));
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set, get) => ({
+      accessToken: null,
+      refreshToken: null,
+      expiresAt: null,
+      user: null,
+      isLoggedIn: false,
+      isNewUser: false,
+      username: '박유빈',
+      avatar: '🐯',
+      cash: 2125780,
+      rank: 4,
+
+      setSession: (result) =>
+        set({
+          accessToken: result.tokens.accessToken,
+          refreshToken: result.tokens.refreshToken,
+          expiresAt: Date.now() + result.tokens.expiresIn * 1000,
+          user: result.user,
+          isLoggedIn: true,
+          isNewUser: result.isNewUser,
+          username: result.user.username,
+          avatar: result.user.avatar,
+        }),
+
+      setAccessToken: (token, expiresInSec) =>
+        set({ accessToken: token, expiresAt: Date.now() + expiresInSec * 1000 }),
+
+      clearSession: () =>
+        set({ accessToken: null, refreshToken: null, expiresAt: null, user: null, isLoggedIn: false, isNewUser: false }),
+
+      hasRole: (role) => get().user?.role === role,
+    }),
+    {
+      name: 'candle-auth',
+      storage: createJSONStorage(() => localStorage),
+      // Persist only the session; actions/display defaults are recreated.
+      partialize: (s) => ({
+        accessToken: s.accessToken,
+        refreshToken: s.refreshToken,
+        expiresAt: s.expiresAt,
+        user: s.user,
+        isLoggedIn: s.isLoggedIn,
+        isNewUser: s.isNewUser,
+        username: s.username,
+        avatar: s.avatar,
+      }),
+    },
+  ),
+);
+
+// ── Wire the token into the API client (Authorization header + 401 refresh) ──
+setAuthTokenGetter(() => useAuthStore.getState().accessToken);
+setTokenRefresher(async () => {
+  const rt = useAuthStore.getState().refreshToken;
+  if (!rt) return null;
+  try {
+    const res = await apiRefreshToken(rt);
+    useAuthStore.getState().setAccessToken(res.accessToken, res.expiresIn);
+    return res.accessToken;
+  } catch {
+    useAuthStore.getState().clearSession();
+    return null;
+  }
+});
 
 type Theme = 'dark' | 'light';
 

@@ -11,7 +11,7 @@ export * as accountApi from './account';
 export * as authApi from './auth';
 export * as socialApi from './social';
 
-export { API_BASE_URL, ApiError, apiClient } from './client';
+export { API_BASE_URL, ApiError, apiClient, setAuthTokenGetter, setTokenRefresher } from './client';
 export { useApi } from './useApi';
 export type { UseApiResult } from './useApi';
 
@@ -40,7 +40,18 @@ export {
   addWatchlist,
   removeWatchlist,
 } from './account';
-export { login, signup, getMe, updateProfile, deleteAccount, logout, refresh } from './auth';
+export {
+  getProviders,
+  oauthLogin,
+  refreshToken,
+  validateToken,
+  logout,
+  getMe,
+  updateProfile,
+  deleteAccount,
+  login,
+  signup,
+} from './auth';
 export {
   getRankings,
   getMyRanking,

@@ -24,9 +24,14 @@ Candle 모의투자 플랫폼의 Backend-for-Frontend(BFF) API 문서입니다.
 Base URL은 `NEXT_PUBLIC_API_BASE_URL` 환경변수로 주입됩니다(기본 `http://localhost:4000`).
 
 ### 인증에 대한 주의
-현재 인증은 모킹 상태입니다. `/api/auth/login`·`/api/auth/signup`은 형식만 갖춘 토큰
-(`mock.<base64url(userId)>.<timestamp>`)을 반환하며, **다른 엔드포인트는 토큰을 요구/검증하지 않습니다.**
-실제 출시 전 JWT + 사용자 저장소로 교체될 예정입니다.
+인증은 **OAuth2.0 + JWT 모델**이지만 현재 BFF는 **모킹**입니다. `/api/auth/oauth/{provider}`가
+Access/Refresh 토큰과 사용자(role/status)를 합성해 내려주고, `/api/auth/token/*`로 재발급·검증을 흉내냅니다.
+Access Token은 서명 없는 base64url payload(`header.payload.mock-signature`)라 `exp`/`role` 클레임은
+실제처럼 디코드되지만 **서명 검증은 하지 않습니다**(AUTH-016은 실 Auth Service 책임).
+
+웹앱은 토큰을 `localStorage`에 보관(`candle-auth`)하고, API 클라이언트가 `Authorization: Bearer`를 자동
+첨부하며 **401 시 Refresh Token으로 1회 자동 재발급 후 재시도**합니다(AUTH-007/009). 보호 자원 강제는
+실 서비스에서 적용됩니다(목은 토큰을 요구하지 않음).
 
 ### 에러 응답 (공통)
 2xx가 아닌 모든 응답은 Fastify 기본 에러 봉투 형태를 따릅니다.
@@ -68,13 +73,16 @@ Base URL은 `NEXT_PUBLIC_API_BASE_URL` 환경변수로 주입됩니다(기본 `h
 | 메서드 | 경로 | 설명 | 태그 |
 |---|---|---|---|
 | GET | `/health` | 헬스체크 | system |
-| POST | `/api/auth/signup` | 회원가입 | auth |
-| POST | `/api/auth/login` | 로그인 | auth |
-| POST | `/api/auth/logout` | 로그아웃 | auth |
-| POST | `/api/auth/refresh` | 토큰 갱신 | auth |
+| GET | `/api/auth/providers` | 지원 OAuth Provider 목록 | auth |
+| POST | `/api/auth/oauth/{provider}` | OAuth 로그인/자동 회원가입 | auth |
+| POST | `/api/auth/token/refresh` | Access Token 재발급 | auth |
+| POST | `/api/auth/token/validate` | JWT 유효성 검증 | auth |
+| POST | `/api/auth/logout` | 로그아웃(Refresh Token 폐기) | auth |
 | GET | `/api/auth/me` | 현재 사용자 | auth |
 | PATCH | `/api/auth/me` | 프로필 수정 | auth |
 | DELETE | `/api/auth/me` | 계정 삭제 | auth |
+| POST | `/api/auth/signup` | 회원가입 (legacy) | auth |
+| POST | `/api/auth/login` | 로그인 (legacy) | auth |
 | GET | `/api/market/stocks` | 종목 목록/검색 | market |
 | GET | `/api/market/movers` | 시장 동향(상승/하락/거래상위) | market |
 | GET | `/api/market/stocks/{symbol}` | 종목 상세 | market |
@@ -126,40 +134,67 @@ Base URL은 `NEXT_PUBLIC_API_BASE_URL` 환경변수로 주입됩니다(기본 `h
 
 ## Auth
 
-### `POST /api/auth/signup`
-회원가입.
+> **아키텍처**: 로그인은 **Auth Service**가 소유하는 순차 트랜잭션입니다 —
+> OAuth 검증 → Provider ID로 사용자 식별(AUTH-004) → 신규면 User Service에 생성 요청(AUTH-013) →
+> 사용자 상태 확인(AUTH-014) → 실패 시 롤백(AUTH-018) → 토큰 발급. **BFF는 이 합성 결과만 위임/전달**하며,
+> User Service에 별도 병렬 호출을 하지 않습니다(병렬 gRPC 팬아웃은 로그인 이후 읽기 합성에만 사용).
+> JWT 서명/검증(AUTH-016)·중복 가입 방지(AUTH-017)도 Auth Service 책임이라 목 범위 밖입니다.
 
-**요청 본문** — [`SignupBody`](#signupbody)
+### `GET /api/auth/providers`
+지원 OAuth Provider 목록. *(AUTH-003)*
+
+**응답 `200`** — [`ProviderInfo`](#providerinfo)`[]`
 
 ```json
-{ "username": "투자왕김철수", "email": "name@example.com", "password": "12345678" }
+[ { "id": "google", "name": "Google", "color": "#4285F4" },
+  { "id": "kakao", "name": "카카오", "color": "#FEE500" },
+  { "id": "naver", "name": "네이버", "color": "#03C75A" } ]
 ```
 
-**응답 `201`** — [`AuthResponse`](#authresponse)
+### `POST /api/auth/oauth/{provider}`
+OAuth 로그인 / 최초 로그인 시 자동 회원가입. *(AUTH-001/002/004/005/006)*
+
+**경로 파라미터**: `provider` — `google` | `kakao` | `naver`
+**쿼리** — [`OAuthLoginQuery`](#oauthloginquery) `as`: `existing`(기본) | `new` | `suspended` *(목 시나리오 셀렉터)*
+
+**응답 `200`** — [`OAuthLoginResult`](#oauthloginresult) · **`403`** — 비활성/정지 계정(AUTH-014)
 
 ```json
 {
-  "token": "mock.dV8xNzgx...=.1781612985644",
-  "user": {
-    "id": "u_1781612985644",
-    "username": "투자왕김철수",
-    "email": "name@example.com",
-    "avatar": "🐯",
-    "createdAt": "2026-06-16T12:29:45.644Z"
-  }
+  "tokens": { "accessToken": "<jwt>", "refreshToken": "refresh.<...>", "tokenType": "Bearer", "expiresIn": 3600, "refreshExpiresIn": 1209600 },
+  "user": { "id": "u_demo", "username": "박유빈", "email": "demo@candle.app", "avatar": "🐯", "role": "USER", "status": "active", "provider": "google", "createdAt": "2026-01-02T09:00:00+09:00" },
+  "isNewUser": false
 }
 ```
 
-### `POST /api/auth/login`
-로그인. 현재는 입력한 이메일로 데모 사용자를 반환합니다(비밀번호 미검증).
+### `POST /api/auth/token/refresh`
+Refresh Token으로 Access Token 재발급. *(AUTH-007)*
 
-**요청 본문** — [`LoginBody`](#loginbody)
+**요청 본문** — [`RefreshTokenBody`](#refreshtokenbody) `{ "refreshToken": "refresh.xxx" }`
+
+**응답 `200`** — [`RefreshTokenResult`](#refreshtokenresult) · **`401`** — 폐기/무효 토큰(AUTH-009)
 
 ```json
-{ "email": "demo@candle.app", "password": "12345678" }
+{ "accessToken": "<jwt>", "tokenType": "Bearer", "expiresIn": 3600 }
 ```
 
-**응답 `200`** — [`AuthResponse`](#authresponse)
+### `POST /api/auth/token/validate`
+JWT 유효성/만료 검증. *(AUTH-008/009)*
+
+**요청 본문** — [`TokenValidateBody`](#tokenvalidatebody) `{ "token": "<jwt>" }`
+
+**응답 `200`** — [`TokenValidateResult`](#tokenvalidateresult)
+
+```json
+{ "valid": true, "role": "USER", "expiresAt": "2026-06-17T14:16:42.000Z" }
+```
+
+### `POST /api/auth/logout`
+로그아웃 — Refresh Token 폐기 요청. *(AUTH-010)*
+
+**요청 본문** — [`LogoutBody`](#logoutbody) `{ "refreshToken": "refresh.xxx" }` (선택)
+
+**응답 `204`** (본문 없음)
 
 ### `GET /api/auth/me`
 현재 사용자(데모 사용자).
@@ -167,35 +202,19 @@ Base URL은 `NEXT_PUBLIC_API_BASE_URL` 환경변수로 주입됩니다(기본 `h
 **응답 `200`** — [`UserProfile`](#userprofile)
 
 ```json
-{
-  "id": "u_demo",
-  "username": "박유빈",
-  "email": "demo@candle.app",
-  "avatar": "🐯",
-  "investStyle": "balanced",
-  "createdAt": "2026-01-02T09:00:00+09:00"
-}
+{ "id": "u_demo", "username": "박유빈", "email": "demo@candle.app", "avatar": "🐯", "role": "USER", "status": "active", "provider": "google", "investStyle": "balanced", "createdAt": "2026-01-02T09:00:00+09:00" }
 ```
 
 ### `PATCH /api/auth/me`
 프로필 수정(닉네임/아바타/투자성향). 전달한 필드만 병합해 합성 반환(미영속).
 
-**요청 본문** — [`UpdateProfileBody`](#updateprofilebody) (모든 필드 선택)
-
-```json
-{ "investStyle": "aggressive", "username": "박유빈" }
-```
-
-**응답 `200`** — [`UserProfile`](#userprofile)
+**요청 본문** — [`UpdateProfileBody`](#updateprofilebody) (모든 필드 선택) · **응답 `200`** — [`UserProfile`](#userprofile)
 
 ### `DELETE /api/auth/me`
-계정 삭제(mock no-op). **응답 `204`** (본문 없음)
+계정 삭제(mock no-op). **응답 `204`**
 
-### `POST /api/auth/logout`
-로그아웃(토큰이 stateless mock이라 사실상 클라이언트 측 no-op). **응답 `204`**
-
-### `POST /api/auth/refresh`
-토큰 갱신. **응답 `200`** — [`AuthResponse`](#authresponse) (데모 사용자 새 토큰)
+### `POST /api/auth/signup` · `POST /api/auth/login` *(legacy)*
+이메일/비밀번호 기반 — OAuth 요구사항 범위 밖의 개발용. 각각 `201`/`200`에 [`AuthResponse`](#authresponse) 반환.
 
 ---
 
@@ -528,6 +547,15 @@ Account 서비스 내부에서 enforce됩니다.
 #### enum `AccountStatus`
 `"active"` \| `"inactive"`
 
+#### enum `OAuthProvider`
+`"google"` \| `"kakao"` \| `"naver"` *(AUTH-003)*
+
+#### enum `UserRole`
+`"USER"` \| `"ADMIN"` *(AUTH-011)*
+
+#### enum `UserStatus`
+`"active"` \| `"suspended"` \| `"withdrawn"` *(AUTH-014 — 비활성이면 로그인 403)*
+
 #### enum `CandleInterval`
 `"1d"`(일) \| `"1w"`(주) \| `"1M"`(월)
 
@@ -774,10 +802,51 @@ OHLCV 캔들. `date`는 일봉이면 `YYYY-MM-DD`, 분/시 단위면 ISO datetim
 | `username` | string | 닉네임 |
 | `email` | string(email) | 이메일 |
 | `avatar` | string | 아바타(이모지) |
+| `role` | [`UserRole`](#enum-userrole) | 권한(USER/ADMIN) |
+| `status` | [`UserStatus`](#enum-userstatus) | 계정 상태 |
+| `provider` | [`OAuthProvider`](#enum-oauthprovider)? | 가입 OAuth 제공자 |
 | `investStyle` | [`InvestStyle`](#enum-investstyle)? | 투자 성향 |
 | `createdAt` | string(date-time) | 가입 시각 |
 
-#### `AuthResponse`
+#### `AuthTokens`
+Access/Refresh 토큰 쌍 (AUTH-005/006).
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `accessToken` | string | JWT Access Token(mock) |
+| `refreshToken` | string | Refresh Token(mock) |
+| `tokenType` | `"Bearer"` | 고정값 |
+| `expiresIn` | number | Access 만료(초) |
+| `refreshExpiresIn` | number | Refresh 만료(초) |
+
+#### `ProviderInfo`
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `id` | [`OAuthProvider`](#enum-oauthprovider) | 제공자 ID |
+| `name` | string | 표시명 |
+| `color` | string | 버튼 브랜드 컬러 |
+
+#### `OAuthLoginResult`
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `tokens` | [`AuthTokens`](#authtokens) | 발급 토큰 |
+| `user` | [`UserProfile`](#userprofile) | 사용자 |
+| `isNewUser` | boolean | 자동 회원가입 여부(AUTH-002/004) |
+
+#### `RefreshTokenResult`
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `accessToken` | string | 재발급 Access Token |
+| `tokenType` | `"Bearer"` | 고정값 |
+| `expiresIn` | number | 만료(초) |
+
+#### `TokenValidateResult`
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `valid` | boolean | 유효 여부 |
+| `role` | [`UserRole`](#enum-userrole)? | 토큰 클레임의 권한 |
+| `expiresAt` | string(date-time)? | 만료 시각 |
+
+#### `AuthResponse` *(legacy)*
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `token` | string | Bearer 토큰(현재 mock) |
@@ -799,6 +868,27 @@ OHLCV 캔들. `date`는 일봉이면 `YYYY-MM-DD`, 분/시 단위면 ISO datetim
 |---|---|---|
 | `email` | string(email) | — |
 | `password` | string | 최소 1자 |
+
+#### `OAuthLoginQuery`
+목 전용 시나리오 셀렉터.
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| `as` | `'existing' \| 'new' \| 'suspended'`? | 기본 `existing` |
+
+#### `RefreshTokenBody`
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| `refreshToken` | string | 필수 |
+
+#### `TokenValidateBody`
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| `token` | string | 필수 |
+
+#### `LogoutBody`
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| `refreshToken` | string? | 폐기할 토큰(선택) |
 
 #### `UpdateProfileBody`
 모든 필드 선택(전달한 것만 수정).

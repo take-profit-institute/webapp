@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Camera, Bell, Shield, HelpCircle, ChevronRight, TrendingUp, Award, Zap, BookOpen, Target, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { getAccount, logout, resetAccount, updateProfile, useApi } from '@/apis';
+import { useAuthStore } from '@/store/useStore';
 import type { InvestStyle } from '@/lib/api-types';
 
 const tabs = ['프로필', '투자 통계', '설정'];
@@ -33,6 +34,9 @@ export default function MyPage() {
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const { data: account } = useApi(() => getAccount(), []);
   const isActive = account?.status !== 'inactive';
+  const user = useAuthStore((s) => s.user);
+  const clearSession = useAuthStore((s) => s.clearSession);
+  const role = user?.role ?? 'USER';
 
   const handleSelectStyle = (label: string) => {
     setInvestStyle(label);
@@ -55,9 +59,11 @@ export default function MyPage() {
   };
 
   const handleLogout = async () => {
+    const rt = useAuthStore.getState().refreshToken;
     try {
-      await logout();
+      await logout(rt ?? undefined); // AUTH-010: refresh token 폐기 요청
     } finally {
+      clearSession();
       router.push('/login');
     }
   };
@@ -84,6 +90,16 @@ export default function MyPage() {
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
               <h2 className="text-lg md:text-xl font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-primary)' }}>박유빈</h2>
               <span className="badge-amber text-xs">균형형</span>
+              {/* 사용자 권한 (AUTH-011/012) */}
+              <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                style={{
+                  background: role === 'ADMIN' ? 'rgba(139,92,246,0.15)' : 'var(--bg-surface)',
+                  color: role === 'ADMIN' ? '#8B5CF6' : 'var(--text-secondary)',
+                  border: '1px solid var(--border-subtle)',
+                  fontFamily: 'JetBrains Mono',
+                }}>
+                {role === 'ADMIN' ? '👑 ADMIN' : 'USER'}
+              </span>
               {/* 계좌 상태 (ACC-005/006) */}
               <span className="text-xs px-2 py-0.5 rounded-full"
                 style={{
