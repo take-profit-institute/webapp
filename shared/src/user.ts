@@ -86,7 +86,12 @@ export type ProviderInfo = Static<typeof ProviderInfo>;
  */
 export const OAuthLoginQuery = Type.Object({
   as: Type.Optional(
-    Type.Union([Type.Literal('existing'), Type.Literal('new'), Type.Literal('suspended')]),
+    Type.Union([
+      Type.Literal('existing'),
+      Type.Literal('new'),
+      Type.Literal('suspended'),
+      Type.Literal('withdrawn'),
+    ]),
   ),
 });
 export type OAuthLoginQuery = Static<typeof OAuthLoginQuery>;
@@ -129,6 +134,48 @@ export const TokenValidateResult = Type.Object(
   },
 );
 export type TokenValidateResult = Static<typeof TokenValidateResult>;
+
+// ── User Service: profile / nickname / mypage (USER-*) ─────────────
+/** 닉네임 중복 검사 (USER-009). */
+export const NicknameCheckQuery = Type.Object({
+  nickname: Type.String({ minLength: 2, maxLength: 20 }),
+});
+export type NicknameCheckQuery = Static<typeof NicknameCheckQuery>;
+
+export const NicknameCheckResult = Type.Object({
+  nickname: Type.String(),
+  available: Type.Boolean(),
+});
+export type NicknameCheckResult = Static<typeof NicknameCheckResult>;
+
+/**
+ * 마이페이지 집계 (USER-012~016).
+ * BFF가 User·Account·Ranking·Mission 서비스 결과를 합성한 read 모델.
+ */
+export const MyPageSummary = Type.Object(
+  {
+    profile: UserProfile, // USER-012, 이메일(USER-011), 가입일(USER-022)
+    performance: Type.Object({
+      // USER-013 누적 수익률
+      totalReturnPercent: Type.Number(),
+      totalProfitLoss: Type.Number(),
+    }),
+    assets: Type.Object({
+      // USER-014 자산 현황
+      totalAsset: Type.Number(),
+      cash: Type.Number(),
+      investedAmount: Type.Number(),
+    }),
+    // USER-015 랭킹 (없을 수 있음)
+    ranking: Type.Optional(Type.Object({ rank: Type.Number(), returnPercent: Type.Number() })),
+    challenges: Type.Object({
+      // USER-016 참여 중인 챌린지 현황
+      active: Type.Number(),
+      completed: Type.Number(),
+    }),
+  },
+);
+export type MyPageSummary = Static<typeof MyPageSummary>;
 
 export const SignupBody = Type.Object({
   username: Type.String({ minLength: 2, maxLength: 20 }),

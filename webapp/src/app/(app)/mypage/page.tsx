@@ -1,11 +1,13 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Camera, Bell, Shield, HelpCircle, ChevronRight, TrendingUp, Award, Zap, BookOpen, Target, LogOut } from 'lucide-react';
+import { Camera, Bell, Shield, HelpCircle, ChevronRight, TrendingUp, Award, Zap, BookOpen, Target, LogOut, Check, X, Pencil, UserMinus } from 'lucide-react';
 import Link from 'next/link';
-import { getAccount, logout, resetAccount, updateProfile, useApi } from '@/apis';
+import { checkNickname, getAccount, getMyPageSummary, logout, resetAccount, updateMyProfile, withdraw, useApi } from '@/apis';
 import { useAuthStore } from '@/store/useStore';
 import type { InvestStyle } from '@/lib/api-types';
+
+const AVATAR_OPTIONS = ['🐯', '🦊', '🐻', '🐼', '🦁', '🐲', '🚀', '💎', '📈', '👑'];
 
 const tabs = ['프로필', '투자 통계', '설정'];
 
@@ -33,15 +35,77 @@ export default function MyPage() {
   const [resetting, setResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const { data: account } = useApi(() => getAccount(), []);
+  const { data: summary } = useApi(() => getMyPageSummary(), []);
   const isActive = account?.status !== 'inactive';
-  const user = useAuthStore((s) => s.user);
   const clearSession = useAuthStore((s) => s.clearSession);
-  const role = user?.role ?? 'USER';
+
+  const profile = summary?.profile;
+  // Optimistic overrides (BFF is stateless, so edits don't survive a refetch).
+  const [avatarOverride, setAvatarOverride] = useState<string | null>(null);
+  const [nameOverride, setNameOverride] = useState<string | null>(null);
+  const avatar = avatarOverride ?? profile?.avatar ?? '🐯';
+  const displayName = nameOverride ?? profile?.username ?? '박유빈';
+  const role = profile?.role ?? 'USER';
+
+  // Avatar picker (USER-010)
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  // Nickname edit + duplicate check (USER-008/009)
+  const [editingNick, setEditingNick] = useState(false);
+  const [nickInput, setNickInput] = useState('');
+  const [nickCheck, setNickCheck] = useState<{ available: boolean } | null>(null);
+  const [savingNick, setSavingNick] = useState(false);
+  // Withdraw (USER-004)
+  const [withdrawing, setWithdrawing] = useState(false);
 
   const handleSelectStyle = (label: string) => {
     setInvestStyle(label);
     // Fire-and-forget — UI updates immediately, BFF echoes the change.
-    void updateProfile({ investStyle: STYLE_TO_ENUM[label] }).catch(() => {});
+    void updateMyProfile({ investStyle: STYLE_TO_ENUM[label] }).catch(() => {});
+  };
+
+  const handlePickAvatar = (emoji: string) => {
+    setAvatarOverride(emoji);
+    setShowAvatarPicker(false);
+    void updateMyProfile({ avatar: emoji }).catch(() => {}); // USER-010
+  };
+
+  const startEditNick = () => {
+    setNickInput(displayName);
+    setNickCheck(null);
+    setEditingNick(true);
+  };
+
+  const handleCheckNick = async () => {
+    try {
+      const r = await checkNickname(nickInput); // USER-009
+      setNickCheck({ available: r.available });
+    } catch {
+      setNickCheck(null);
+    }
+  };
+
+  const handleSaveNick = async () => {
+    if (!nickCheck?.available) return;
+    setSavingNick(true);
+    try {
+      await updateMyProfile({ username: nickInput }); // USER-008
+      setNameOverride(nickInput);
+      setEditingNick(false);
+    } finally {
+      setSavingNick(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!window.confirm('정말 탈퇴하시겠어요? 탈퇴 후에는 로그인할 수 없습니다.')) return;
+    setWithdrawing(true);
+    try {
+      await withdraw(); // USER-004 → status WITHDRAWN
+      clearSession();
+      router.push('/login');
+    } finally {
+      setWithdrawing(false);
+    }
   };
 
   const handleReset = async () => {
@@ -80,15 +144,50 @@ export default function MyPage() {
         <div className="flex items-center gap-4">
           <div className="relative shrink-0">
             <div className="w-14 h-14 md:w-20 md:h-20 rounded-2xl flex items-center justify-center text-3xl md:text-4xl"
-              style={{ background: 'var(--bg-elevated)', border: '2px solid var(--border-normal)' }}>🐯</div>
-            <button className="absolute -bottom-1 -right-1 w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center"
+              style={{ background: 'var(--bg-elevated)', border: '2px solid var(--border-normal)' }}>{avatar}</div>
+            <button onClick={() => setShowAvatarPicker(v => !v)} title="프로필 이미지 변경"
+              className="absolute -bottom-1 -right-1 w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center"
               style={{ background: 'var(--amber)', color: '#000' }}>
               <Camera size={10} />
             </button>
+            {showAvatarPicker && (
+              <div className="absolute z-20 top-full mt-2 left-0 p-2 rounded-xl grid grid-cols-5 gap-1.5"
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border-normal)', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
+                {AVATAR_OPTIONS.map(emoji => (
+                  <button key={emoji} onClick={() => handlePickAvatar(emoji)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-lg transition-all"
+                    style={{ background: emoji === avatar ? 'var(--amber-subtle)' : 'var(--bg-surface)' }}>
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-              <h2 className="text-lg md:text-xl font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-primary)' }}>박유빈</h2>
+              {editingNick ? (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <input
+                    value={nickInput}
+                    onChange={e => { setNickInput(e.target.value); setNickCheck(null); }}
+                    className="input-dark text-sm py-1 px-2 w-36"
+                    placeholder="닉네임 (2~20자)"
+                  />
+                  <button onClick={handleCheckNick} className="text-xs px-2 py-1 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>중복확인</button>
+                  <button onClick={handleSaveNick} disabled={!nickCheck?.available || savingNick} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: nickCheck?.available ? 'var(--gain)' : 'var(--bg-surface)', color: nickCheck?.available ? '#000' : 'var(--text-muted)' }} title="저장"><Check size={13} /></button>
+                  <button onClick={() => setEditingNick(false)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }} title="취소"><X size={13} /></button>
+                  {nickCheck && (
+                    <span className="text-xs" style={{ color: nickCheck.available ? 'var(--gain)' : 'var(--loss)', fontFamily: 'Noto Sans KR' }}>
+                      {nickCheck.available ? '사용 가능' : '이미 사용 중'}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <h2 className="text-lg md:text-xl font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-primary)' }}>{displayName}</h2>
+                  <button onClick={startEditNick} className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ color: 'var(--text-muted)' }} title="닉네임 변경"><Pencil size={12} /></button>
+                </>
+              )}
               <span className="badge-amber text-xs">균형형</span>
               {/* 사용자 권한 (AUTH-011/012) */}
               <span className="text-xs px-2 py-0.5 rounded-full font-bold"
@@ -110,25 +209,50 @@ export default function MyPage() {
                 {isActive ? '활성 계좌' : '비활성 계좌'}
               </span>
             </div>
-            <p className="text-xs mb-2" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>가입일: 2026.01.15</p>
+            {/* 이메일(USER-011) · 가입일(USER-022) */}
+            <p className="text-xs mb-2 truncate" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+              {profile?.email ?? 'demo@candle.app'}
+              {profile?.createdAt && <span> · 가입일 {profile.createdAt.slice(0, 10).replace(/-/g, '.')}</span>}
+            </p>
             <div className="flex items-center gap-3 flex-wrap">
+              {/* 랭킹(USER-015) · 수익률(USER-013) · 챌린지(USER-016) */}
               <div className="text-center">
-                <p className="text-base md:text-lg font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--amber)' }}>#4</p>
+                <p className="text-base md:text-lg font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--amber)' }}>#{summary?.ranking?.rank ?? '-'}</p>
                 <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>랭킹</p>
               </div>
               <div className="w-px h-6" style={{ background: 'var(--border-subtle)' }} />
               <div className="text-center">
-                <p className="text-base md:text-lg font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--gain)' }}>+18.36%</p>
+                <p className="text-base md:text-lg font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--gain)' }}>
+                  {summary ? `${summary.performance.totalReturnPercent >= 0 ? '+' : ''}${summary.performance.totalReturnPercent}%` : '—'}
+                </p>
                 <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>수익률</p>
               </div>
               <div className="w-px h-6" style={{ background: 'var(--border-subtle)' }} />
               <div className="text-center">
-                <p className="text-base md:text-lg font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--amber)' }}>15,500</p>
-                <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>포인트</p>
+                <p className="text-base md:text-lg font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--amber)' }}>
+                  {summary ? `${summary.challenges.completed}/${summary.challenges.active + summary.challenges.completed}` : '—'}
+                </p>
+                <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>챌린지</p>
               </div>
             </div>
           </div>
         </div>
+      </div>
+
+      {/* 자산 현황 (USER-014) */}
+      <div className="card p-4 mb-4 grid grid-cols-3 gap-2">
+        {[
+          { label: '총 자산', value: summary?.assets.totalAsset, color: 'var(--text-primary)' },
+          { label: '주식 평가금', value: summary?.assets.investedAmount, color: 'var(--text-secondary)' },
+          { label: '가용 현금', value: summary?.assets.cash, color: 'var(--gain)' },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="text-center">
+            <p className="text-[10px] mb-0.5" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</p>
+            <p className="text-sm md:text-base font-black font-mono" style={{ fontFamily: 'JetBrains Mono', color }}>
+              {value != null ? value.toLocaleString() : '—'}
+            </p>
+          </div>
+        ))}
       </div>
 
       {/* Quick links for mobile — hidden on desktop since sidebar has them */}
@@ -295,6 +419,19 @@ export default function MyPage() {
             {resetMessage && (
               <p className="text-center text-xs mt-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>{resetMessage}</p>
             )}
+          </div>
+
+          {/* 회원 탈퇴 (USER-004) */}
+          <div className="pt-2">
+            <button onClick={handleWithdraw} disabled={withdrawing}
+              className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
+              style={{ background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)', fontFamily: 'Noto Sans KR', opacity: withdrawing ? 0.6 : 1 }}>
+              <UserMinus size={14} />
+              {withdrawing ? '탈퇴 처리 중...' : '회원 탈퇴'}
+            </button>
+            <p className="text-center text-[11px] mt-2" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+              탈퇴 시 계정이 WITHDRAWN 상태가 되며 더 이상 로그인할 수 없습니다.
+            </p>
           </div>
         </div>
       )}

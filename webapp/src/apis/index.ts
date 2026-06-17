@@ -10,6 +10,7 @@ export * as marketApi from './market';
 export * as accountApi from './account';
 export * as authApi from './auth';
 export * as socialApi from './social';
+export * as usersApi from './users';
 
 export { API_BASE_URL, ApiError, apiClient, setAuthTokenGetter, setTokenRefresher } from './client';
 export { useApi } from './useApi';
@@ -52,6 +53,13 @@ export {
   login,
   signup,
 } from './auth';
+export {
+  getMyProfile,
+  updateMyProfile,
+  checkNickname,
+  withdraw,
+  getMyPageSummary,
+} from './users';
 export {
   getRankings,
   getMyRanking,

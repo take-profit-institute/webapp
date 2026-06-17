@@ -1,6 +1,6 @@
 import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import { Type } from '@sinclair/typebox';
-import { DEMO_USER_ID } from '../data/account';
+import { demoUser } from '../data/user';
 import {
   AuthResponse,
   AuthTokens,
@@ -24,18 +24,6 @@ import type {
   UserProfile as UserProfileType,
   UserRole,
 } from '@candle/shared';
-
-const demoUser: UserProfileType = {
-  id: DEMO_USER_ID,
-  username: '박유빈',
-  email: 'demo@candle.app',
-  avatar: '🐯',
-  role: 'USER',
-  status: 'active',
-  provider: 'google',
-  investStyle: 'balanced',
-  createdAt: '2026-01-02T09:00:00+09:00',
-};
 
 /** Supported OAuth providers (AUTH-003). */
 const providers: { id: 'google' | 'kakao' | 'naver'; name: string; color: string }[] = [
@@ -112,11 +100,11 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
       const { provider } = req.params;
       const scenario = req.query.as ?? 'existing';
 
-      // AUTH-014: 비활성(정지) 사용자는 로그인 거부.
-      if (scenario === 'suspended') {
-        return reply
-          .status(403)
-          .send({ statusCode: 403, error: 'Forbidden', message: '정지된 계정입니다. 로그인할 수 없습니다.' });
+      // AUTH-014 / USER-006: 정지·탈퇴 사용자는 로그인 거부.
+      if (scenario === 'suspended' || scenario === 'withdrawn') {
+        const message =
+          scenario === 'withdrawn' ? '탈퇴한 계정입니다. 로그인할 수 없습니다.' : '정지된 계정입니다. 로그인할 수 없습니다.';
+        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message });
       }
 
       const isNewUser = scenario === 'new';

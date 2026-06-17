@@ -49,6 +49,8 @@ export type {
   OAuthLoginResult,
   RefreshTokenResult,
   TokenValidateResult,
+  NicknameCheckResult,
+  MyPageSummary,
   // common
   Exchange,
   Currency,

@@ -83,6 +83,11 @@ Access Token은 서명 없는 base64url payload(`header.payload.mock-signature`)
 | DELETE | `/api/auth/me` | 계정 삭제 | auth |
 | POST | `/api/auth/signup` | 회원가입 (legacy) | auth |
 | POST | `/api/auth/login` | 로그인 (legacy) | auth |
+| GET | `/api/users/me` | 사용자 정보 조회 | user |
+| PATCH | `/api/users/me` | 프로필 수정(닉네임/이미지/투자성향) | user |
+| GET | `/api/users/nickname/check` | 닉네임 중복 검사 | user |
+| POST | `/api/users/me/withdraw` | 회원 탈퇴 | user |
+| GET | `/api/users/me/summary` | 마이페이지 집계 | user |
 | GET | `/api/market/stocks` | 종목 목록/검색 | market |
 | GET | `/api/market/movers` | 시장 동향(상승/하락/거래상위) | market |
 | GET | `/api/market/stocks/{symbol}` | 종목 상세 | market |
@@ -215,6 +220,57 @@ JWT 유효성/만료 검증. *(AUTH-008/009)*
 
 ### `POST /api/auth/signup` · `POST /api/auth/login` *(legacy)*
 이메일/비밀번호 기반 — OAuth 요구사항 범위 밖의 개발용. 각각 `201`/`200`에 [`AuthResponse`](#authresponse) 반환.
+
+---
+
+## User
+
+> **범위**: 회원 생성(USER-001)·상태 관리(USER-005)·Auth 매핑(USER-017)·상태 제공(USER-018)·감사
+> (USER-022/023)·최소 저장(USER-024)은 실제 **User Service 내부 책임**이라 목 범위 밖이며, **관리자 기능
+> (USER-019/020/021)은 제외**됩니다. 여기서는 조회/수정/탈퇴/중복검사/마이페이지 집계 계약만 제공합니다.
+
+### `GET /api/users/me`
+사용자 정보 조회. *(USER-002 · 이메일 USER-011 · 가입일 USER-022)*
+
+**응답 `200`** — [`UserProfile`](#userprofile)
+
+### `PATCH /api/users/me`
+프로필 수정 — 닉네임/프로필 이미지/투자성향. *(USER-003/008/010)* 전달한 필드만 병합해 합성 반환(미영속).
+
+**요청 본문** — [`UpdateProfileBody`](#updateprofilebody) · **응답 `200`** — [`UserProfile`](#userprofile)
+
+### `GET /api/users/nickname/check`
+닉네임 중복 검사. *(USER-009)*
+
+**쿼리** — [`NicknameCheckQuery`](#nicknamecheckquery) `nickname` (2–20자)
+
+**응답 `200`** — [`NicknameCheckResult`](#nicknamecheckresult)
+
+```json
+{ "nickname": "candle", "available": false }
+```
+
+### `POST /api/users/me/withdraw`
+회원 탈퇴. *(USER-004/005)* 상태를 `withdrawn`으로 바꾼 프로필을 합성 반환하며, 이후 로그인은
+`POST /auth/oauth/*`에서 **403**으로 차단됩니다. *(USER-006)*
+
+**응답 `200`** — [`UserProfile`](#userprofile) (`status: "withdrawn"`)
+
+### `GET /api/users/me/summary`
+마이페이지 집계. *(USER-012~016)* BFF가 **User·Account·Ranking·Mission** 서비스 결과를 합성한 read 모델
+(로그인 이후 병렬 read aggregation의 대표 예).
+
+**응답 `200`** — [`MyPageSummary`](#mypagesummary)
+
+```json
+{
+  "profile": { "id": "u_demo", "username": "박유빈", "email": "demo@candle.app", "...": "..." },
+  "performance": { "totalReturnPercent": 18.36, "totalProfitLoss": 18360000 },
+  "assets": { "totalAsset": 118360000, "cash": 2125780, "investedAmount": 17171820 },
+  "ranking": { "rank": 4, "returnPercent": 18.36 },
+  "challenges": { "active": 5, "completed": 3 }
+}
+```
 
 ---
 
@@ -852,6 +908,22 @@ Access/Refresh 토큰 쌍 (AUTH-005/006).
 | `token` | string | Bearer 토큰(현재 mock) |
 | `user` | [`UserProfile`](#userprofile) | 사용자 정보 |
 
+#### `NicknameCheckResult`
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `nickname` | string | 검사한 닉네임 |
+| `available` | boolean | 사용 가능 여부 |
+
+#### `MyPageSummary`
+마이페이지 집계 (USER-012~016).
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `profile` | [`UserProfile`](#userprofile) | 기본 프로필(이메일·가입일 포함) |
+| `performance` | `{ totalReturnPercent, totalProfitLoss }` | 누적 수익률(USER-013) |
+| `assets` | `{ totalAsset, cash, investedAmount }` | 자산 현황(USER-014) |
+| `ranking` | `{ rank, returnPercent }`? | 랭킹(USER-015, 없을 수 있음) |
+| `challenges` | `{ active, completed }` | 챌린지 현황(USER-016) |
+
 ---
 
 ### 요청 스키마
@@ -873,7 +945,12 @@ Access/Refresh 토큰 쌍 (AUTH-005/006).
 목 전용 시나리오 셀렉터.
 | 필드 | 타입 | 제약 |
 |---|---|---|
-| `as` | `'existing' \| 'new' \| 'suspended'`? | 기본 `existing` |
+| `as` | `'existing' \| 'new' \| 'suspended' \| 'withdrawn'`? | 기본 `existing`. `suspended`/`withdrawn`은 403 |
+
+#### `NicknameCheckQuery`
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| `nickname` | string | 2–20자 |
 
 #### `RefreshTokenBody`
 | 필드 | 타입 | 제약 |

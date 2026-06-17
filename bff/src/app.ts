@@ -26,6 +26,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       tags: [
         { name: 'system' },
         { name: 'auth' },
+        { name: 'user' },
         { name: 'market' },
         { name: 'account' },
         { name: 'ranking' },
