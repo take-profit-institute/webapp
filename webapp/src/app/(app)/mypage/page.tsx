@@ -1,9 +1,20 @@
 'use client';
 import { useState } from 'react';
-import { Camera, Bell, Shield, HelpCircle, ChevronRight, TrendingUp, Award, Zap, BookOpen, Target } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Camera, Bell, Shield, HelpCircle, ChevronRight, TrendingUp, Award, Zap, BookOpen, Target, LogOut } from 'lucide-react';
 import Link from 'next/link';
+import { logout, resetAccount, updateProfile } from '@/apis';
+import type { InvestStyle } from '@/lib/api-types';
 
 const tabs = ['프로필', '투자 통계', '설정'];
+
+/** 한글 라벨 ↔ 백엔드 InvestStyle 매핑. */
+const STYLE_TO_ENUM: Record<string, InvestStyle> = {
+  '안정형': 'conservative',
+  '균형형': 'balanced',
+  '공격형': 'aggressive',
+  '모멘텀형': 'momentum',
+};
 
 const achievements = [
   { emoji: '🎯', label: '첫 거래', earned: true },
@@ -15,8 +26,39 @@ const achievements = [
 ];
 
 export default function MyPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('프로필');
   const [investStyle, setInvestStyle] = useState('균형형');
+  const [resetting, setResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
+
+  const handleSelectStyle = (label: string) => {
+    setInvestStyle(label);
+    // Fire-and-forget — UI updates immediately, BFF echoes the change.
+    void updateProfile({ investStyle: STYLE_TO_ENUM[label] }).catch(() => {});
+  };
+
+  const handleReset = async () => {
+    if (!window.confirm('포트폴리오를 초기화하시겠어요? 보유 종목이 모두 정리되고 1억원으로 리셋됩니다.')) return;
+    setResetting(true);
+    setResetMessage(null);
+    try {
+      const account = await resetAccount();
+      setResetMessage(`초기화 완료 · 가용 현금 ${account.cash.toLocaleString()}원`);
+    } catch (e) {
+      setResetMessage(e instanceof Error ? e.message : '초기화에 실패했습니다');
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      router.push('/login');
+    }
+  };
 
   return (
     <div className="p-3 md:p-6 max-w-[900px]">
@@ -131,7 +173,7 @@ export default function MyPage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {['안정형', '균형형', '공격형', '모멘텀형'].map(s => (
-                <button key={s} onClick={() => setInvestStyle(s)}
+                <button key={s} onClick={() => handleSelectStyle(s)}
                   className="p-3 rounded-xl text-center transition-all text-sm"
                   style={{
                     background: investStyle === s ? 'var(--amber-subtle)' : 'var(--bg-surface)',
@@ -207,11 +249,25 @@ export default function MyPage() {
               <ChevronRight size={15} style={{ color: 'var(--text-muted)' }} />
             </button>
           ))}
+          <button onClick={handleLogout} className="w-full card-interactive p-4 flex items-center gap-3 text-left">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--bg-surface)' }}>
+              <LogOut size={16} style={{ color: 'var(--amber)' }} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>로그아웃</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>현재 계정에서 로그아웃</p>
+            </div>
+            <ChevronRight size={15} style={{ color: 'var(--text-muted)' }} />
+          </button>
           <div className="pt-3">
-            <button className="w-full py-3 rounded-xl text-sm font-bold transition-all"
-              style={{ background: 'var(--loss-dim)', color: 'var(--loss)', border: '1px solid rgba(246,70,93,0.2)', fontFamily: 'Noto Sans KR' }}>
-              계정 초기화 (포트폴리오 리셋)
+            <button onClick={handleReset} disabled={resetting}
+              className="w-full py-3 rounded-xl text-sm font-bold transition-all"
+              style={{ background: 'var(--loss-dim)', color: 'var(--loss)', border: '1px solid rgba(246,70,93,0.2)', fontFamily: 'Noto Sans KR', opacity: resetting ? 0.6 : 1 }}>
+              {resetting ? '초기화 중...' : '계정 초기화 (포트폴리오 리셋)'}
             </button>
+            {resetMessage && (
+              <p className="text-center text-xs mt-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>{resetMessage}</p>
+            )}
           </div>
         </div>
       )}

@@ -100,3 +100,27 @@ export const TransactionQuery = Type.Object({
   type: Type.Optional(TransactionType),
 });
 export type TransactionQuery = Static<typeof TransactionQuery>;
+
+// ── Order cancel ───────────────────────────────────────────────────
+/** Result of cancelling an order. The original order isn't stored yet, so we
+ * return a focused result object rather than a full {@link Transaction}. */
+export const OrderCancelResult = Type.Object({
+  id: Type.String(),
+  status: Type.Literal('cancelled'),
+  cancelledAt: Type.String({ format: 'date-time' }),
+});
+export type OrderCancelResult = Static<typeof OrderCancelResult>;
+
+// ── Watchlist (관심종목) ────────────────────────────────────────────
+export const WatchlistItem = Type.Object({
+  symbol: Type.String(),
+  name: Type.String(),
+  addedAt: Type.String({ format: 'date-time' }),
+});
+export type WatchlistItem = Static<typeof WatchlistItem>;
+
+export const AddWatchlistBody = Type.Object({ symbol: Type.String() });
+export type AddWatchlistBody = Static<typeof AddWatchlistBody>;
+
+export const WatchlistSymbolParams = Type.Object({ symbol: Type.String() });
+export type WatchlistSymbolParams = Static<typeof WatchlistSymbolParams>;

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ArrowUpRight, ArrowDownRight, Star } from 'lucide-react';
 import CandleChart from '@/components/CandleChart';
-import { getStock, getCandles, getStockNews, placeOrder, useApi } from '@/apis';
+import { addWatchlist, getStock, getCandles, getStockNews, getWatchlist, placeOrder, removeWatchlist, useApi } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
 import { formatMarketCap, formatVolume } from '@/lib/format';
 
@@ -11,12 +11,27 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
   const { data: stock, loading, error, refetch } = useApi(() => getStock(symbol), [symbol]);
   const { data: candles } = useApi(() => getCandles(symbol, { limit: 60 }), [symbol]);
   const { data: news } = useApi(() => getStockNews(symbol), [symbol]);
+  const { data: watchlist } = useApi(() => getWatchlist(), []);
 
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [quantity, setQuantity] = useState('');
   const [activeTab, setActiveTab] = useState('차트');
   const [orderStatus, setOrderStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [placing, setPlacing] = useState(false);
+  // null = follow the fetched watchlist; true/false = optimistic local override.
+  const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
+  const watched = watchedOverride ?? (watchlist?.some((q) => q.symbol === symbol) ?? false);
+
+  const toggleWatch = async () => {
+    const next = !watched;
+    setWatchedOverride(next); // optimistic
+    try {
+      if (next) await addWatchlist(symbol);
+      else await removeWatchlist(symbol);
+    } catch {
+      setWatchedOverride(!next); // revert on failure
+    }
+  };
 
   if (loading) {
     return (
@@ -83,9 +98,10 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
             <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>{symbol}</p>
           </div>
         </div>
-        <button className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
-          <Star size={14} />
+        <button onClick={toggleWatch} aria-pressed={watched} title={watched ? '관심종목 제거' : '관심종목 추가'}
+          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: watched ? 'var(--amber)' : 'var(--text-secondary)' }}>
+          <Star size={14} fill={watched ? 'var(--amber)' : 'none'} />
         </button>
       </div>
 

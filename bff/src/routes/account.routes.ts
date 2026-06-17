@@ -3,21 +3,29 @@ import { Type } from '@sinclair/typebox';
 import {
   getAccount,
   getPortfolioHistory,
+  getResetAccount,
   holdings,
   sectorAllocation,
   transactions,
+  watchlistSymbols,
 } from '../data/account';
+import { getQuote } from '../data/market';
 import { getMarketProvider } from '../providers';
 import { ErrorResponse } from '@candle/shared';
 import {
   Account,
+  AddWatchlistBody,
   Holding,
+  OrderCancelResult,
   PlaceOrderBody,
   PortfolioHistoryQuery,
   PortfolioPoint,
+  Quote,
   SectorAllocation,
   Transaction,
   TransactionQuery,
+  WatchlistItem,
+  WatchlistSymbolParams,
 } from '@candle/shared';
 
 const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
@@ -83,6 +91,45 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
       };
       return reply.status(201).send(order);
     },
+  );
+
+  app.delete(
+    '/orders/:id',
+    { schema: { tags: ['account'], summary: '주문 취소', params: Type.Object({ id: Type.String() }), response: { 200: OrderCancelResult } } },
+    // NOTE: orders aren't stored yet — echoes the id back as cancelled.
+    async (req) => ({ id: req.params.id, status: 'cancelled' as const, cancelledAt: new Date().toISOString() }),
+  );
+
+  app.post(
+    '/reset',
+    { schema: { tags: ['account'], summary: '계정 초기화 (포트폴리오 리셋)', response: { 200: Account } } },
+    // NOTE: mock — returns a fresh starting-capital account without persisting.
+    async () => getResetAccount(),
+  );
+
+  app.get(
+    '/watchlist',
+    { schema: { tags: ['account'], summary: '관심종목 목록', response: { 200: Type.Array(Quote) } } },
+    async () => watchlistSymbols.map((s) => getQuote(s)).filter((q): q is NonNullable<typeof q> => Boolean(q)),
+  );
+
+  app.post(
+    '/watchlist',
+    { schema: { tags: ['account'], summary: '관심종목 추가', body: AddWatchlistBody, response: { 201: WatchlistItem, 404: ErrorResponse } } },
+    async (req, reply) => {
+      const quote = getQuote(req.body.symbol);
+      if (!quote) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown symbol: ${req.body.symbol}` });
+      }
+      // NOTE: not persisted — confirms the add and echoes the resolved item.
+      return reply.status(201).send({ symbol: quote.symbol, name: quote.name, addedAt: new Date().toISOString() });
+    },
+  );
+
+  app.delete(
+    '/watchlist/:symbol',
+    { schema: { tags: ['account'], summary: '관심종목 제거', params: WatchlistSymbolParams, response: { 204: Type.Null() } } },
+    async (_req, reply) => reply.status(204).send(null),
   );
 };
 

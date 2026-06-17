@@ -2,10 +2,13 @@
 import type {
   Account,
   Holding,
+  OrderCancelResult,
   PortfolioPoint,
+  Quote,
   SectorAllocation,
   Transaction,
   TransactionType,
+  WatchlistItem,
 } from '@/lib/api-types';
 import { apiClient } from './client';
 
@@ -47,4 +50,29 @@ export interface PlaceOrderInput {
 /** 매수/매도 주문 (모의 체결). */
 export function placeOrder(input: PlaceOrderInput): Promise<Transaction> {
   return apiClient.post<Transaction>('/api/account/orders', input);
+}
+
+/** 주문 취소. */
+export function cancelOrder(id: string): Promise<OrderCancelResult> {
+  return apiClient.del<OrderCancelResult>(`/api/account/orders/${encodeURIComponent(id)}`);
+}
+
+/** 계정 초기화 (포트폴리오 리셋). */
+export function resetAccount(): Promise<Account> {
+  return apiClient.post<Account>('/api/account/reset');
+}
+
+/** 관심종목 목록. */
+export function getWatchlist(): Promise<Quote[]> {
+  return apiClient.get<Quote[]>('/api/account/watchlist');
+}
+
+/** 관심종목 추가. */
+export function addWatchlist(symbol: string): Promise<WatchlistItem> {
+  return apiClient.post<WatchlistItem>('/api/account/watchlist', { symbol });
+}
+
+/** 관심종목 제거. */
+export function removeWatchlist(symbol: string): Promise<void> {
+  return apiClient.del(`/api/account/watchlist/${encodeURIComponent(symbol)}`);
 }

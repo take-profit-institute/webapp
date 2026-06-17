@@ -37,3 +37,8 @@ export const learnContents: LearnContent[] = [
   { id: 'l8', title: '옵션 거래 기초', description: '콜옵션과 풋옵션의 개념과 활용법', category: '고급전략', level: 'advanced', duration: '25분', readCount: 2840, emoji: '🎲' },
   { id: 'l9', title: '재무제표 읽는 법', description: '손익계산서, 대차대조표, 현금흐름표 완전 정복', category: '기본적분석', level: 'intermediate', duration: '18분', readCount: 7650, emoji: '📋' },
 ];
+
+/** Sum of rewards for all completed missions (the user's claimable point pool). */
+export function computeTotalPoints(): number {
+  return missions.filter((m) => m.completed).reduce((sum, m) => sum + m.reward, 0);
+}

@@ -22,15 +22,23 @@ export type {
   TransactionType,
   PortfolioPoint,
   SectorAllocation,
+  OrderCancelResult,
+  WatchlistItem,
+  AddWatchlistBody,
   // social
   RankingEntry,
   Mission,
   MissionCategory,
+  ClaimRewardResult,
+  MissionProgressBody,
   LearnContent,
   LearnLevel,
+  LearnProgressResult,
   // user
   UserProfile,
   AuthResponse,
+  InvestStyle,
+  UpdateProfileBody,
   // common
   Exchange,
   Currency,

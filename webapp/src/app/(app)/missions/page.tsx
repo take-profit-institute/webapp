@@ -1,16 +1,31 @@
 'use client';
 import { useState } from 'react';
 import { Check } from 'lucide-react';
-import { getMissions, useApi } from '@/apis';
+import { claimMission, getMissions, useApi } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
 
 const categories = ['전체', '일일', '주간', '특별'];
 
 export default function MissionsPage() {
   const [activeCategory, setActiveCategory] = useState('전체');
+  // BFF doesn't persist claims, so track claimed missions locally for this session.
+  const [claimedIds, setClaimedIds] = useState<Set<string>>(new Set());
+  const [claimingId, setClaimingId] = useState<string | null>(null);
 
   const { data, loading, error, refetch } = useApi(() => getMissions(), []);
   const missions = data ?? [];
+
+  const handleClaim = async (id: string) => {
+    setClaimingId(id);
+    try {
+      await claimMission(id);
+      setClaimedIds(prev => new Set(prev).add(id));
+    } catch {
+      /* 이미 수령했거나 미완료 — 무시 */
+    } finally {
+      setClaimingId(null);
+    }
+  };
 
   const filtered = missions.filter(m => {
     if (activeCategory === '전체') return true;
@@ -123,10 +138,25 @@ export default function MissionsPage() {
                           </div>
                         )}
                       </div>
-                      <div className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full"
-                        style={{ background: 'var(--amber-subtle)', border: '1px solid rgba(245,166,35,0.2)' }}>
-                        <span className="text-xs">🪙</span>
-                        <span className="text-xs font-bold" style={{ color: 'var(--amber)', fontFamily: 'JetBrains Mono' }}>+{mission.reward.toLocaleString()}</span>
+                      <div className="shrink-0 flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-1 px-2.5 py-1 rounded-full"
+                          style={{ background: 'var(--amber-subtle)', border: '1px solid rgba(245,166,35,0.2)' }}>
+                          <span className="text-xs">🪙</span>
+                          <span className="text-xs font-bold" style={{ color: 'var(--amber)', fontFamily: 'JetBrains Mono' }}>+{mission.reward.toLocaleString()}</span>
+                        </div>
+                        {mission.completed && (
+                          claimedIds.has(mission.id) ? (
+                            <span className="text-[10px] font-bold" style={{ color: 'var(--gain)', fontFamily: 'Noto Sans KR' }}>수령 완료 ✓</span>
+                          ) : (
+                            <button
+                              onClick={() => handleClaim(mission.id)}
+                              disabled={claimingId === mission.id}
+                              className="text-[10px] font-bold px-2.5 py-1 rounded-full transition-all"
+                              style={{ background: 'var(--amber)', color: '#000', fontFamily: 'Noto Sans KR', opacity: claimingId === mission.id ? 0.6 : 1 }}>
+                              {claimingId === mission.id ? '수령 중...' : '보상 받기'}
+                            </button>
+                          )
+                        )}
                       </div>
                     </div>
                   </div>

@@ -66,6 +66,9 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     throw new ApiError(res.status, message, payload);
   }
 
+  // 204 No Content (e.g. DELETE) has no body.
+  if (res.status === 204) return undefined as T;
+
   return payload as T;
 }
 
@@ -73,4 +76,9 @@ export const apiClient = {
   get: <T>(path: string, query?: Query) => request<T>(path, { method: 'GET', query }),
   post: <T>(path: string, body?: unknown, query?: Query) =>
     request<T>(path, { method: 'POST', body, query }),
+  patch: <T>(path: string, body?: unknown, query?: Query) =>
+    request<T>(path, { method: 'PATCH', body, query }),
+  put: <T>(path: string, body?: unknown, query?: Query) =>
+    request<T>(path, { method: 'PUT', body, query }),
+  del: <T = void>(path: string, query?: Query) => request<T>(path, { method: 'DELETE', query }),
 };

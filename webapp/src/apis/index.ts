@@ -31,6 +31,20 @@ export {
   getPortfolioHistory,
   getAllocation,
   placeOrder,
+  cancelOrder,
+  resetAccount,
+  getWatchlist,
+  addWatchlist,
+  removeWatchlist,
 } from './account';
-export { login, signup, getMe } from './auth';
-export { getRankings, getMyRanking, getMissions, getLearnContents, getLearnContent } from './social';
+export { login, signup, getMe, updateProfile, deleteAccount, logout, refresh } from './auth';
+export {
+  getRankings,
+  getMyRanking,
+  getMissions,
+  getLearnContents,
+  getLearnContent,
+  claimMission,
+  progressMission,
+  completeLearn,
+} from './social';

@@ -92,3 +92,24 @@ export function getAccount(): Account {
     updatedAt: '2026-06-15T15:30:00+09:00',
   };
 }
+
+/** A freshly reset account: all holdings sold, full starting capital in cash. */
+export function getResetAccount(): Account {
+  return {
+    accountId: DEMO_ACCOUNT_ID,
+    userId: DEMO_USER_ID,
+    currency: 'KRW',
+    cash: STARTING_CAPITAL,
+    totalAsset: STARTING_CAPITAL,
+    investedAmount: 0,
+    totalProfitLoss: 0,
+    totalReturnPercent: 0,
+    todayProfitLoss: 0,
+    todayReturnPercent: 0,
+    rank: 4,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/** Seed symbols for the demo watchlist (관심종목). */
+export const watchlistSymbols = ['005930', 'NVDA', '035420'];
