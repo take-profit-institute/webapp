@@ -76,6 +76,12 @@ export const LearnContent = Type.Object(
     duration: Type.String(),
     readCount: Type.Number(),
     emoji: Type.String(),
+    keywords: Type.Array(Type.String()),
+    body: Type.String(),
+    published: Type.Boolean(),
+    completed: Type.Boolean(),
+    favorite: Type.Boolean(),
+    completedAt: Type.Optional(Type.String({ format: 'date-time' })),
   },
 );
 export type LearnContent = Static<typeof LearnContent>;
@@ -83,6 +89,8 @@ export type LearnContent = Static<typeof LearnContent>;
 export const LearnQuery = Type.Object({
   level: Type.Optional(LearnLevel),
   category: Type.Optional(Type.String()),
+  q: Type.Optional(Type.String()),
+  favorite: Type.Optional(Type.Boolean()),
 });
 export type LearnQuery = Static<typeof LearnQuery>;
 
@@ -96,3 +104,22 @@ export const LearnProgressResult = Type.Object({
   completedAt: Type.String({ format: 'date-time' }),
 });
 export type LearnProgressResult = Static<typeof LearnProgressResult>;
+
+export const LearnProgressSummary = Type.Object({
+  total: Type.Number(),
+  completed: Type.Number(),
+  percent: Type.Number(),
+  byCategory: Type.Array(Type.Object({
+    category: Type.String(),
+    total: Type.Number(),
+    completed: Type.Number(),
+    percent: Type.Number(),
+  })),
+});
+export type LearnProgressSummary = Static<typeof LearnProgressSummary>;
+
+export const LearnFavoriteResult = Type.Object({
+  content: LearnContent,
+  favorite: Type.Boolean(),
+});
+export type LearnFavoriteResult = Static<typeof LearnFavoriteResult>;

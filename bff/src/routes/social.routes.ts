@@ -1,12 +1,14 @@
 import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import { Type } from '@sinclair/typebox';
 import { DEMO_USER_ID } from '../data/account';
-import { computeTotalPoints, learnContents, missions, rankings } from '../data/social';
+import { computeTotalPoints, learnContents, learnProgress, missions, rankings } from '../data/social';
 import { ErrorResponse } from '@candle/shared';
 import {
   ClaimRewardResult,
   LearnContent,
+  LearnFavoriteResult,
   LearnIdParams,
+  LearnProgressSummary,
   LearnProgressResult,
   LearnQuery,
   Mission,
@@ -77,10 +79,43 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/',
     { schema: { tags: ['learn'], summary: '학습 콘텐츠 목록', querystring: LearnQuery, response: { 200: Type.Array(LearnContent) } } },
     async (req) => {
-      let result = learnContents;
+      let result = learnContents.filter((c) => c.published);
       if (req.query.level) result = result.filter((c) => c.level === req.query.level);
       if (req.query.category) result = result.filter((c) => c.category === req.query.category);
+      if (req.query.favorite) result = result.filter((c) => c.favorite);
+      if (req.query.q) {
+        const q = req.query.q.toLowerCase();
+        result = result.filter((c) =>
+          c.title.toLowerCase().includes(q) ||
+          c.description.toLowerCase().includes(q) ||
+          c.keywords.some((keyword) => keyword.toLowerCase().includes(q)),
+        );
+      }
       return result;
+    },
+  );
+
+  app.get(
+    '/progress',
+    { schema: { tags: ['learn'], summary: '내 학습 진도율 조회 (LEARN-010)', response: { 200: LearnProgressSummary } } },
+    async () => learnProgress(),
+  );
+
+  app.get(
+    '/favorites',
+    { schema: { tags: ['learn'], summary: '즐겨찾기 콘텐츠 조회 (LEARN-012)', response: { 200: Type.Array(LearnContent) } } },
+    async () => learnContents.filter((c) => c.published && c.favorite),
+  );
+
+  app.get(
+    '/recommended',
+    { schema: { tags: ['learn'], summary: '학습 기록 기반 콘텐츠 추천 (LEARN-013)', response: { 200: Type.Array(LearnContent) } } },
+    async () => {
+      const completedCategories = new Set(learnContents.filter((c) => c.completed).map((c) => c.category));
+      return learnContents
+        .filter((c) => c.published && !c.completed)
+        .sort((a, b) => Number(completedCategories.has(b.category)) - Number(completedCategories.has(a.category)) || b.readCount - a.readCount)
+        .slice(0, 4);
     },
   );
 
@@ -88,8 +123,9 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/:id',
     { schema: { tags: ['learn'], summary: '학습 콘텐츠 상세', params: LearnIdParams, response: { 200: LearnContent, 404: ErrorResponse } } },
     async (req, reply) => {
-      const content = learnContents.find((c) => c.id === req.params.id);
+      const content = learnContents.find((c) => c.id === req.params.id && c.published);
       if (!content) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown content: ${req.params.id}` });
+      content.readCount += 1;
       return content;
     },
   );
@@ -100,12 +136,25 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       const content = learnContents.find((c) => c.id === req.params.id);
       if (!content) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown content: ${req.params.id}` });
-      // NOTE: not persisted — echoes the content with an incremented read count.
+      const completedAt = new Date().toISOString();
+      content.completed = true;
+      content.completedAt = completedAt;
       return {
-        content: { ...content, readCount: content.readCount + 1 },
+        content,
         completed: true,
-        completedAt: new Date().toISOString(),
+        completedAt,
       };
+    },
+  );
+
+  app.post(
+    '/:id/favorite',
+    { schema: { tags: ['learn'], summary: '즐겨찾기 등록/해제 (LEARN-011)', params: LearnIdParams, response: { 200: LearnFavoriteResult, 404: ErrorResponse } } },
+    async (req, reply) => {
+      const content = learnContents.find((c) => c.id === req.params.id && c.published);
+      if (!content) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown content: ${req.params.id}` });
+      content.favorite = !content.favorite;
+      return { content, favorite: content.favorite };
     },
   );
 };

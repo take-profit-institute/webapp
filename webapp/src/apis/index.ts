@@ -71,12 +71,17 @@ export {
   getMyPageSummary,
 } from './users';
 export {
+  LEARN_CONTENT_IDS,
   getRankings,
   getMyRanking,
   getMissions,
   getLearnContents,
+  getLearnProgress,
+  getFavoriteLearnContents,
+  getRecommendedLearnContents,
   getLearnContent,
   claimMission,
   progressMission,
   completeLearn,
+  toggleLearnFavorite,
 } from './social';

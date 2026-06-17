@@ -26,17 +26,39 @@ export const missions: Mission[] = [
   { id: 'm8', category: 'special', title: '수익률 TOP 10 진입', description: '전체 랭킹 10위 안에 진입', reward: 10000, progress: 1, total: 1, completed: true, icon: '🏆' },
 ];
 
+const body = (topic: string) => `${topic}은 투자 판단의 기준을 세우기 위한 핵심 개념입니다.
+
+첫째, 단일 지표만 보고 매수하거나 매도하지 말고 가격, 거래량, 기업 실적, 시장 상황을 함께 확인해야 합니다. 둘째, 같은 지표라도 업종과 시장 국면에 따라 의미가 달라질 수 있으므로 비교 기준을 명확히 잡아야 합니다.
+
+실전에서는 관심 종목을 고른 뒤 투자 가설을 적고, 가설이 틀렸을 때 손실을 제한할 기준을 미리 정하는 방식이 좋습니다. 학습한 개념은 모의투자에서 작은 금액으로 반복 적용하면서 본인만의 판단 과정을 검증해보세요.`;
+
 export const learnContents: LearnContent[] = [
-  { id: 'l1', title: '캔들스틱 차트 읽는 법', description: '양봉과 음봉의 의미, 패턴 해석 방법을 배워보세요', category: '기술적분석', level: 'beginner', duration: '5분', readCount: 12840, emoji: '🕯️' },
-  { id: 'l2', title: 'PER, PBR로 주식 가치 평가하기', description: '기업의 적정 주가를 계산하는 핵심 지표', category: '기본적분석', level: 'beginner', duration: '8분', readCount: 9230, emoji: '📊' },
-  { id: 'l3', title: '분산투자의 중요성', description: '리스크를 줄이는 포트폴리오 구성 전략', category: '투자전략', level: 'beginner', duration: '6분', readCount: 8150, emoji: '🌈' },
-  { id: 'l4', title: '이동평균선 활용 전략', description: '단기/장기 이평선 크로스오버 매매 기법', category: '기술적분석', level: 'intermediate', duration: '12분', readCount: 6840, emoji: '📈' },
-  { id: 'l5', title: 'RSI 지표로 과매수/과매도 판단', description: '상대강도지수를 활용한 매매 타이밍 포착', category: '기술적분석', level: 'intermediate', duration: '10분', readCount: 5920, emoji: '⚡' },
-  { id: 'l6', title: '섹터 로테이션 투자 전략', description: '경기 사이클에 맞는 업종 선택 방법', category: '투자전략', level: 'intermediate', duration: '15분', readCount: 4310, emoji: '🔄' },
-  { id: 'l7', title: '공매도 이해하기', description: '하락장에서도 수익을 낼 수 있는 공매도 메커니즘', category: '고급전략', level: 'advanced', duration: '20분', readCount: 3210, emoji: '🎭' },
-  { id: 'l8', title: '옵션 거래 기초', description: '콜옵션과 풋옵션의 개념과 활용법', category: '고급전략', level: 'advanced', duration: '25분', readCount: 2840, emoji: '🎲' },
-  { id: 'l9', title: '재무제표 읽는 법', description: '손익계산서, 대차대조표, 현금흐름표 완전 정복', category: '기본적분석', level: 'intermediate', duration: '18분', readCount: 7650, emoji: '📋' },
+  { id: 'l1', title: '캔들스틱 차트 읽는 법', description: '양봉과 음봉의 의미, 패턴 해석 방법을 배워보세요', category: '기술적분석', level: 'beginner', duration: '5분', readCount: 12840, emoji: '🕯️', keywords: ['캔들', '차트', '양봉', '음봉'], body: body('캔들스틱 차트'), published: true, completed: true, favorite: true, completedAt: '2026-06-15T10:20:00+09:00' },
+  { id: 'l2', title: 'PER, PBR로 주식 가치 평가하기', description: '기업의 적정 주가를 계산하는 핵심 지표', category: '기본적분석', level: 'beginner', duration: '8분', readCount: 9230, emoji: '📊', keywords: ['PER', 'PBR', '가치평가', '밸류에이션'], body: body('PER과 PBR'), published: true, completed: false, favorite: true },
+  { id: 'l3', title: '분산투자의 중요성', description: '리스크를 줄이는 포트폴리오 구성 전략', category: '투자전략', level: 'beginner', duration: '6분', readCount: 8150, emoji: '🌈', keywords: ['분산투자', '포트폴리오', '리스크'], body: body('분산투자'), published: true, completed: true, favorite: false, completedAt: '2026-06-16T19:10:00+09:00' },
+  { id: 'l4', title: '이동평균선 활용 전략', description: '단기/장기 이평선 크로스오버 매매 기법', category: '기술적분석', level: 'intermediate', duration: '12분', readCount: 6840, emoji: '📈', keywords: ['이동평균선', '골든크로스', '데드크로스'], body: body('이동평균선'), published: true, completed: false, favorite: false },
+  { id: 'l5', title: 'RSI 지표로 과매수/과매도 판단', description: '상대강도지수를 활용한 매매 타이밍 포착', category: '기술적분석', level: 'intermediate', duration: '10분', readCount: 5920, emoji: '⚡', keywords: ['RSI', '과매수', '과매도', '모멘텀'], body: body('RSI 지표'), published: true, completed: false, favorite: false },
+  { id: 'l6', title: '섹터 로테이션 투자 전략', description: '경기 사이클에 맞는 업종 선택 방법', category: '투자전략', level: 'intermediate', duration: '15분', readCount: 4310, emoji: '🔄', keywords: ['섹터', '로테이션', '경기순환'], body: body('섹터 로테이션'), published: true, completed: false, favorite: true },
+  { id: 'l7', title: '공매도 이해하기', description: '하락장에서도 수익을 낼 수 있는 공매도 메커니즘', category: '고급전략', level: 'advanced', duration: '20분', readCount: 3210, emoji: '🎭', keywords: ['공매도', '대차', '숏'], body: body('공매도'), published: true, completed: false, favorite: false },
+  { id: 'l8', title: '옵션 거래 기초', description: '콜옵션과 풋옵션의 개념과 활용법', category: '고급전략', level: 'advanced', duration: '25분', readCount: 2840, emoji: '🎲', keywords: ['옵션', '콜옵션', '풋옵션', '파생상품'], body: body('옵션 거래'), published: true, completed: false, favorite: false },
+  { id: 'l9', title: '재무제표 읽는 법', description: '손익계산서, 대차대조표, 현금흐름표 완전 정복', category: '기본적분석', level: 'intermediate', duration: '18분', readCount: 7650, emoji: '📋', keywords: ['재무제표', '손익계산서', '현금흐름표'], body: body('재무제표'), published: true, completed: false, favorite: false },
 ];
+
+export function learnProgress() {
+  const published = learnContents.filter((c) => c.published);
+  const completed = published.filter((c) => c.completed);
+  const categories = [...new Set(published.map((c) => c.category))];
+  return {
+    total: published.length,
+    completed: completed.length,
+    percent: published.length ? Math.round((completed.length / published.length) * 100) : 0,
+    byCategory: categories.map((category) => {
+      const items = published.filter((c) => c.category === category);
+      const done = items.filter((c) => c.completed).length;
+      return { category, total: items.length, completed: done, percent: items.length ? Math.round((done / items.length) * 100) : 0 };
+    }),
+  };
+}
 
 /** Sum of rewards for all completed missions (the user's claimable point pool). */
 export function computeTotalPoints(): number {

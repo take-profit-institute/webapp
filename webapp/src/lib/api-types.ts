@@ -48,6 +48,8 @@ export type {
   LearnContent,
   LearnLevel,
   LearnProgressResult,
+  LearnProgressSummary,
+  LearnFavoriteResult,
   // user / auth
   UserProfile,
   AuthResponse,
