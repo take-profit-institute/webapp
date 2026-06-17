@@ -2,6 +2,7 @@ import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import { Type } from '@sinclair/typebox';
 import {
   allowedReservationKinds,
+  applyFilledOrderToHoldings,
   demoReservations,
   getAccount,
   getBalance,
@@ -9,6 +10,7 @@ import {
   getPortfolioHistory,
   getResetAccount,
   holdings,
+  recalcHolding,
   reservations,
   resolveScheduledDate,
   sectorAllocation,
@@ -26,6 +28,8 @@ import {
   AmendReservationBody,
   CreateReservationBody,
   Holding,
+  HoldingListQuery,
+  HoldingSymbolParams,
   OrderCancelResult,
   OrderIdParams,
   OrderListQuery,
@@ -67,8 +71,24 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.get(
     '/holdings',
-    { schema: { tags: ['account'], summary: '보유 종목', response: { 200: Type.Array(Holding) } } },
-    async () => holdings,
+    { schema: { tags: ['account'], summary: '보유 종목 조회 (HLD-002/HLD-010/HLD-012)', querystring: HoldingListQuery, response: { 200: Type.Array(Holding) } } },
+    async (req) => holdings
+      .filter((h) => req.query.includeInactive || h.isActive)
+      .map((h) => {
+        const quote = getQuote(h.symbol);
+        return recalcHolding(h, quote?.price ?? h.currentPrice);
+      }),
+  );
+
+  app.get(
+    '/holdings/:symbol',
+    { schema: { tags: ['account'], summary: '보유 종목 상세 조회 (HLD-003/HLD-011)', params: HoldingSymbolParams, response: { 200: Holding, 404: ErrorResponse } } },
+    async (req, reply) => {
+      const holding = holdings.find((h) => h.symbol === req.params.symbol);
+      if (!holding) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown holding: ${req.params.symbol}` });
+      const quote = getQuote(holding.symbol);
+      return recalcHolding(holding, quote?.price ?? holding.currentPrice);
+    },
   );
 
   app.get(
@@ -167,7 +187,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
       }
       // ORD-008: 매도 보유 수량 검증.
       if (type === 'sell') {
-        const held = holdings.find((h) => h.symbol === stock.symbol)?.quantity ?? 0;
+        const held = holdings.find((h) => h.symbol === stock.symbol && h.isActive)?.quantity ?? 0;
         if (quantity > held) {
           return reply.status(422).send({ statusCode: 422, error: 'Unprocessable Entity', message: `보유 수량(${held}주)을 초과했습니다.` });
         }
@@ -190,7 +210,10 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
         executedAt: new Date().toISOString(),
       };
       if (status === 'pending') reservations.unshift(order);
-      else transactions.unshift(order);
+      else {
+        transactions.unshift(order);
+        applyFilledOrderToHoldings(order, stock);
+      }
       return reply.status(201).send(order);
     },
   );
@@ -314,7 +337,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
         return reply.status(422).send({ statusCode: 422, error: 'Unprocessable Entity', message: '가용 가능 금액이 부족합니다.' });
       }
       if (type === 'sell') {
-        const held = holdings.find((h) => h.symbol === stock.symbol)?.quantity ?? 0;
+        const held = holdings.find((h) => h.symbol === stock.symbol && h.isActive)?.quantity ?? 0;
         if (quantity > held) {
           return reply.status(422).send({ statusCode: 422, error: 'Unprocessable Entity', message: `보유 수량(${held}주)을 초과했습니다.` });
         }

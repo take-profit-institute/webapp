@@ -49,9 +49,20 @@ export const Holding = Type.Object(
     totalValue: Type.Number({ description: '평가 금액 = quantity * currentPrice' }),
     profitLoss: Type.Number(),
     profitLossPercent: Type.Number(),
+    realizedProfit: Type.Number({ description: '누적 실현손익 (HLD-007)' }),
+    isActive: Type.Boolean({ description: '보유 활성 여부. 수량 0이면 false (HLD-008)' }),
+    updatedAt: Type.String({ format: 'date-time' }),
   },
 );
 export type Holding = Static<typeof Holding>;
+
+export const HoldingListQuery = Type.Object({
+  includeInactive: Type.Optional(Type.Boolean({ description: '과거 보유 이력 포함 여부 (HLD-012)' })),
+});
+export type HoldingListQuery = Static<typeof HoldingListQuery>;
+
+export const HoldingSymbolParams = Type.Object({ symbol: Type.String() });
+export type HoldingSymbolParams = Static<typeof HoldingSymbolParams>;
 
 export const TransactionType = Type.Union([Type.Literal('buy'), Type.Literal('sell')]);
 export type TransactionType = Static<typeof TransactionType>;

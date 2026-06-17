@@ -62,9 +62,14 @@ export function amendReservation(id: string, input: AmendReservationBody): Promi
   return apiClient.patch<Reservation>(`/api/account/reservations/${encodeURIComponent(id)}`, input);
 }
 
-/** 보유 종목. */
-export function getHoldings(): Promise<Holding[]> {
-  return apiClient.get<Holding[]>('/api/account/holdings');
+/** 보유 종목 조회 (HLD-002/HLD-012). */
+export function getHoldings(params: { includeInactive?: boolean } = {}): Promise<Holding[]> {
+  return apiClient.get<Holding[]>('/api/account/holdings', { ...params });
+}
+
+/** 보유 종목 상세 조회 (HLD-003). */
+export function getHolding(symbol: string): Promise<Holding> {
+  return apiClient.get<Holding>(`/api/account/holdings/${encodeURIComponent(symbol)}`);
 }
 
 /** 거래 내역. */

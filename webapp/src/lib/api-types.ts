@@ -21,6 +21,8 @@ export type {
   AccountStatus,
   AccountBalance,
   Holding,
+  HoldingListQuery,
+  HoldingSymbolParams,
   Transaction,
   TransactionType,
   TransactionStatus,

@@ -36,6 +36,7 @@ export {
   cancelReservation,
   amendReservation,
   getHoldings,
+  getHolding,
   getTransactions,
   getPortfolioHistory,
   getAllocation,

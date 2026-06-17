@@ -16,13 +16,81 @@ export const DEMO_ACCOUNT_ID = 'acc_demo';
 const STARTING_CAPITAL = 100_000_000;
 
 export const holdings: Holding[] = [
-  { symbol: '005930', name: '삼성전자', sector: '반도체', quantity: 50, avgPrice: 68200, currentPrice: 71400, costBasis: 3410000, totalValue: 3570000, profitLoss: 160000, profitLossPercent: 4.69 },
-  { symbol: 'NVDA', name: '엔비디아', sector: '반도체', quantity: 3, avgPrice: 820000, currentPrice: 875200, costBasis: 2460000, totalValue: 2625600, profitLoss: 165600, profitLossPercent: 6.73 },
-  { symbol: '000660', name: 'SK하이닉스', sector: '반도체', quantity: 15, avgPrice: 210000, currentPrice: 198500, costBasis: 3150000, totalValue: 2977500, profitLoss: -172500, profitLossPercent: -5.48 },
-  { symbol: 'AAPL', name: '애플', sector: '기술', quantity: 8, avgPrice: 182000, currentPrice: 189840, costBasis: 1456000, totalValue: 1518720, profitLoss: 62720, profitLossPercent: 4.31 },
-  { symbol: '035420', name: 'NAVER', sector: 'IT', quantity: 20, avgPrice: 175000, currentPrice: 168000, costBasis: 3500000, totalValue: 3360000, profitLoss: -140000, profitLossPercent: -4.0 },
-  { symbol: '373220', name: 'LG에너지솔루션', sector: '배터리', quantity: 10, avgPrice: 295000, currentPrice: 312000, costBasis: 2950000, totalValue: 3120000, profitLoss: 170000, profitLossPercent: 5.76 },
+  { symbol: '005930', name: '삼성전자', sector: '반도체', quantity: 50, avgPrice: 68200, currentPrice: 71400, costBasis: 3410000, totalValue: 3570000, profitLoss: 160000, profitLossPercent: 4.69, realizedProfit: 0, isActive: true, updatedAt: '2026-06-15T15:30:00+09:00' },
+  { symbol: 'NVDA', name: '엔비디아', sector: '반도체', quantity: 3, avgPrice: 820000, currentPrice: 875200, costBasis: 2460000, totalValue: 2625600, profitLoss: 165600, profitLossPercent: 6.73, realizedProfit: 0, isActive: true, updatedAt: '2026-06-15T15:30:00+09:00' },
+  { symbol: '000660', name: 'SK하이닉스', sector: '반도체', quantity: 15, avgPrice: 210000, currentPrice: 198500, costBasis: 3150000, totalValue: 2977500, profitLoss: -172500, profitLossPercent: -5.48, realizedProfit: 0, isActive: true, updatedAt: '2026-06-15T15:30:00+09:00' },
+  { symbol: 'AAPL', name: '애플', sector: '기술', quantity: 8, avgPrice: 182000, currentPrice: 189840, costBasis: 1456000, totalValue: 1518720, profitLoss: 62720, profitLossPercent: 4.31, realizedProfit: 0, isActive: true, updatedAt: '2026-06-15T15:30:00+09:00' },
+  { symbol: '035420', name: 'NAVER', sector: 'IT', quantity: 20, avgPrice: 175000, currentPrice: 168000, costBasis: 3500000, totalValue: 3360000, profitLoss: -140000, profitLossPercent: -4.0, realizedProfit: 0, isActive: true, updatedAt: '2026-06-15T15:30:00+09:00' },
+  { symbol: '373220', name: 'LG에너지솔루션', sector: '배터리', quantity: 10, avgPrice: 295000, currentPrice: 312000, costBasis: 2950000, totalValue: 3120000, profitLoss: 170000, profitLossPercent: 5.76, realizedProfit: 0, isActive: true, updatedAt: '2026-06-15T15:30:00+09:00' },
+  { symbol: 'TSLA', name: '테슬라', sector: '자동차', quantity: 0, avgPrice: 245000, currentPrice: 248000, costBasis: 0, totalValue: 0, profitLoss: 0, profitLossPercent: 0, realizedProfit: 6000, isActive: false, updatedAt: '2026-06-14T15:48:00+09:00' },
 ];
+
+export function recalcHolding(h: Holding, currentPrice = h.currentPrice): Holding {
+  const costBasis = h.quantity * h.avgPrice;
+  const totalValue = h.quantity * currentPrice;
+  const profitLoss = totalValue - costBasis;
+  return {
+    ...h,
+    currentPrice,
+    costBasis,
+    totalValue,
+    profitLoss,
+    profitLossPercent: costBasis > 0 ? Math.round((profitLoss / costBasis) * 10000) / 100 : 0,
+  };
+}
+
+export function applyFilledOrderToHoldings(order: Transaction, stock: { name: string; sector: string; price: number }): Holding {
+  const existing = holdings.find((h) => h.symbol === order.symbol);
+  const now = order.executedAt;
+
+  if (order.type === 'buy') {
+    if (!existing) {
+      const created = recalcHolding({
+        symbol: order.symbol,
+        name: stock.name,
+        sector: stock.sector,
+        quantity: order.quantity,
+        avgPrice: order.price,
+        currentPrice: stock.price,
+        costBasis: 0,
+        totalValue: 0,
+        profitLoss: 0,
+        profitLossPercent: 0,
+        realizedProfit: 0,
+        isActive: true,
+        updatedAt: now,
+      }, stock.price);
+      holdings.unshift(created);
+      return created;
+    }
+
+    if (!existing.isActive) {
+      existing.quantity = order.quantity;
+      existing.avgPrice = order.price;
+      existing.realizedProfit = 0;
+      existing.isActive = true;
+    } else {
+      const nextQuantity = existing.quantity + order.quantity;
+      existing.avgPrice = Math.round(((existing.quantity * existing.avgPrice) + (order.quantity * order.price)) / nextQuantity);
+      existing.quantity = nextQuantity;
+    }
+    existing.name = stock.name;
+    existing.sector = stock.sector;
+    existing.updatedAt = now;
+    Object.assign(existing, recalcHolding(existing, stock.price));
+    return existing;
+  }
+
+  if (!existing) {
+    throw new Error(`Holding not found for sell: ${order.symbol}`);
+  }
+  existing.realizedProfit += Math.round((order.price - existing.avgPrice) * order.quantity);
+  existing.quantity = Math.max(0, existing.quantity - order.quantity);
+  if (existing.quantity === 0) existing.isActive = false;
+  existing.updatedAt = now;
+  Object.assign(existing, recalcHolding(existing, stock.price));
+  return existing;
+}
 
 function tx(
   id: string,

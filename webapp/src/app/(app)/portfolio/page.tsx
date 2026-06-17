@@ -14,7 +14,7 @@ import {
 import { Loader, ErrorState } from '@/components/AsyncState';
 import { sectorColor } from '@/lib/format';
 
-const tabs = ['보유 종목', '주문 내역', '수익 분석'];
+const tabs = ['보유 종목', '과거 보유', '주문 내역', '수익 분석'];
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   filled: { label: '체결', color: 'var(--gain)', bg: 'var(--gain-dim)' },
@@ -24,6 +24,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 
 export default function PortfolioPage() {
   const [activeTab, setActiveTab] = useState('보유 종목');
+  const [expandedHolding, setExpandedHolding] = useState<string | null>(null);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [amendQty, setAmendQty] = useState('');
@@ -31,7 +32,7 @@ export default function PortfolioPage() {
   const [mutatingOrderId, setMutatingOrderId] = useState<string | null>(null);
   const [orderActionMessage, setOrderActionMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
-  const { data: holdings, loading, error, refetch } = useApi(() => getHoldings(), []);
+  const { data: holdings, loading, error, refetch } = useApi(() => getHoldings({ includeInactive: true }), []);
   const { data: balance, refetch: refetchBalance } = useApi(() => getAccountBalance(), []);
   const { data: orders, refetch: refetchOrders } = useApi(() => getOrders(), []);
   const { data: history } = useApi(() => getPortfolioHistory(30), []);
@@ -52,7 +53,8 @@ export default function PortfolioPage() {
     );
   }
 
-  const myHoldings = holdings;
+  const myHoldings = holdings.filter((h) => h.isActive);
+  const inactiveHoldings = holdings.filter((h) => !h.isActive);
   const orderList = orders ?? [];
   const portfolioHistory = history ?? [];
   const sectorAllocation = allocation ?? [];
@@ -237,10 +239,14 @@ export default function PortfolioPage() {
               <span>종목</span><span className="text-right">평균단가</span><span className="text-right">현재가</span>
               <span className="text-right">수량</span><span className="text-right">평가금액</span><span className="text-right">손익</span>
             </div>
+            {myHoldings.length === 0 && (
+              <p className="text-sm text-center py-10" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>보유 종목이 없습니다</p>
+            )}
             {myHoldings.map((h, i) => (
               <div key={h.symbol}>
                 {/* Mobile card */}
-                <div className="md:hidden flex items-center gap-3 px-4 py-3 transition-colors"
+                <button onClick={() => setExpandedHolding(expandedHolding === h.symbol ? null : h.symbol)}
+                  className="md:hidden w-full flex items-center gap-3 px-4 py-3 transition-colors text-left"
                   style={{ borderBottom: i < myHoldings.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                   <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
                     style={{ background: 'var(--bg-surface)', color: 'var(--amber)', fontFamily: 'JetBrains Mono' }}>
@@ -261,9 +267,10 @@ export default function PortfolioPage() {
                       </span>
                     </div>
                   </div>
-                </div>
+                </button>
                 {/* Desktop row */}
-                <div className="hidden md:grid px-5 py-4 transition-colors"
+                <button onClick={() => setExpandedHolding(expandedHolding === h.symbol ? null : h.symbol)}
+                  className="hidden md:grid w-full px-5 py-4 transition-colors text-left"
                   style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', borderBottom: i < myHoldings.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
@@ -300,6 +307,57 @@ export default function PortfolioPage() {
                       {h.profitLoss >= 0 ? '+' : ''}{h.profitLoss.toLocaleString()}
                     </span>
                   </div>
+                </button>
+                {expandedHolding === h.symbol && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 px-4 md:px-5 py-3" style={{ background: 'var(--bg-surface)', borderBottom: i < myHoldings.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                    {[
+                      { label: '종목코드', value: h.symbol },
+                      { label: '상태', value: h.isActive ? '보유중' : '과거 보유' },
+                      { label: '평균단가', value: `${h.avgPrice.toLocaleString()}원` },
+                      { label: '매입금액', value: `${h.costBasis.toLocaleString()}원` },
+                      { label: '평가금액', value: `${h.totalValue.toLocaleString()}원` },
+                      { label: '미실현손익', value: `${h.profitLoss >= 0 ? '+' : ''}${h.profitLoss.toLocaleString()}원` },
+                      { label: '실현손익', value: `${h.realizedProfit >= 0 ? '+' : ''}${h.realizedProfit.toLocaleString()}원` },
+                      { label: '갱신일시', value: `${h.updatedAt.slice(0, 10)} ${h.updatedAt.slice(11, 16)}` },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="flex justify-between gap-2 text-xs">
+                        <span style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</span>
+                        <span className="text-right" style={{ color: label.includes('손익') && String(value).startsWith('-') ? 'var(--loss)' : label.includes('손익') ? 'var(--gain)' : 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === '과거 보유' && (
+          <div>
+            {inactiveHoldings.length === 0 && (
+              <p className="text-sm text-center py-10" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>과거 보유 이력이 없습니다</p>
+            )}
+            {inactiveHoldings.map((h, i) => (
+              <div key={h.symbol} className="flex items-center gap-3 px-4 py-3"
+                style={{ borderBottom: i < inactiveHoldings.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                  style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>
+                  {h.name.slice(0, 2)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{h.name}</p>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>비활성</span>
+                  </div>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+                    {h.symbol} · 최종 갱신 {h.updatedAt.slice(0, 10)}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-mono font-bold" style={{ color: h.realizedProfit >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
+                    {h.realizedProfit >= 0 ? '+' : ''}{h.realizedProfit.toLocaleString()}원
+                  </p>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>실현손익</p>
                 </div>
               </div>
             ))}
