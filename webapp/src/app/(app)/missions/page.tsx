@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { Check, Gift, Trophy, XCircle } from 'lucide-react';
 import {
   cancelMissionParticipation,
@@ -171,13 +172,23 @@ function ChallengeCard({
         ))}
       </div>
       {challenge.joined ? (
-        <button onClick={onResult} disabled={mutating} className="btn-outline w-full text-xs" style={{ opacity: mutating ? 0.5 : 1 }}>
-          결과 보기
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <Link href={`/missions/challenges/${challenge.id}`} className="btn-outline w-full text-xs text-center">
+            상세 보기
+          </Link>
+          <button onClick={onResult} disabled={mutating} className="btn-outline w-full text-xs" style={{ opacity: mutating ? 0.5 : 1 }}>
+            결과 보기
+          </button>
+        </div>
       ) : (
-        <button onClick={onJoin} disabled={mutating || challenge.status === 'completed'} className="btn-amber w-full text-xs" style={{ opacity: mutating || challenge.status === 'completed' ? 0.5 : 1 }}>
-          챌린지 참여
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <Link href={`/missions/challenges/${challenge.id}`} className="btn-outline w-full text-xs text-center">
+            상세 보기
+          </Link>
+          <button onClick={onJoin} disabled={mutating || challenge.status === 'completed'} className="btn-amber w-full text-xs" style={{ opacity: mutating || challenge.status === 'completed' ? 0.5 : 1 }}>
+            챌린지 참여
+          </button>
+        </div>
       )}
     </div>
   );

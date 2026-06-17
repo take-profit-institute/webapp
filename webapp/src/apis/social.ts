@@ -58,6 +58,11 @@ export function getChallenges(): Promise<Challenge[]> {
   return apiClient.get<Challenge[]>('/api/missions/challenges');
 }
 
+/** 챌린지 상세. */
+export function getChallenge(id: string): Promise<Challenge> {
+  return apiClient.get<Challenge>(`/api/missions/challenges/${encodeURIComponent(id)}`);
+}
+
 /** 챌린지 참여. */
 export function joinChallenge(id: string): Promise<Challenge> {
   return apiClient.post<Challenge>(`/api/missions/challenges/${encodeURIComponent(id)}/join`);

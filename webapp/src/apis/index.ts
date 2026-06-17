@@ -80,6 +80,7 @@ export {
   joinMission,
   cancelMissionParticipation,
   getChallenges,
+  getChallenge,
   joinChallenge,
   getChallengeResult,
   getLearnContents,

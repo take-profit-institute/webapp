@@ -140,6 +140,16 @@ export const missionRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async () => challenges,
   );
 
+  app.get(
+    '/challenges/:id',
+    { schema: { tags: ['mission'], summary: '챌린지 상세 조회 (MISSION-014)', params: ChallengeIdParams, response: { 200: Challenge, 404: ErrorResponse } } },
+    async (req, reply) => {
+      const challenge = challenges.find((c) => c.id === req.params.id);
+      if (!challenge) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown challenge: ${req.params.id}` });
+      return challenge;
+    },
+  );
+
   app.post(
     '/challenges/admin',
     { schema: { tags: ['mission'], summary: '관리자 챌린지 생성 (MISSION-011 mock)', body: UpsertChallengeBody, response: { 201: Challenge } } },
