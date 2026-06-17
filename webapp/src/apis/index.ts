@@ -29,7 +29,11 @@ export {
 export {
   getAccount,
   getAccountBalance,
+  getLockedOrders,
   getReservations,
+  getReservation,
+  createReservation,
+  cancelReservation,
   getHoldings,
   getTransactions,
   getPortfolioHistory,

@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowUpRight, ArrowDownRight, Star, Clock } from 'lucide-rea
 import CandleChart from '@/components/CandleChart';
 import {
   addWatchlist,
+  createReservation,
   getAccountBalance,
   getCandles,
   getHoldings,
@@ -35,9 +36,15 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
 
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
+  const [orderMode, setOrderMode] = useState<'now' | 'reserve'>('now');
   const [orderKind, setOrderKind] = useState<'market' | 'limit'>('market');
   const [quantity, setQuantity] = useState('');
   const [limitPrice, setLimitPrice] = useState('');
+  // 예약 주문 (RSV-*)
+  const [timing, setTiming] = useState<'open' | 'prev_close' | 'today_close'>('open');
+  const [openKind, setOpenKind] = useState<'market' | 'limit'>('market');
+  const [rsvPrice, setRsvPrice] = useState('');
+  const [rsvDate, setRsvDate] = useState('');
   const [activeTab, setActiveTab] = useState('차트');
   const [orderStatus, setOrderStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [placing, setPlacing] = useState(false);
@@ -120,6 +127,75 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
       refetchOrders();
     } catch (e) {
       setOrderStatus({ ok: false, message: e instanceof Error ? e.message : '주문에 실패했습니다' });
+    } finally {
+      setPlacing(false);
+    }
+  };
+
+  // ── 예약 주문 (RSV-*) ──
+  const addDays = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    return d.toISOString().split('T')[0];
+  };
+  const tomorrow = addDays(1);
+  const maxRsvDate = addDays(7);
+  const effectiveRsvKind = timing === 'open' ? openKind : 'after_hours_close';
+  const rsvDateFixed = timing === 'prev_close'; // 전일종가는 내일 고정 (RSV-004)
+  const rsvScheduledDate = rsvDateFixed ? tomorrow : rsvDate;
+  const rsvPriceNum = parseInt(rsvPrice) || 0;
+  const rsvEffectivePrice =
+    timing === 'open' && openKind === 'limit'
+      ? rsvPriceNum
+      : timing === 'prev_close'
+        ? stock.prevClose
+        : stock.price;
+  const rsvTotal = qty * rsvEffectivePrice;
+  const rsvFee = Math.round(rsvTotal * 0.00015);
+  const TIMING_LABEL: Record<string, string> = {
+    open: '시가(09:00)',
+    prev_close: '전일종가(08:30)',
+    today_close: '당일종가(15:40)',
+  };
+  const RSV_KIND_LABEL: Record<string, string> = {
+    market: '시장가',
+    limit: '지정가',
+    after_hours_close: '시간외종가',
+  };
+
+  let rsvError: string | null = null;
+  if (qty >= 1) {
+    if (timing === 'open' && openKind === 'limit' && rsvPriceNum < 1) rsvError = '지정가 가격을 입력하세요';
+    else if (!rsvDateFixed && !rsvScheduledDate) rsvError = '실행 예정일을 선택하세요';
+    else if (!rsvDateFixed && (rsvScheduledDate < tomorrow || rsvScheduledDate > maxRsvDate)) rsvError = '실행 예정일은 내일부터 7일 이내여야 합니다';
+    else if (tradeType === 'buy' && rsvTotal + rsvFee > available) rsvError = '가용 금액이 부족합니다';
+    else if (tradeType === 'sell' && qty > heldQty) rsvError = `보유 수량(${heldQty}주)을 초과했습니다`;
+  }
+  const canReserve = isLoggedIn && qty >= 1 && !rsvError && !placing;
+
+  const handleReserve = async () => {
+    if (!isLoggedIn) {
+      router.push('/login');
+      return;
+    }
+    if (qty < 1 || rsvError) return;
+    setPlacing(true);
+    setOrderStatus(null);
+    try {
+      const r = await createReservation({
+        symbol: stock.symbol,
+        type: tradeType,
+        timing,
+        orderKind: effectiveRsvKind,
+        quantity: qty,
+        price: timing === 'open' && openKind === 'limit' ? rsvPriceNum : undefined,
+        scheduledDate: rsvDateFixed ? undefined : rsvScheduledDate || undefined,
+      });
+      setOrderStatus({ ok: true, message: `예약 접수됨 · ${TIMING_LABEL[timing]} · ${r.scheduledDate}` });
+      setQuantity('');
+      setRsvPrice('');
+    } catch (e) {
+      setOrderStatus({ ok: false, message: e instanceof Error ? e.message : '예약에 실패했습니다' });
     } finally {
       setPlacing(false);
     }
@@ -294,103 +370,224 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
               </button>
             </div>
 
-            {/* 주문 유형: 시장가 / 지정가 (ORD-002/003) */}
+            {/* 즉시 주문 / 예약 주문 모드 (RSV-001) */}
             <div className="grid grid-cols-2 gap-1 p-1 rounded-xl mb-3" style={{ background: 'var(--bg-surface)' }}>
-              {(['market', 'limit'] as const).map(kind => (
-                <button key={kind} onClick={() => setOrderKind(kind)}
+              {(['now', 'reserve'] as const).map(mode => (
+                <button key={mode} onClick={() => setOrderMode(mode)}
                   className="py-1.5 rounded-lg text-xs font-bold transition-all"
-                  style={{ background: orderKind === kind ? 'var(--amber-subtle)' : 'transparent', color: orderKind === kind ? 'var(--amber)' : 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
-                  {kind === 'market' ? '시장가' : '지정가'}
+                  style={{ background: orderMode === mode ? 'var(--bg-card)' : 'transparent', color: orderMode === mode ? 'var(--text-primary)' : 'var(--text-muted)', border: orderMode === mode ? '1px solid var(--border-normal)' : '1px solid transparent', fontFamily: 'Noto Sans KR' }}>
+                  {mode === 'now' ? '즉시 주문' : '예약 주문'}
                 </button>
               ))}
             </div>
 
-            {/* 장 마감 안내 — 시장가 즉시주문은 예약으로 유도 (ORD-012) */}
-            {marketClosed && orderKind === 'market' && (
-              <div className="flex items-start gap-1.5 p-2.5 rounded-lg mb-3" style={{ background: 'var(--amber-subtle)', border: '1px solid rgba(245,166,35,0.2)' }}>
-                <Clock size={12} style={{ color: 'var(--amber)', marginTop: 1 }} />
-                <p className="text-[11px] leading-snug" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>
-                  지금은 정규장 시간이 아닙니다. 시장가 주문은 <b style={{ color: 'var(--amber)' }}>예약 주문</b>으로 접수됩니다.
-                </p>
-              </div>
-            )}
-
-            <div className="flex justify-between items-center mb-3 p-3 rounded-xl" style={{ background: 'var(--bg-surface)' }}>
-              <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>현재가</span>
-              <div className="flex items-center gap-2">
-                <span className="font-mono font-bold text-sm" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-primary)' }}>{stock.price.toLocaleString()}</span>
-                <span className="text-xs" style={{ color: stock.change >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
-                  {stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%
-                </span>
-              </div>
-            </div>
-
-            {/* 지정가 가격 입력 (ORD-003/011 — 정수만) */}
-            {orderKind === 'limit' && (
-              <div className="mb-3">
-                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>지정가 (원, 1원 단위)</label>
-                <input type="number" min="0" step="1" value={limitPrice}
-                  onChange={e => setLimitPrice(e.target.value.replace(/[.,]/g, ''))}
-                  placeholder={stock.price.toLocaleString()}
-                  className="input-dark text-right font-mono font-bold" style={{ fontFamily: 'JetBrains Mono' }} />
-              </div>
-            )}
-
-            <div className="mb-3">
-              <label className="flex items-center justify-between text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>
-                <span>수량 (주)</span>
-                {tradeType === 'sell' && <span style={{ color: 'var(--text-muted)' }}>보유 {heldQty}주</span>}
-              </label>
-              <div className="flex gap-2">
-                <button onClick={() => setQuantity(q => String(Math.max(0, parseInt(q || '0') - 1)))}
-                  className="w-9 h-10 rounded-lg font-bold text-lg flex items-center justify-center shrink-0"
-                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-normal)', color: 'var(--text-primary)' }}>−</button>
-                <input type="number" min="0" step="1" value={quantity}
-                  onChange={e => setQuantity(e.target.value.replace(/[.,]/g, ''))}
-                  placeholder="0" className="input-dark text-center font-mono font-bold" style={{ fontFamily: 'JetBrains Mono' }} />
-                <button onClick={() => setQuantity(q => String(parseInt(q || '0') + 1))}
-                  className="w-9 h-10 rounded-lg font-bold text-lg flex items-center justify-center shrink-0"
-                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-normal)', color: 'var(--text-primary)' }}>+</button>
-              </div>
-            </div>
-
-            <div className="p-3 rounded-xl mb-3 space-y-2" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
-              {[
-                { label: '주문 유형', value: orderKind === 'market' ? '시장가' : '지정가' },
-                { label: '주문 수량', value: `${qty}주` },
-                { label: '주문 단가', value: `${effectivePrice.toLocaleString()}원` },
-                { label: '수수료', value: `${fee.toLocaleString()}원` },
-                ...(tradeType === 'buy' ? [{ label: '가용 금액', value: `${available.toLocaleString()}원` }] : []),
-              ].map(({ label, value }) => (
-                <div key={label} className="flex justify-between text-xs">
-                  <span style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</span>
-                  <span style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>{value}</span>
+            {orderMode === 'now' ? (
+              <>
+                {/* 주문 유형: 시장가 / 지정가 (ORD-002/003) */}
+                <div className="grid grid-cols-2 gap-1 p-1 rounded-xl mb-3" style={{ background: 'var(--bg-surface)' }}>
+                  {(['market', 'limit'] as const).map(kind => (
+                    <button key={kind} onClick={() => setOrderKind(kind)}
+                      className="py-1.5 rounded-lg text-xs font-bold transition-all"
+                      style={{ background: orderKind === kind ? 'var(--amber-subtle)' : 'transparent', color: orderKind === kind ? 'var(--amber)' : 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+                      {kind === 'market' ? '시장가' : '지정가'}
+                    </button>
+                  ))}
                 </div>
-              ))}
-              <div className="flex justify-between text-sm font-bold pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                <span style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>총 주문금액</span>
-                <span style={{ color: 'var(--amber)', fontFamily: 'JetBrains Mono' }}>{total.toLocaleString()}원</span>
-              </div>
-            </div>
 
-            {/* 사전 검증 메시지 (ORD-007/008/009) */}
-            {validationError && (
-              <p className="text-xs mb-2 text-center" style={{ color: 'var(--loss)', fontFamily: 'Noto Sans KR' }}>{validationError}</p>
-            )}
+                {/* 장 마감 안내 — 시장가 즉시주문은 예약으로 유도 (ORD-012) */}
+                {marketClosed && orderKind === 'market' && (
+                  <div className="flex items-start gap-1.5 p-2.5 rounded-lg mb-3" style={{ background: 'var(--amber-subtle)', border: '1px solid rgba(245,166,35,0.2)' }}>
+                    <Clock size={12} style={{ color: 'var(--amber)', marginTop: 1 }} />
+                    <p className="text-[11px] leading-snug" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>
+                      지금은 정규장 시간이 아닙니다. 시장가 주문은 <b style={{ color: 'var(--amber)' }}>예약 주문</b>으로 접수됩니다.
+                    </p>
+                  </div>
+                )}
 
-            {!isLoggedIn ? (
-              // ORD-001
-              <button onClick={() => router.push('/login')} className="btn-outline w-full text-sm">
-                로그인 후 주문 가능
-              </button>
+                <div className="flex justify-between items-center mb-3 p-3 rounded-xl" style={{ background: 'var(--bg-surface)' }}>
+                  <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>현재가</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-sm" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-primary)' }}>{stock.price.toLocaleString()}</span>
+                    <span className="text-xs" style={{ color: stock.change >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
+                      {stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* 지정가 가격 입력 (ORD-003/011 — 정수만) */}
+                {orderKind === 'limit' && (
+                  <div className="mb-3">
+                    <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>지정가 (원, 1원 단위)</label>
+                    <input type="number" min="0" step="1" value={limitPrice}
+                      onChange={e => setLimitPrice(e.target.value.replace(/[.,]/g, ''))}
+                      placeholder={stock.price.toLocaleString()}
+                      className="input-dark text-right font-mono font-bold" style={{ fontFamily: 'JetBrains Mono' }} />
+                  </div>
+                )}
+
+                <div className="mb-3">
+                  <label className="flex items-center justify-between text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>
+                    <span>수량 (주)</span>
+                    {tradeType === 'sell' && <span style={{ color: 'var(--text-muted)' }}>보유 {heldQty}주</span>}
+                  </label>
+                  <div className="flex gap-2">
+                    <button onClick={() => setQuantity(q => String(Math.max(0, parseInt(q || '0') - 1)))}
+                      className="w-9 h-10 rounded-lg font-bold text-lg flex items-center justify-center shrink-0"
+                      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-normal)', color: 'var(--text-primary)' }}>−</button>
+                    <input type="number" min="0" step="1" value={quantity}
+                      onChange={e => setQuantity(e.target.value.replace(/[.,]/g, ''))}
+                      placeholder="0" className="input-dark text-center font-mono font-bold" style={{ fontFamily: 'JetBrains Mono' }} />
+                    <button onClick={() => setQuantity(q => String(parseInt(q || '0') + 1))}
+                      className="w-9 h-10 rounded-lg font-bold text-lg flex items-center justify-center shrink-0"
+                      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-normal)', color: 'var(--text-primary)' }}>+</button>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl mb-3 space-y-2" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+                  {[
+                    { label: '주문 유형', value: orderKind === 'market' ? '시장가' : '지정가' },
+                    { label: '주문 수량', value: `${qty}주` },
+                    { label: '주문 단가', value: `${effectivePrice.toLocaleString()}원` },
+                    { label: '수수료', value: `${fee.toLocaleString()}원` },
+                    ...(tradeType === 'buy' ? [{ label: '가용 금액', value: `${available.toLocaleString()}원` }] : []),
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex justify-between text-xs">
+                      <span style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</span>
+                      <span style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>{value}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm font-bold pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                    <span style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>총 주문금액</span>
+                    <span style={{ color: 'var(--amber)', fontFamily: 'JetBrains Mono' }}>{total.toLocaleString()}원</span>
+                  </div>
+                </div>
+
+                {/* 사전 검증 메시지 (ORD-007/008/009) */}
+                {validationError && (
+                  <p className="text-xs mb-2 text-center" style={{ color: 'var(--loss)', fontFamily: 'Noto Sans KR' }}>{validationError}</p>
+                )}
+
+                {!isLoggedIn ? (
+                  // ORD-001
+                  <button onClick={() => router.push('/login')} className="btn-outline w-full text-sm">
+                    로그인 후 주문 가능
+                  </button>
+                ) : (
+                  <button onClick={handleOrder} disabled={!canSubmit}
+                    className={`${tradeType === 'buy' ? 'btn-gain' : 'btn-loss'} text-sm`}
+                    style={{ opacity: canSubmit ? 1 : 0.5 }}>
+                    {placing
+                      ? '처리 중...'
+                      : `${tradeType === 'buy' ? '매수' : '매도'} ${orderKind === 'limit' || marketClosed ? '예약' : '주문'}`}
+                  </button>
+                )}
+              </>
             ) : (
-              <button onClick={handleOrder} disabled={!canSubmit}
-                className={`${tradeType === 'buy' ? 'btn-gain' : 'btn-loss'} text-sm`}
-                style={{ opacity: canSubmit ? 1 : 0.5 }}>
-                {placing
-                  ? '처리 중...'
-                  : `${tradeType === 'buy' ? '매수' : '매도'} ${orderKind === 'limit' || marketClosed ? '예약' : '주문'}`}
-              </button>
+              <>
+                {/* RSV-001: 예약 실행 시점 */}
+                <div className="grid grid-cols-3 gap-1 p-1 rounded-xl mb-3" style={{ background: 'var(--bg-surface)' }}>
+                  {(['open', 'prev_close', 'today_close'] as const).map(nextTiming => (
+                    <button key={nextTiming} onClick={() => setTiming(nextTiming)}
+                      className="py-1.5 rounded-lg text-[11px] font-bold transition-all"
+                      style={{ background: timing === nextTiming ? 'var(--amber-subtle)' : 'transparent', color: timing === nextTiming ? 'var(--amber)' : 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+                      {nextTiming === 'open' ? '시가' : nextTiming === 'prev_close' ? '전일종가' : '당일종가'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* RSV-002/003: 시점별 주문 유형 제한 */}
+                {timing === 'open' ? (
+                  <div className="grid grid-cols-2 gap-1 p-1 rounded-xl mb-3" style={{ background: 'var(--bg-surface)' }}>
+                    {(['market', 'limit'] as const).map(kind => (
+                      <button key={kind} onClick={() => setOpenKind(kind)}
+                        className="py-1.5 rounded-lg text-xs font-bold transition-all"
+                        style={{ background: openKind === kind ? 'var(--amber-subtle)' : 'transparent', color: openKind === kind ? 'var(--amber)' : 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+                        {kind === 'market' ? '시장가' : '지정가'}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mb-3 p-2.5 rounded-xl flex items-center justify-between" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>주문 유형</span>
+                    <span className="text-xs font-bold" style={{ color: 'var(--amber)', fontFamily: 'Noto Sans KR' }}>시간외종가</span>
+                  </div>
+                )}
+
+                {/* RSV-004/005: 실행 예정일 */}
+                <div className="mb-3">
+                  <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>실행 예정일</label>
+                  <input type="date" value={rsvScheduledDate} min={tomorrow} max={maxRsvDate}
+                    disabled={rsvDateFixed}
+                    onChange={e => setRsvDate(e.target.value)}
+                    className="input-dark text-sm"
+                    style={{ color: rsvDateFixed ? 'var(--text-muted)' : 'var(--text-primary)', fontFamily: 'JetBrains Mono' }} />
+                </div>
+
+                {timing === 'open' && openKind === 'limit' && (
+                  <div className="mb-3">
+                    <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>예약 지정가 (원, 1원 단위)</label>
+                    <input type="number" min="0" step="1" value={rsvPrice}
+                      onChange={e => setRsvPrice(e.target.value.replace(/[.,]/g, ''))}
+                      placeholder={stock.price.toLocaleString()}
+                      className="input-dark text-right font-mono font-bold" style={{ fontFamily: 'JetBrains Mono' }} />
+                  </div>
+                )}
+
+                <div className="mb-3">
+                  <label className="flex items-center justify-between text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>
+                    <span>수량 (주)</span>
+                    {tradeType === 'sell' && <span style={{ color: 'var(--text-muted)' }}>보유 {heldQty}주</span>}
+                  </label>
+                  <div className="flex gap-2">
+                    <button onClick={() => setQuantity(q => String(Math.max(0, parseInt(q || '0') - 1)))}
+                      className="w-9 h-10 rounded-lg font-bold text-lg flex items-center justify-center shrink-0"
+                      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-normal)', color: 'var(--text-primary)' }}>−</button>
+                    <input type="number" min="0" step="1" value={quantity}
+                      onChange={e => setQuantity(e.target.value.replace(/[.,]/g, ''))}
+                      placeholder="0" className="input-dark text-center font-mono font-bold" style={{ fontFamily: 'JetBrains Mono' }} />
+                    <button onClick={() => setQuantity(q => String(parseInt(q || '0') + 1))}
+                      className="w-9 h-10 rounded-lg font-bold text-lg flex items-center justify-center shrink-0"
+                      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-normal)', color: 'var(--text-primary)' }}>+</button>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl mb-3 space-y-2" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+                  {[
+                    { label: '예약 시점', value: TIMING_LABEL[timing] },
+                    { label: '실행 예정일', value: rsvScheduledDate || '-' },
+                    { label: '주문 유형', value: RSV_KIND_LABEL[effectiveRsvKind] },
+                    { label: '주문 수량', value: `${qty}주` },
+                    { label: '예상 단가', value: `${rsvEffectivePrice.toLocaleString()}원` },
+                    { label: '수수료', value: `${rsvFee.toLocaleString()}원` },
+                    ...(tradeType === 'buy' ? [{ label: '가용 금액', value: `${available.toLocaleString()}원` }] : []),
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex justify-between gap-3 text-xs">
+                      <span style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</span>
+                      <span className="text-right" style={{ color: 'var(--text-primary)', fontFamily: label.includes('시점') || label.includes('유형') ? 'Noto Sans KR' : 'JetBrains Mono' }}>{value}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm font-bold pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                    <span style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>예상 주문금액</span>
+                    <span style={{ color: 'var(--amber)', fontFamily: 'JetBrains Mono' }}>{rsvTotal.toLocaleString()}원</span>
+                  </div>
+                </div>
+
+                {rsvError && (
+                  <p className="text-xs mb-2 text-center" style={{ color: 'var(--loss)', fontFamily: 'Noto Sans KR' }}>{rsvError}</p>
+                )}
+
+                {!isLoggedIn ? (
+                  <button onClick={() => router.push('/login')} className="btn-outline w-full text-sm">
+                    로그인 후 예약 가능
+                  </button>
+                ) : (
+                  <button onClick={handleReserve} disabled={!canReserve}
+                    className={`${tradeType === 'buy' ? 'btn-gain' : 'btn-loss'} text-sm`}
+                    style={{ opacity: canReserve ? 1 : 0.5 }}>
+                    {placing ? '처리 중...' : `${tradeType === 'buy' ? '매수' : '매도'} 예약`}
+                  </button>
+                )}
+              </>
             )}
             {orderStatus && (
               <p className="text-center text-xs mt-2" style={{ color: orderStatus.ok ? 'var(--gain)' : 'var(--loss)', fontFamily: 'Noto Sans KR' }}>

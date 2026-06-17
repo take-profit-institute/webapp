@@ -3,6 +3,9 @@ import type {
   AccountBalance,
   Holding,
   PortfolioPoint,
+  Reservation,
+  ReservationKind,
+  ReservationTiming,
   SectorAllocation,
   Transaction,
 } from '@candle/shared';
@@ -51,6 +54,47 @@ export const reservations: Transaction[] = [
 
 /** 묶인 금액 = 미체결 주문이 예약한 금액(체결금액 + 수수료)의 합. */
 export const lockedAmount = reservations.reduce((sum, r) => sum + r.amount + r.fee, 0);
+
+// ── 예약 주문 (RSV-*) ───────────────────────────────────────────────
+/** YYYY-MM-DD (오늘 + offset일). */
+function dateStr(offsetDays: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d.toISOString().split('T')[0];
+}
+
+/** 시점별 허용 주문 유형 (RSV-002/003). */
+export function allowedReservationKinds(timing: ReservationTiming): ReservationKind[] {
+  return timing === 'open' ? ['market', 'limit'] : ['after_hours_close'];
+}
+
+/**
+ * 예약 실행 예정일 결정 (RSV-004/005).
+ * - prev_close: 내일 고정.
+ * - open/today_close: 내일~+7일 범위. 범위 밖이면 null(거부).
+ */
+export function resolveScheduledDate(timing: ReservationTiming, requested?: string): string | null {
+  const tomorrow = dateStr(1);
+  if (timing === 'prev_close') return tomorrow;
+  if (!requested) return null;
+  const max = dateStr(7);
+  if (requested < tomorrow || requested > max) return null;
+  return requested;
+}
+
+/** 데모 예약 주문 시드 (RSV-009 목록용). */
+export const demoReservations: Reservation[] = [
+  {
+    id: 'rsv1', symbol: '005930', name: '삼성전자', type: 'buy', timing: 'open', orderKind: 'limit',
+    quantity: 10, price: 70000, scheduledDate: dateStr(1), amount: 700000, fee: 105,
+    status: 'reserved', createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'rsv2', symbol: 'NVDA', name: '엔비디아', type: 'sell', timing: 'today_close', orderKind: 'after_hours_close',
+    quantity: 2, price: 875200, scheduledDate: dateStr(2), amount: 1750400, fee: 262,
+    status: 'reserved', createdAt: new Date().toISOString(),
+  },
+];
 
 function seedRandom(seed: number) {
   let s = seed % 233280;

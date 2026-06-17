@@ -28,6 +28,11 @@ export type {
   PortfolioPoint,
   SectorAllocation,
   OrderCancelResult,
+  Reservation,
+  ReservationTiming,
+  ReservationKind,
+  ReservationStatus,
+  CreateReservationBody,
   WatchlistItem,
   AddWatchlistBody,
   // social

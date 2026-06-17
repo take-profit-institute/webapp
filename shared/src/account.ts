@@ -124,6 +124,76 @@ export type OrderListQuery = Static<typeof OrderListQuery>;
 export const OrderIdParams = Type.Object({ id: Type.String() });
 export type OrderIdParams = Static<typeof OrderIdParams>;
 
+// ── 예약 주문 (RSV-*) ───────────────────────────────────────────────
+/** 예약 실행 시점 (RSV-001): 시가(09:00) / 전일종가(08:30) / 당일종가(15:40). */
+export const ReservationTiming = Type.Union([
+  Type.Literal('open'), // 시가
+  Type.Literal('prev_close'), // 전일종가
+  Type.Literal('today_close'), // 당일종가
+]);
+export type ReservationTiming = Static<typeof ReservationTiming>;
+
+/**
+ * 예약 주문 유형:
+ * - 시가 예약 → market | limit (RSV-002)
+ * - 전일/당일 종가 예약 → after_hours_close (시간외종가, RSV-003)
+ */
+export const ReservationKind = Type.Union([
+  Type.Literal('market'),
+  Type.Literal('limit'),
+  Type.Literal('after_hours_close'),
+]);
+export type ReservationKind = Static<typeof ReservationKind>;
+
+/** 예약 상태: 접수(reserved) → 전환(pending)/체결(filled)/취소(cancelled). */
+export const ReservationStatus = Type.Union([
+  Type.Literal('reserved'),
+  Type.Literal('pending'),
+  Type.Literal('filled'),
+  Type.Literal('cancelled'),
+]);
+export type ReservationStatus = Static<typeof ReservationStatus>;
+
+export const Reservation = Type.Object(
+  {
+    id: Type.String(),
+    symbol: Type.String(),
+    name: Type.String(),
+    type: TransactionType,
+    timing: ReservationTiming,
+    orderKind: ReservationKind,
+    quantity: Type.Number(),
+    price: Type.Optional(Type.Number({ description: '지정가일 때만' })),
+    scheduledDate: Type.String({ description: '실행 예정일 (YYYY-MM-DD)' }),
+    amount: Type.Number({ description: '예상 체결 금액' }),
+    fee: Type.Number(),
+    status: ReservationStatus,
+    createdAt: Type.String({ format: 'date-time' }),
+  },
+);
+export type Reservation = Static<typeof Reservation>;
+
+export const CreateReservationBody = Type.Object({
+  symbol: Type.String(),
+  type: TransactionType,
+  timing: ReservationTiming,
+  orderKind: ReservationKind,
+  quantity: Type.Integer({ minimum: 1 }),
+  /** 시가+지정가일 때 필수(정수). */
+  price: Type.Optional(Type.Number({ minimum: 0 })),
+  /** 시가/당일종가 예약 시 실행 예정일 (내일~+7일). 전일종가는 내일 고정이라 무시됨. */
+  scheduledDate: Type.Optional(Type.String()),
+});
+export type CreateReservationBody = Static<typeof CreateReservationBody>;
+
+export const ReservationListQuery = Type.Object({
+  status: Type.Optional(ReservationStatus),
+});
+export type ReservationListQuery = Static<typeof ReservationListQuery>;
+
+export const ReservationIdParams = Type.Object({ id: Type.String() });
+export type ReservationIdParams = Static<typeof ReservationIdParams>;
+
 export const PortfolioHistoryQuery = Type.Object({
   days: Type.Optional(Type.Integer({ minimum: 1, maximum: 365 })),
 });

@@ -1,6 +1,8 @@
 import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import { Type } from '@sinclair/typebox';
 import {
+  allowedReservationKinds,
+  demoReservations,
   getAccount,
   getBalance,
   getDeactivatedAccount,
@@ -8,6 +10,7 @@ import {
   getResetAccount,
   holdings,
   reservations,
+  resolveScheduledDate,
   sectorAllocation,
   transactions,
   watchlistSymbols,
@@ -19,6 +22,7 @@ import {
   Account,
   AccountBalance,
   AddWatchlistBody,
+  CreateReservationBody,
   Holding,
   OrderCancelResult,
   OrderIdParams,
@@ -27,6 +31,9 @@ import {
   PortfolioHistoryQuery,
   PortfolioPoint,
   Quote,
+  Reservation,
+  ReservationIdParams,
+  ReservationListQuery,
   SectorAllocation,
   Transaction,
   TransactionQuery,
@@ -51,8 +58,8 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
   );
 
   app.get(
-    '/reservations',
-    { schema: { tags: ['account'], summary: '예약(미체결) 주문 — 묶인 금액 내역', response: { 200: Type.Array(Transaction) } } },
+    '/locked',
+    { schema: { tags: ['account'], summary: '묶인 금액 내역 (미체결 지정가 주문)', response: { 200: Type.Array(Transaction) } } },
     async () => reservations,
   );
 
@@ -189,6 +196,112 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     { schema: { tags: ['account'], summary: '주문 취소', params: Type.Object({ id: Type.String() }), response: { 200: OrderCancelResult } } },
     // NOTE: orders aren't stored yet — echoes the id back as cancelled.
     async (req) => ({ id: req.params.id, status: 'cancelled' as const, cancelledAt: new Date().toISOString() }),
+  );
+
+  // ── 예약 주문 (RSV-*) ─────────────────────────────────────────────
+  app.get(
+    '/reservations',
+    { schema: { tags: ['account'], summary: '예약 주문 목록 조회 (RSV-009)', querystring: ReservationListQuery, response: { 200: Type.Array(Reservation) } } },
+    async (req) => (req.query.status ? demoReservations.filter((r) => r.status === req.query.status) : demoReservations),
+  );
+
+  app.get(
+    '/reservations/:id',
+    { schema: { tags: ['account'], summary: '예약 주문 상세 조회', params: ReservationIdParams, response: { 200: Reservation, 404: ErrorResponse } } },
+    async (req, reply) => {
+      const r = demoReservations.find((x) => x.id === req.params.id);
+      if (!r) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown reservation: ${req.params.id}` });
+      return r;
+    },
+  );
+
+  app.post(
+    '/reservations',
+    {
+      schema: {
+        tags: ['account'],
+        summary: '예약 주문 생성 (시점/유형/날짜 제약)',
+        body: CreateReservationBody,
+        response: { 201: Reservation, 400: ErrorResponse, 404: ErrorResponse, 422: ErrorResponse },
+      },
+    },
+    // NOTE: 스케줄 실행/체결·자동취소(RSV-010~015)는 백엔드 책임. 목은 접수 결과만 합성.
+    async (req, reply) => {
+      const { type, timing, orderKind, quantity } = req.body;
+      const stock = await provider.getStock(req.body.symbol);
+      if (!stock) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown symbol: ${req.body.symbol}` });
+      }
+
+      // RSV-002/003: 시점별 허용 주문 유형 검증.
+      if (!allowedReservationKinds(timing).includes(orderKind)) {
+        const hint = timing === 'open' ? '시가 예약은 시장가/지정가만 가능합니다.' : '종가 예약은 시간외종가만 가능합니다.';
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: hint });
+      }
+
+      // RSV-002 지정가: 가격 필수 + 정수(ORD-011과 동일).
+      if (orderKind === 'limit') {
+        if (req.body.price == null) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '지정가 예약은 가격이 필요합니다.' });
+        if (!Number.isInteger(req.body.price)) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '지정가는 1원 단위(정수)만 가능합니다.' });
+      }
+
+      // RSV-004/005: 실행 예정일 결정/검증.
+      const scheduledDate = resolveScheduledDate(timing, req.body.scheduledDate);
+      if (!scheduledDate) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '실행 예정일은 내일부터 7일 이내여야 합니다.' });
+      }
+
+      // 예상 체결가: 지정가=입력값, 시장가=현재가, 시간외종가=전일종가(전일종가 예약) / 현재가(당일종가 예약 추정).
+      const price =
+        orderKind === 'limit'
+          ? req.body.price!
+          : timing === 'prev_close'
+            ? stock.prevClose
+            : stock.price;
+      const amount = price * quantity;
+      const fee = Math.round(amount * 0.00015);
+
+      // 기존 주문 API와 동일하게 접수 단계에서 기본 잔고/보유 수량 검증.
+      if (type === 'buy' && amount + fee > getAccount().cash) {
+        return reply.status(422).send({ statusCode: 422, error: 'Unprocessable Entity', message: '가용 가능 금액이 부족합니다.' });
+      }
+      if (type === 'sell') {
+        const held = holdings.find((h) => h.symbol === stock.symbol)?.quantity ?? 0;
+        if (quantity > held) {
+          return reply.status(422).send({ statusCode: 422, error: 'Unprocessable Entity', message: `보유 수량(${held}주)을 초과했습니다.` });
+        }
+      }
+
+      const reservation: Reservation = {
+        id: `rsv_${Date.now()}`,
+        symbol: stock.symbol,
+        name: stock.name,
+        type,
+        timing,
+        orderKind,
+        quantity,
+        price: orderKind === 'limit' ? req.body.price : undefined,
+        scheduledDate,
+        amount,
+        fee,
+        status: 'reserved',
+        createdAt: new Date().toISOString(),
+      };
+      demoReservations.unshift(reservation);
+      return reply.status(201).send(reservation);
+    },
+  );
+
+  app.delete(
+    '/reservations/:id',
+    { schema: { tags: ['account'], summary: '예약 주문 취소 (RSV-016~018)', params: ReservationIdParams, response: { 204: Type.Null(), 404: ErrorResponse } } },
+    // NOTE: mock — 실제로는 reserved_balance 반환(RSV-014/취소). 여기선 접수 취소만.
+    async (req, reply) => {
+      const r = demoReservations.find((x) => x.id === req.params.id);
+      if (!r) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown reservation: ${req.params.id}` });
+      r.status = 'cancelled';
+      return reply.status(204).send(null);
+    },
   );
 
   app.post(

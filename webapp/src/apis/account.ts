@@ -2,11 +2,14 @@
 import type {
   Account,
   AccountBalance,
+  CreateReservationBody,
   Holding,
   OrderCancelResult,
   OrderKind,
   PortfolioPoint,
   Quote,
+  Reservation,
+  ReservationStatus,
   SectorAllocation,
   Transaction,
   TransactionStatus,
@@ -25,9 +28,31 @@ export function getAccountBalance(): Promise<AccountBalance> {
   return apiClient.get<AccountBalance>('/api/account/balance');
 }
 
-/** 예약(미체결) 주문 — 묶인 금액 내역. */
-export function getReservations(): Promise<Transaction[]> {
-  return apiClient.get<Transaction[]>('/api/account/reservations');
+/** 묶인 금액 내역 (미체결 지정가 주문). */
+export function getLockedOrders(): Promise<Transaction[]> {
+  return apiClient.get<Transaction[]>('/api/account/locked');
+}
+
+// ── 예약 주문 (RSV-*) ───────────────────────────────────────────────
+
+/** 예약 주문 목록 조회 (RSV-009). */
+export function getReservations(params: { status?: ReservationStatus } = {}): Promise<Reservation[]> {
+  return apiClient.get<Reservation[]>('/api/account/reservations', { ...params });
+}
+
+/** 예약 주문 상세 조회. */
+export function getReservation(id: string): Promise<Reservation> {
+  return apiClient.get<Reservation>(`/api/account/reservations/${encodeURIComponent(id)}`);
+}
+
+/** 예약 주문 생성 (RSV-001~008). */
+export function createReservation(input: CreateReservationBody): Promise<Reservation> {
+  return apiClient.post<Reservation>('/api/account/reservations', input);
+}
+
+/** 예약 주문 취소 (RSV-016~018). */
+export function cancelReservation(id: string): Promise<void> {
+  return apiClient.del(`/api/account/reservations/${encodeURIComponent(id)}`);
 }
 
 /** 보유 종목. */

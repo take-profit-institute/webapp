@@ -1,13 +1,48 @@
 'use client';
+import { useState } from 'react';
 import Link from 'next/link';
-import { Wallet, Lock, CircleDollarSign, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { getAccount, getAccountBalance, getReservations, useApi } from '@/apis';
+import { Wallet, Lock, CircleDollarSign, ArrowUpRight, ArrowDownRight, CalendarClock } from 'lucide-react';
+import { cancelReservation, getAccount, getAccountBalance, getLockedOrders, getReservations, useApi } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
+
+const TIMING_LABEL: Record<string, string> = {
+  open: '시가 (09:00)',
+  prev_close: '전일종가 (08:30)',
+  today_close: '당일종가 (15:40)',
+};
+const RSV_KIND_LABEL: Record<string, string> = {
+  market: '시장가',
+  limit: '지정가',
+  after_hours_close: '시간외종가',
+};
+const RSV_STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+  reserved: { label: '예약', color: 'var(--amber)', bg: 'var(--amber-subtle)' },
+  pending: { label: '대기', color: 'var(--amber)', bg: 'var(--amber-subtle)' },
+  filled: { label: '체결', color: 'var(--gain)', bg: 'var(--gain-dim)' },
+  cancelled: { label: '취소', color: 'var(--text-muted)', bg: 'var(--bg-surface)' },
+};
 
 export default function WalletPage() {
   const { data: balance, loading, error, refetch } = useApi(() => getAccountBalance(), []);
   const { data: account } = useApi(() => getAccount(), []);
-  const { data: reservations } = useApi(() => getReservations(), []);
+  const { data: reservations } = useApi(() => getLockedOrders(), []);
+  const { data: scheduledRaw } = useApi(() => getReservations(), []);
+  const [cancelledIds, setCancelledIds] = useState<Set<string>>(new Set());
+
+  const scheduled = (scheduledRaw ?? []).filter((r) => !cancelledIds.has(r.id));
+
+  const handleCancelReservation = async (id: string) => {
+    setCancelledIds((prev) => new Set(prev).add(id)); // optimistic
+    try {
+      await cancelReservation(id);
+    } catch {
+      setCancelledIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -89,14 +124,14 @@ export default function WalletPage() {
           <p className="text-lg md:text-2xl font-black font-mono" style={{ fontFamily: 'JetBrains Mono', color: 'var(--amber)' }}>
             {lockedAmount.toLocaleString()}
           </p>
-          <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>예약 주문 {reserved.length}건</p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>미체결 주문 {reserved.length}건</p>
         </div>
       </div>
 
-      {/* 묶인 내역 (예약 주문) */}
+      {/* 묶인 내역 (미체결 지정가 주문) */}
       <div className="card overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-          <p className="text-sm font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>묶인 내역 (예약 주문)</p>
+          <p className="text-sm font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>묶인 내역 (미체결 지정가 주문)</p>
           <Link href="/portfolio" className="text-xs" style={{ color: 'var(--amber)' }}>거래 내역</Link>
         </div>
         {reserved.length === 0 ? (
@@ -131,6 +166,52 @@ export default function WalletPage() {
               </div>
             </div>
           ))
+        )}
+      </div>
+
+      {/* 예약 주문 (RSV-009 목록 + RSV-016~018 취소) */}
+      <div className="card overflow-hidden mt-3">
+        <div className="flex items-center gap-1.5 px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+          <CalendarClock size={14} style={{ color: 'var(--amber)' }} />
+          <p className="text-sm font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>예약 주문</p>
+        </div>
+        {scheduled.length === 0 ? (
+          <p className="text-sm text-center py-10" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>예약된 주문이 없습니다</p>
+        ) : (
+          scheduled.map((r, i) => {
+            const meta = RSV_STATUS_META[r.status] ?? RSV_STATUS_META.reserved;
+            const cancellable = r.status === 'reserved';
+            return (
+              <div key={r.id} className="flex items-center gap-3 px-4 py-3"
+                style={{ borderBottom: i < scheduled.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                  style={{ background: r.type === 'buy' ? 'var(--gain-dim)' : 'var(--loss-dim)', color: r.type === 'buy' ? 'var(--gain)' : 'var(--loss)' }}>
+                  {r.type === 'buy' ? '매수' : '매도'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{r.name}</p>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: meta.bg, color: meta.color, fontFamily: 'Noto Sans KR' }}>{meta.label}</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{RSV_KIND_LABEL[r.orderKind]}</span>
+                  </div>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+                    {TIMING_LABEL[r.timing]} · {r.scheduledDate} · {r.quantity}주{r.price ? ` @ ${r.price.toLocaleString()}원` : ''}
+                  </p>
+                </div>
+                <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                  <p className="text-sm font-mono font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>
+                    {(r.amount + r.fee).toLocaleString()}원
+                  </p>
+                  {cancellable && (
+                    <button onClick={() => handleCancelReservation(r.id)}
+                      className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'var(--loss-dim)', color: 'var(--loss)', fontFamily: 'Noto Sans KR' }}>
+                      취소
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
 
