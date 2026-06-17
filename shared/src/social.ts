@@ -21,6 +21,15 @@ export const MissionCategory = Type.Union(
 );
 export type MissionCategory = Static<typeof MissionCategory>;
 
+export const MissionStatus = Type.Union([
+  Type.Literal('available'),
+  Type.Literal('in_progress'),
+  Type.Literal('completed'),
+  Type.Literal('failed'),
+  Type.Literal('cancelled'),
+]);
+export type MissionStatus = Static<typeof MissionStatus>;
+
 export const Mission = Type.Object(
   {
     id: Type.String(),
@@ -28,11 +37,18 @@ export const Mission = Type.Object(
     title: Type.String(),
     description: Type.String(),
     reward: Type.Number({ description: 'Reward points' }),
+    badgeReward: Type.Optional(Type.String()),
+    achievementReward: Type.Optional(Type.String()),
     progress: Type.Number(),
     total: Type.Number(),
+    status: MissionStatus,
+    joined: Type.Boolean(),
     completed: Type.Boolean(),
     /** Whether the completed mission's reward has already been claimed. */
     claimed: Type.Optional(Type.Boolean()),
+    startedAt: Type.Optional(Type.String({ format: 'date-time' })),
+    joinedAt: Type.Optional(Type.String({ format: 'date-time' })),
+    endsAt: Type.String({ format: 'date-time' }),
     icon: Type.String(),
   },
 );
@@ -40,11 +56,25 @@ export type Mission = Static<typeof Mission>;
 
 export const MissionQuery = Type.Object({
   category: Type.Optional(MissionCategory),
+  status: Type.Optional(MissionStatus),
 });
 export type MissionQuery = Static<typeof MissionQuery>;
 
 export const MissionIdParams = Type.Object({ id: Type.String() });
 export type MissionIdParams = Static<typeof MissionIdParams>;
+
+export const UpsertMissionBody = Type.Object({
+  category: MissionCategory,
+  title: Type.String(),
+  description: Type.String(),
+  reward: Type.Number(),
+  total: Type.Integer({ minimum: 1 }),
+  icon: Type.String(),
+  endsAt: Type.String({ format: 'date-time' }),
+  badgeReward: Type.Optional(Type.String()),
+  achievementReward: Type.Optional(Type.String()),
+});
+export type UpsertMissionBody = Static<typeof UpsertMissionBody>;
 
 /** Increment progress on a mission (mock helper). */
 export const MissionProgressBody = Type.Object({
@@ -56,9 +86,90 @@ export type MissionProgressBody = Static<typeof MissionProgressBody>;
 export const ClaimRewardResult = Type.Object({
   mission: Mission,
   rewardedPoints: Type.Number(),
+  rewardedBadge: Type.Optional(Type.String()),
+  rewardedAchievement: Type.Optional(Type.String()),
   totalPoints: Type.Number({ description: 'Total claimed points after this claim' }),
 });
 export type ClaimRewardResult = Static<typeof ClaimRewardResult>;
+
+export const MissionProgressStatus = Type.Object({
+  total: Type.Number(),
+  available: Type.Number(),
+  inProgress: Type.Number(),
+  completed: Type.Number(),
+  failed: Type.Number(),
+  cancelled: Type.Number(),
+  claimableRewards: Type.Number(),
+  badges: Type.Array(Type.String()),
+  achievements: Type.Array(Type.String()),
+});
+export type MissionProgressStatus = Static<typeof MissionProgressStatus>;
+
+export const MissionParticipant = Type.Object({
+  userId: Type.String(),
+  username: Type.String(),
+  missionId: Type.String(),
+  status: MissionStatus,
+  progress: Type.Number(),
+  joinedAt: Type.String({ format: 'date-time' }),
+});
+export type MissionParticipant = Static<typeof MissionParticipant>;
+
+export const MissionStats = Type.Object({
+  missionId: Type.String(),
+  participants: Type.Number(),
+  completed: Type.Number(),
+  failed: Type.Number(),
+  completionRate: Type.Number(),
+  totalRewardedPoints: Type.Number(),
+});
+export type MissionStats = Static<typeof MissionStats>;
+
+export const ChallengeStatus = Type.Union([
+  Type.Literal('upcoming'),
+  Type.Literal('active'),
+  Type.Literal('completed'),
+]);
+export type ChallengeStatus = Static<typeof ChallengeStatus>;
+
+export const Challenge = Type.Object({
+  id: Type.String(),
+  title: Type.String(),
+  description: Type.String(),
+  season: Type.String(),
+  startsAt: Type.String({ format: 'date-time' }),
+  endsAt: Type.String({ format: 'date-time' }),
+  status: ChallengeStatus,
+  joined: Type.Boolean(),
+  participants: Type.Number(),
+  myRank: Type.Optional(Type.Number()),
+  reward: Type.Number(),
+  badgeReward: Type.Optional(Type.String()),
+});
+export type Challenge = Static<typeof Challenge>;
+
+export const ChallengeIdParams = Type.Object({ id: Type.String() });
+export type ChallengeIdParams = Static<typeof ChallengeIdParams>;
+
+export const UpsertChallengeBody = Type.Object({
+  title: Type.String(),
+  description: Type.String(),
+  season: Type.String(),
+  startsAt: Type.String({ format: 'date-time' }),
+  endsAt: Type.String({ format: 'date-time' }),
+  reward: Type.Number(),
+  badgeReward: Type.Optional(Type.String()),
+});
+export type UpsertChallengeBody = Static<typeof UpsertChallengeBody>;
+
+export const ChallengeResult = Type.Object({
+  challenge: Challenge,
+  rank: Type.Number(),
+  returnPercent: Type.Number(),
+  rewardedPoints: Type.Number(),
+  rewardedBadge: Type.Optional(Type.String()),
+});
+export type ChallengeResult = Static<typeof ChallengeResult>;
 
 // ── Learn ──────────────────────────────────────────────────────────
 export const LearnLevel = Type.Union(

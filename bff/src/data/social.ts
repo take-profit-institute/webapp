@@ -1,5 +1,5 @@
-import type { LearnContent } from '@candle/shared';
-import type { Mission } from '@candle/shared';
+import type { Challenge, LearnContent } from '@candle/shared';
+import type { Mission, MissionStatus } from '@candle/shared';
 import type { RankingEntry } from '@candle/shared';
 
 export const rankings: RankingEntry[] = [
@@ -15,16 +15,58 @@ export const rankings: RankingEntry[] = [
   { rank: 10, userId: 'u10', username: '장기투자자', avatar: '🏔', returnPercent: 4.12, totalAsset: 104120000, dayChangePercent: 0.1 },
 ];
 
+const now = '2026-06-18T09:00:00+09:00';
+const todayEnd = '2026-06-18T23:59:59+09:00';
+const weekEnd = '2026-06-21T23:59:59+09:00';
+
+function mission(input: Omit<Mission, 'completed'>): Mission {
+  const completed = input.status === 'completed' || input.progress >= input.total;
+  return { ...input, completed, status: completed ? 'completed' : input.status };
+}
+
 export const missions: Mission[] = [
-  { id: 'm1', category: 'daily', title: '오늘의 첫 거래', description: '오늘 첫 번째 주식 매수를 완료하세요', reward: 500, progress: 1, total: 1, completed: true, icon: '🎯' },
-  { id: 'm2', category: 'daily', title: '시장 동향 파악', description: '주식 상세 페이지 3개 이상 방문', reward: 300, progress: 2, total: 3, completed: false, icon: '👁️' },
-  { id: 'm3', category: 'daily', title: '학습 콘텐츠 읽기', description: '투자 학습 아티클 1개 완독', reward: 200, progress: 0, total: 1, completed: false, icon: '📚' },
-  { id: 'm4', category: 'weekly', title: '포트폴리오 다각화', description: '서로 다른 섹터 5개에 투자', reward: 2000, progress: 3, total: 5, completed: false, icon: '🌐' },
-  { id: 'm5', category: 'weekly', title: '수익 실현', description: '수익률 5% 이상인 종목 매도', reward: 1500, progress: 0, total: 1, completed: false, icon: '💰' },
-  { id: 'm6', category: 'weekly', title: '7일 연속 로그인', description: '일주일 동안 매일 접속', reward: 3000, progress: 4, total: 7, completed: false, icon: '🔥' },
-  { id: 'm7', category: 'special', title: '첫 해외 주식 투자', description: '미국 주식을 처음으로 매수', reward: 5000, progress: 1, total: 1, completed: true, icon: '🌏' },
-  { id: 'm8', category: 'special', title: '수익률 TOP 10 진입', description: '전체 랭킹 10위 안에 진입', reward: 10000, progress: 1, total: 1, completed: true, icon: '🏆' },
+  mission({ id: 'm1', category: 'daily', title: '오늘의 첫 거래', description: '오늘 첫 번째 주식 매수를 완료하세요', reward: 500, progress: 1, total: 1, status: 'completed', joined: true, claimed: false, badgeReward: '첫 거래', startedAt: now, joinedAt: now, endsAt: todayEnd, icon: '🎯' }),
+  mission({ id: 'm2', category: 'daily', title: '시장 동향 파악', description: '주식 상세 페이지 3개 이상 방문', reward: 300, progress: 2, total: 3, status: 'in_progress', joined: true, claimed: false, startedAt: now, joinedAt: now, endsAt: todayEnd, icon: '👁️' }),
+  mission({ id: 'm3', category: 'daily', title: '학습 콘텐츠 읽기', description: '투자 학습 아티클 1개 완독', reward: 200, progress: 0, total: 1, status: 'available', joined: false, claimed: false, endsAt: todayEnd, icon: '📚' }),
+  mission({ id: 'm4', category: 'weekly', title: '포트폴리오 다각화', description: '서로 다른 섹터 5개에 투자', reward: 2000, progress: 3, total: 5, status: 'in_progress', joined: true, claimed: false, achievementReward: '분산투자 입문', startedAt: now, joinedAt: now, endsAt: weekEnd, icon: '🌐' }),
+  mission({ id: 'm5', category: 'weekly', title: '수익 실현', description: '수익률 5% 이상인 종목 매도', reward: 1500, progress: 0, total: 1, status: 'available', joined: false, claimed: false, endsAt: weekEnd, icon: '💰' }),
+  mission({ id: 'm6', category: 'weekly', title: '7일 연속 로그인', description: '일주일 동안 매일 접속', reward: 3000, progress: 4, total: 7, status: 'failed', joined: true, claimed: false, endsAt: '2026-06-17T23:59:59+09:00', icon: '🔥' }),
+  mission({ id: 'm7', category: 'special', title: '첫 해외 주식 투자', description: '미국 주식을 처음으로 매수', reward: 5000, progress: 1, total: 1, status: 'completed', joined: true, claimed: true, badgeReward: '글로벌 투자자', achievementReward: '해외시장 첫발', startedAt: now, joinedAt: now, endsAt: '2026-12-31T23:59:59+09:00', icon: '🌏' }),
+  mission({ id: 'm8', category: 'special', title: '수익률 TOP 10 진입', description: '전체 랭킹 10위 안에 진입', reward: 10000, progress: 1, total: 1, status: 'completed', joined: true, claimed: false, badgeReward: 'TOP 10', achievementReward: '랭킹 입성', startedAt: now, joinedAt: now, endsAt: '2026-12-31T23:59:59+09:00', icon: '🏆' }),
 ];
+
+export const challenges: Challenge[] = [
+  { id: 'c1', title: '6월 수익률 챌린지', description: '시즌 종료일까지 가장 높은 수익률에 도전하세요', season: '2026-06', startsAt: '2026-06-01T00:00:00+09:00', endsAt: '2026-06-30T23:59:59+09:00', status: 'active', joined: true, participants: 428, myRank: 24, reward: 15000, badgeReward: '6월 챌린저' },
+  { id: 'c2', title: '방어형 포트폴리오 챌린지', description: '낮은 변동성으로 안정적인 수익률을 만들어보세요', season: '2026-Q3', startsAt: '2026-07-01T00:00:00+09:00', endsAt: '2026-09-30T23:59:59+09:00', status: 'upcoming', joined: false, participants: 72, reward: 20000, badgeReward: '리스크 매니저' },
+  { id: 'c3', title: '5월 성장주 챌린지', description: '성장주 중심 포트폴리오 시즌 결과', season: '2026-05', startsAt: '2026-05-01T00:00:00+09:00', endsAt: '2026-05-31T23:59:59+09:00', status: 'completed', joined: true, participants: 390, myRank: 18, reward: 12000, badgeReward: '성장주 탐험가' },
+];
+
+export function missionProgressStatus() {
+  return {
+    total: missions.length,
+    available: missions.filter((m) => m.status === 'available').length,
+    inProgress: missions.filter((m) => m.status === 'in_progress').length,
+    completed: missions.filter((m) => m.status === 'completed').length,
+    failed: missions.filter((m) => m.status === 'failed').length,
+    cancelled: missions.filter((m) => m.status === 'cancelled').length,
+    claimableRewards: missions.filter((m) => m.status === 'completed' && !m.claimed).reduce((sum, m) => sum + m.reward, 0),
+    badges: missions.filter((m) => m.claimed && m.badgeReward).map((m) => m.badgeReward!),
+    achievements: missions.filter((m) => m.claimed && m.achievementReward).map((m) => m.achievementReward!),
+  };
+}
+
+export function refreshMissionStatus(m: Mission): Mission {
+  const deadlinePassed = Date.parse(m.endsAt) < Date.parse(now);
+  if (m.status !== 'completed' && m.status !== 'cancelled' && deadlinePassed) m.status = 'failed';
+  if (m.progress >= m.total && m.status !== 'cancelled') {
+    m.progress = m.total;
+    m.status = 'completed';
+    m.completed = true;
+  } else {
+    m.completed = m.status === 'completed';
+  }
+  return m;
+}
 
 const body = (topic: string) => `${topic}은 투자 판단의 기준을 세우기 위한 핵심 개념입니다.
 
@@ -62,5 +104,5 @@ export function learnProgress() {
 
 /** Sum of rewards for all completed missions (the user's claimable point pool). */
 export function computeTotalPoints(): number {
-  return missions.filter((m) => m.completed).reduce((sum, m) => sum + m.reward, 0);
+  return missions.filter((m) => m.claimed).reduce((sum, m) => sum + m.reward, 0);
 }

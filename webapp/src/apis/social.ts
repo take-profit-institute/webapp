@@ -1,6 +1,8 @@
 /** Social/gamification endpoints: rankings, missions, learning content. */
 import type {
   ClaimRewardResult,
+  Challenge,
+  ChallengeResult,
   LearnContent,
   LearnFavoriteResult,
   LearnLevel,
@@ -8,6 +10,8 @@ import type {
   LearnProgressSummary,
   Mission,
   MissionCategory,
+  MissionProgressStatus,
+  MissionStatus,
   RankingEntry,
 } from '@/lib/api-types';
 import { apiClient } from './client';
@@ -25,8 +29,43 @@ export function getMyRanking(): Promise<RankingEntry> {
 }
 
 /** 미션/챌린지 목록. */
-export function getMissions(params: { category?: MissionCategory } = {}): Promise<Mission[]> {
+export function getMissions(params: { category?: MissionCategory; status?: MissionStatus } = {}): Promise<Mission[]> {
   return apiClient.get<Mission[]>('/api/missions', { ...params });
+}
+
+/** 미션 상세. */
+export function getMission(id: string): Promise<Mission> {
+  return apiClient.get<Mission>(`/api/missions/${encodeURIComponent(id)}`);
+}
+
+/** 내 미션 진행 상태. */
+export function getMissionProgressStatus(): Promise<MissionProgressStatus> {
+  return apiClient.get<MissionProgressStatus>('/api/missions/progress');
+}
+
+/** 미션 참여. */
+export function joinMission(id: string): Promise<Mission> {
+  return apiClient.post<Mission>(`/api/missions/${encodeURIComponent(id)}/join`);
+}
+
+/** 미션 참여 취소. */
+export function cancelMissionParticipation(id: string): Promise<Mission> {
+  return apiClient.del<Mission>(`/api/missions/${encodeURIComponent(id)}/participation`);
+}
+
+/** 챌린지 목록. */
+export function getChallenges(): Promise<Challenge[]> {
+  return apiClient.get<Challenge[]>('/api/missions/challenges');
+}
+
+/** 챌린지 참여. */
+export function joinChallenge(id: string): Promise<Challenge> {
+  return apiClient.post<Challenge>(`/api/missions/challenges/${encodeURIComponent(id)}/join`);
+}
+
+/** 챌린지 결과 조회. */
+export function getChallengeResult(id: string): Promise<ChallengeResult> {
+  return apiClient.get<ChallengeResult>(`/api/missions/challenges/${encodeURIComponent(id)}/result`);
 }
 
 /** 학습 콘텐츠 목록. */
