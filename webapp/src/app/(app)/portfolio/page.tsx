@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import {
+  amendOrder,
+  cancelOrder,
   getAccountBalance,
   getAllocation,
   getHoldings,
@@ -23,10 +25,15 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 export default function PortfolioPage() {
   const [activeTab, setActiveTab] = useState('보유 종목');
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [amendQty, setAmendQty] = useState('');
+  const [amendPrice, setAmendPrice] = useState('');
+  const [mutatingOrderId, setMutatingOrderId] = useState<string | null>(null);
+  const [orderActionMessage, setOrderActionMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   const { data: holdings, loading, error, refetch } = useApi(() => getHoldings(), []);
-  const { data: balance } = useApi(() => getAccountBalance(), []);
-  const { data: orders } = useApi(() => getOrders(), []);
+  const { data: balance, refetch: refetchBalance } = useApi(() => getAccountBalance(), []);
+  const { data: orders, refetch: refetchOrders } = useApi(() => getOrders(), []);
   const { data: history } = useApi(() => getPortfolioHistory(30), []);
   const { data: allocation } = useApi(() => getAllocation(), []);
 
@@ -59,6 +66,52 @@ export default function PortfolioPage() {
   const totalPLPct = totalValue - totalPL !== 0 ? (totalPL / (totalValue - totalPL)) * 100 : 0;
   const histMin = portfolioHistory.length ? Math.min(...portfolioHistory.map(d => d.value)) : 0;
   const histMax = portfolioHistory.length ? Math.max(...portfolioHistory.map(d => d.value)) : 1;
+
+  const canCancelOrAmend = (order: typeof orderList[number]) => order.status === 'pending' && order.orderKind === 'limit';
+
+  const startAmendOrder = (order: typeof orderList[number]) => {
+    setEditingOrderId(order.id);
+    setAmendQty(String(order.quantity));
+    setAmendPrice(String(order.price));
+    setOrderActionMessage(null);
+  };
+
+  const handleCancelOrder = async (id: string) => {
+    setMutatingOrderId(id);
+    setOrderActionMessage(null);
+    try {
+      const result = await cancelOrder(id);
+      setOrderActionMessage({ ok: true, text: `주문 취소 완료 · ${result.releasedAmount.toLocaleString()}원 반환` });
+      refetchOrders();
+      refetchBalance();
+    } catch (e) {
+      setOrderActionMessage({ ok: false, text: e instanceof Error ? e.message : '주문 취소에 실패했습니다' });
+    } finally {
+      setMutatingOrderId(null);
+    }
+  };
+
+  const handleAmendOrder = async (id: string) => {
+    const quantity = parseInt(amendQty) || 0;
+    const price = parseInt(amendPrice) || 0;
+    if (quantity < 1 || price < 1) {
+      setOrderActionMessage({ ok: false, text: '정정 수량과 지정가를 입력하세요' });
+      return;
+    }
+    setMutatingOrderId(id);
+    setOrderActionMessage(null);
+    try {
+      const amended = await amendOrder(id, { quantity, price });
+      setOrderActionMessage({ ok: true, text: `정정 접수 완료 · 원주문 ${amended.parentOrderId}` });
+      setEditingOrderId(null);
+      refetchOrders();
+      refetchBalance();
+    } catch (e) {
+      setOrderActionMessage({ ok: false, text: e instanceof Error ? e.message : '주문 정정에 실패했습니다' });
+    } finally {
+      setMutatingOrderId(null);
+    }
+  };
 
   return (
     <div className="p-3 md:p-6 max-w-[1200px]">
@@ -298,12 +351,58 @@ export default function PortfolioPage() {
                         { label: '체결 금액', value: `${o.amount.toLocaleString()}원` },
                         { label: '수수료', value: `${o.fee.toLocaleString()}원` },
                         { label: '일시', value: `${o.executedAt.slice(0, 10)} ${o.executedAt.slice(11, 16)}` },
+                        ...(o.parentOrderId ? [{ label: '원 주문', value: o.parentOrderId }] : []),
                       ].map(({ label, value }) => (
                         <div key={label} className="flex justify-between text-xs py-0.5">
                           <span style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</span>
                           <span style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>{value}</span>
                         </div>
                       ))}
+                      <div className="col-span-2 pt-2 mt-1" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                        {canCancelOrAmend(o) ? (
+                          <div className="space-y-2">
+                            {editingOrderId === o.id ? (
+                              <div className="grid grid-cols-2 gap-2">
+                                <input type="number" min="1" step="1" value={amendQty}
+                                  onChange={e => setAmendQty(e.target.value.replace(/[.,]/g, ''))}
+                                  className="input-dark text-center text-xs font-mono" placeholder="수량" style={{ fontFamily: 'JetBrains Mono' }} />
+                                <input type="number" min="1" step="1" value={amendPrice}
+                                  onChange={e => setAmendPrice(e.target.value.replace(/[.,]/g, ''))}
+                                  className="input-dark text-right text-xs font-mono" placeholder="지정가" style={{ fontFamily: 'JetBrains Mono' }} />
+                              </div>
+                            ) : null}
+                            <div className="grid grid-cols-2 gap-2">
+                              {editingOrderId === o.id ? (
+                                <button onClick={() => handleAmendOrder(o.id)} disabled={mutatingOrderId === o.id}
+                                  className="text-xs py-2 rounded-lg font-bold"
+                                  style={{ background: 'var(--amber-subtle)', color: 'var(--amber)', opacity: mutatingOrderId === o.id ? 0.5 : 1, fontFamily: 'Noto Sans KR' }}>
+                                  정정 접수
+                                </button>
+                              ) : (
+                                <button onClick={() => startAmendOrder(o)}
+                                  className="text-xs py-2 rounded-lg font-bold"
+                                  style={{ background: 'var(--amber-subtle)', color: 'var(--amber)', fontFamily: 'Noto Sans KR' }}>
+                                  정정
+                                </button>
+                              )}
+                              <button onClick={() => handleCancelOrder(o.id)} disabled={mutatingOrderId === o.id}
+                                className="text-xs py-2 rounded-lg font-bold"
+                                style={{ background: 'var(--loss-dim)', color: 'var(--loss)', opacity: mutatingOrderId === o.id ? 0.5 : 1, fontFamily: 'Noto Sans KR' }}>
+                                취소
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-center py-1" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+                            PENDING 상태의 지정가 주문만 취소/정정할 수 있습니다
+                          </p>
+                        )}
+                        {orderActionMessage && expandedOrder === o.id && (
+                          <p className="text-xs text-center mt-2" style={{ color: orderActionMessage.ok ? 'var(--gain)' : 'var(--loss)', fontFamily: 'Noto Sans KR' }}>
+                            {orderActionMessage.text}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

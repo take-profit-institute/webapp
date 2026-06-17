@@ -70,6 +70,7 @@ export const Transaction = Type.Object(
     id: Type.String(),
     type: TransactionType,
     orderKind: Type.Optional(OrderKind),
+    parentOrderId: Type.Optional(Type.String({ description: '정정 주문인 경우 원 주문 ID (CAN-008)' })),
     symbol: Type.String(),
     name: Type.String(),
     quantity: Type.Number(),
@@ -124,6 +125,12 @@ export type OrderListQuery = Static<typeof OrderListQuery>;
 export const OrderIdParams = Type.Object({ id: Type.String() });
 export type OrderIdParams = Static<typeof OrderIdParams>;
 
+export const AmendOrderBody = Type.Object({
+  quantity: Type.Integer({ minimum: 1 }),
+  price: Type.Number({ minimum: 0 }),
+});
+export type AmendOrderBody = Static<typeof AmendOrderBody>;
+
 // ── 예약 주문 (RSV-*) ───────────────────────────────────────────────
 /** 예약 실행 시점 (RSV-001): 시가(09:00) / 전일종가(08:30) / 당일종가(15:40). */
 export const ReservationTiming = Type.Union([
@@ -162,6 +169,7 @@ export const Reservation = Type.Object(
     type: TransactionType,
     timing: ReservationTiming,
     orderKind: ReservationKind,
+    parentOrderId: Type.Optional(Type.String({ description: '정정 예약인 경우 원 예약 주문 ID (CAN-008)' })),
     quantity: Type.Number(),
     price: Type.Optional(Type.Number({ description: '지정가일 때만' })),
     scheduledDate: Type.String({ description: '실행 예정일 (YYYY-MM-DD)' }),
@@ -194,6 +202,15 @@ export type ReservationListQuery = Static<typeof ReservationListQuery>;
 export const ReservationIdParams = Type.Object({ id: Type.String() });
 export type ReservationIdParams = Static<typeof ReservationIdParams>;
 
+export const AmendReservationBody = Type.Object({
+  timing: Type.Optional(ReservationTiming),
+  orderKind: Type.Optional(ReservationKind),
+  quantity: Type.Optional(Type.Integer({ minimum: 1 })),
+  price: Type.Optional(Type.Number({ minimum: 0 })),
+  scheduledDate: Type.Optional(Type.String()),
+});
+export type AmendReservationBody = Static<typeof AmendReservationBody>;
+
 export const PortfolioHistoryQuery = Type.Object({
   days: Type.Optional(Type.Integer({ minimum: 1, maximum: 365 })),
 });
@@ -211,6 +228,7 @@ export type TransactionQuery = Static<typeof TransactionQuery>;
 export const OrderCancelResult = Type.Object({
   id: Type.String(),
   status: Type.Literal('cancelled'),
+  releasedAmount: Type.Number({ description: '취소로 반환되는 예약 금액(amount + fee)' }),
   cancelledAt: Type.String({ format: 'date-time' }),
 });
 export type OrderCancelResult = Static<typeof OrderCancelResult>;

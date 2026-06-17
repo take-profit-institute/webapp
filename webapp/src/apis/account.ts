@@ -2,6 +2,8 @@
 import type {
   Account,
   AccountBalance,
+  AmendOrderBody,
+  AmendReservationBody,
   CreateReservationBody,
   Holding,
   OrderCancelResult,
@@ -55,6 +57,11 @@ export function cancelReservation(id: string): Promise<void> {
   return apiClient.del(`/api/account/reservations/${encodeURIComponent(id)}`);
 }
 
+/** 예약 주문 정정 (CAN-006~008). */
+export function amendReservation(id: string, input: AmendReservationBody): Promise<Reservation> {
+  return apiClient.patch<Reservation>(`/api/account/reservations/${encodeURIComponent(id)}`, input);
+}
+
 /** 보유 종목. */
 export function getHoldings(): Promise<Holding[]> {
   return apiClient.get<Holding[]>('/api/account/holdings');
@@ -105,6 +112,11 @@ export function getOrder(id: string): Promise<Transaction> {
 /** 주문 취소. */
 export function cancelOrder(id: string): Promise<OrderCancelResult> {
   return apiClient.del<OrderCancelResult>(`/api/account/orders/${encodeURIComponent(id)}`);
+}
+
+/** 지정가 주문 정정 (CAN-005/007/008). */
+export function amendOrder(id: string, input: AmendOrderBody): Promise<Transaction> {
+  return apiClient.patch<Transaction>(`/api/account/orders/${encodeURIComponent(id)}`, input);
 }
 
 /** 계정 초기화 (포트폴리오 리셋). */

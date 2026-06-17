@@ -22,6 +22,8 @@ import {
   Account,
   AccountBalance,
   AddWatchlistBody,
+  AmendOrderBody,
+  AmendReservationBody,
   CreateReservationBody,
   Holding,
   OrderCancelResult,
@@ -60,7 +62,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     '/locked',
     { schema: { tags: ['account'], summary: '묶인 금액 내역 (미체결 지정가 주문)', response: { 200: Type.Array(Transaction) } } },
-    async () => reservations,
+    async () => reservations.filter((r) => r.status === 'pending'),
   );
 
   app.get(
@@ -95,7 +97,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
   // 모든 주문 = 예약(pending) + 체결(filled). 목록/상세 조회용 합성 뷰.
   const allOrders = (): Transaction[] =>
     [
-      ...reservations.map((r) => ({ ...r, orderKind: 'limit' as OrderKind })),
+      ...reservations.map((r) => ({ ...r, orderKind: r.orderKind ?? ('limit' as OrderKind) })),
       ...transactions.map((t) => ({ ...t, orderKind: 'market' as OrderKind })),
     ].sort((a, b) => b.executedAt.localeCompare(a.executedAt));
 
@@ -187,15 +189,61 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
         status,
         executedAt: new Date().toISOString(),
       };
+      if (status === 'pending') reservations.unshift(order);
+      else transactions.unshift(order);
       return reply.status(201).send(order);
     },
   );
 
   app.delete(
     '/orders/:id',
-    { schema: { tags: ['account'], summary: '주문 취소', params: Type.Object({ id: Type.String() }), response: { 200: OrderCancelResult } } },
-    // NOTE: orders aren't stored yet — echoes the id back as cancelled.
-    async (req) => ({ id: req.params.id, status: 'cancelled' as const, cancelledAt: new Date().toISOString() }),
+    { schema: { tags: ['account'], summary: '주문 취소 (CAN-001~004)', params: OrderIdParams, response: { 200: OrderCancelResult, 404: ErrorResponse, 409: ErrorResponse } } },
+    async (req, reply) => {
+      const order = reservations.find((o) => o.id === req.params.id) ?? transactions.find((o) => o.id === req.params.id);
+      if (!order) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown order: ${req.params.id}` });
+
+      // Real flow: BFF -> Order Service cancel; on success -> Account Service release reserved_balance.
+      // Mock flow: only PENDING limit orders can be cancelled and released immediately.
+      if (order.status !== 'pending') {
+        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: '체결 또는 취소된 주문은 취소할 수 없습니다.' });
+      }
+      if (order.orderKind !== 'limit') {
+        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: '시장가/시간외종가 즉시 주문은 취소할 수 없습니다.' });
+      }
+
+      const releasedAmount = order.amount + order.fee;
+      order.status = 'cancelled';
+      return { id: req.params.id, status: 'cancelled' as const, releasedAmount, cancelledAt: new Date().toISOString() };
+    },
+  );
+
+  app.patch(
+    '/orders/:id',
+    { schema: { tags: ['account'], summary: '지정가 주문 정정 (CAN-005/007/008)', params: OrderIdParams, body: AmendOrderBody, response: { 201: Transaction, 404: ErrorResponse, 409: ErrorResponse } } },
+    async (req, reply) => {
+      const order = reservations.find((o) => o.id === req.params.id) ?? transactions.find((o) => o.id === req.params.id);
+      if (!order) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown order: ${req.params.id}` });
+      if (order.status !== 'pending' || order.orderKind !== 'limit') {
+        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'PENDING 상태의 지정가 주문만 정정할 수 있습니다.' });
+      }
+
+      // Real flow: cancel original order, release reserved balance, then submit a new limit order with parent_order_id.
+      order.status = 'cancelled';
+      const amount = req.body.quantity * req.body.price;
+      const amended: Transaction = {
+        ...order,
+        id: `t_${Date.now()}`,
+        parentOrderId: order.id,
+        quantity: req.body.quantity,
+        price: req.body.price,
+        amount,
+        fee: Math.round(amount * 0.00015),
+        status: 'pending',
+        executedAt: new Date().toISOString(),
+      };
+      reservations.unshift(amended);
+      return reply.status(201).send(amended);
+    },
   );
 
   // ── 예약 주문 (RSV-*) ─────────────────────────────────────────────
@@ -294,13 +342,81 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.delete(
     '/reservations/:id',
-    { schema: { tags: ['account'], summary: '예약 주문 취소 (RSV-016~018)', params: ReservationIdParams, response: { 204: Type.Null(), 404: ErrorResponse } } },
+    { schema: { tags: ['account'], summary: '예약 주문 취소 (RSV-016~018)', params: ReservationIdParams, response: { 204: Type.Null(), 404: ErrorResponse, 409: ErrorResponse } } },
     // NOTE: mock — 실제로는 reserved_balance 반환(RSV-014/취소). 여기선 접수 취소만.
     async (req, reply) => {
       const r = demoReservations.find((x) => x.id === req.params.id);
       if (!r) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown reservation: ${req.params.id}` });
+      if (r.status !== 'reserved') return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'RESERVED 상태의 예약 주문만 취소할 수 있습니다.' });
       r.status = 'cancelled';
       return reply.status(204).send(null);
+    },
+  );
+
+  app.patch(
+    '/reservations/:id',
+    {
+      schema: {
+        tags: ['account'],
+        summary: '예약 주문 정정 (CAN-006~008)',
+        params: ReservationIdParams,
+        body: AmendReservationBody,
+        response: { 201: Reservation, 400: ErrorResponse, 404: ErrorResponse, 409: ErrorResponse },
+      },
+    },
+    async (req, reply) => {
+      const original = demoReservations.find((x) => x.id === req.params.id);
+      if (!original) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown reservation: ${req.params.id}` });
+      if (original.status !== 'reserved') {
+        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'RESERVED 상태의 예약 주문만 정정할 수 있습니다.' });
+      }
+
+      const timing = req.body.timing ?? original.timing;
+      const orderKind = req.body.orderKind ?? original.orderKind;
+      const quantity = req.body.quantity ?? original.quantity;
+      if (!allowedReservationKinds(timing).includes(orderKind)) {
+        const hint = timing === 'open' ? '시가 예약은 시장가/지정가만 가능합니다.' : '종가 예약은 시간외종가만 가능합니다.';
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: hint });
+      }
+      if (orderKind === 'limit' && req.body.price == null && original.price == null) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '지정가 예약은 가격이 필요합니다.' });
+      }
+
+      const scheduledDate = resolveScheduledDate(timing, req.body.scheduledDate ?? original.scheduledDate);
+      if (!scheduledDate) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '실행 예정일은 내일부터 7일 이내여야 합니다.' });
+      }
+
+      const stock = await provider.getStock(original.symbol);
+      if (!stock) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown symbol: ${original.symbol}` });
+      }
+      const price =
+        orderKind === 'limit'
+          ? (req.body.price ?? original.price)!
+          : timing === 'prev_close'
+            ? stock.prevClose
+            : stock.price;
+      const amount = price * quantity;
+
+      // Real flow: cancel original reservation, release its reserved amount, submit a new reservation with parent_order_id.
+      original.status = 'cancelled';
+      const amended: Reservation = {
+        ...original,
+        id: `rsv_${Date.now()}`,
+        parentOrderId: original.id,
+        timing,
+        orderKind,
+        quantity,
+        price: orderKind === 'limit' ? price : undefined,
+        scheduledDate,
+        amount,
+        fee: Math.round(amount * 0.00015),
+        status: 'reserved',
+        createdAt: new Date().toISOString(),
+      };
+      demoReservations.unshift(amended);
+      return reply.status(201).send(amended);
     },
   );
 
