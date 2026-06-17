@@ -2,9 +2,12 @@ import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import { Type } from '@sinclair/typebox';
 import {
   getAccount,
+  getBalance,
+  getDeactivatedAccount,
   getPortfolioHistory,
   getResetAccount,
   holdings,
+  reservations,
   sectorAllocation,
   transactions,
   watchlistSymbols,
@@ -14,6 +17,7 @@ import { getMarketProvider } from '../providers';
 import { ErrorResponse } from '@candle/shared';
 import {
   Account,
+  AccountBalance,
   AddWatchlistBody,
   Holding,
   OrderCancelResult,
@@ -35,6 +39,18 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/',
     { schema: { tags: ['account'], summary: '계좌 요약 (대시보드 통계)', response: { 200: Account } } },
     async () => getAccount(),
+  );
+
+  app.get(
+    '/balance',
+    { schema: { tags: ['account'], summary: '잔고 분리 조회 (총/묶인/가용)', response: { 200: AccountBalance } } },
+    async () => getBalance(),
+  );
+
+  app.get(
+    '/reservations',
+    { schema: { tags: ['account'], summary: '예약(미체결) 주문 — 묶인 금액 내역', response: { 200: Type.Array(Transaction) } } },
+    async () => reservations,
   );
 
   app.get(
@@ -105,6 +121,13 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     { schema: { tags: ['account'], summary: '계정 초기화 (포트폴리오 리셋)', response: { 200: Account } } },
     // NOTE: mock — returns a fresh starting-capital account without persisting.
     async () => getResetAccount(),
+  );
+
+  app.post(
+    '/deactivate',
+    { schema: { tags: ['account'], summary: '계좌 비활성화 (Auth 탈퇴 이벤트 처리)', response: { 200: Account } } },
+    // NOTE: mock — real deactivation is triggered by an Auth 탈퇴 event in the Account service.
+    async () => getDeactivatedAccount(),
   );
 
   app.get(

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Camera, Bell, Shield, HelpCircle, ChevronRight, TrendingUp, Award, Zap, BookOpen, Target, LogOut } from 'lucide-react';
 import Link from 'next/link';
-import { logout, resetAccount, updateProfile } from '@/apis';
+import { getAccount, logout, resetAccount, updateProfile, useApi } from '@/apis';
 import type { InvestStyle } from '@/lib/api-types';
 
 const tabs = ['프로필', '투자 통계', '설정'];
@@ -31,6 +31,8 @@ export default function MyPage() {
   const [investStyle, setInvestStyle] = useState('균형형');
   const [resetting, setResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const { data: account } = useApi(() => getAccount(), []);
+  const isActive = account?.status !== 'inactive';
 
   const handleSelectStyle = (label: string) => {
     setInvestStyle(label);
@@ -82,6 +84,15 @@ export default function MyPage() {
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
               <h2 className="text-lg md:text-xl font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-primary)' }}>박유빈</h2>
               <span className="badge-amber text-xs">균형형</span>
+              {/* 계좌 상태 (ACC-005/006) */}
+              <span className="text-xs px-2 py-0.5 rounded-full"
+                style={{
+                  background: isActive ? 'var(--gain-dim)' : 'var(--loss-dim)',
+                  color: isActive ? 'var(--gain)' : 'var(--loss)',
+                  fontFamily: 'Noto Sans KR',
+                }}>
+                {isActive ? '활성 계좌' : '비활성 계좌'}
+              </span>
             </div>
             <p className="text-xs mb-2" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>가입일: 2026.01.15</p>
             <div className="flex items-center gap-3 flex-wrap">

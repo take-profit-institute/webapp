@@ -26,6 +26,8 @@ export {
 } from './market';
 export {
   getAccount,
+  getAccountBalance,
+  getReservations,
   getHoldings,
   getTransactions,
   getPortfolioHistory,
@@ -33,6 +35,7 @@ export {
   placeOrder,
   cancelOrder,
   resetAccount,
+  deactivateAccount,
   getWatchlist,
   addWatchlist,
   removeWatchlist,

@@ -1,5 +1,6 @@
 import type {
   Account,
+  AccountBalance,
   Holding,
   PortfolioPoint,
   SectorAllocation,
@@ -42,6 +43,15 @@ export const transactions: Transaction[] = [
   tx('t6', 'buy', 'AAPL', '애플', 3, 185000, '2026-06-10T09:45:00+09:00'),
 ];
 
+/** 미체결 지정가 주문 — 체결 대기로 현금이 '묶인' 예약 건. lockedAmount의 출처. */
+export const reservations: Transaction[] = [
+  { ...tx('r1', 'buy', '000660', 'SK하이닉스', 3, 198500, '2026-06-15T14:05:00+09:00'), status: 'pending' },
+  { ...tx('r2', 'buy', '035720', '카카오', 6, 39450, '2026-06-15T13:20:00+09:00'), status: 'pending' },
+];
+
+/** 묶인 금액 = 미체결 주문이 예약한 금액(체결금액 + 수수료)의 합. */
+export const lockedAmount = reservations.reduce((sum, r) => sum + r.amount + r.fee, 0);
+
 function seedRandom(seed: number) {
   let s = seed % 233280;
   return () => {
@@ -75,13 +85,15 @@ export const sectorAllocation: SectorAllocation[] = [
 
 export function getAccount(): Account {
   const investedAmount = holdings.reduce((sum, h) => sum + h.totalValue, 0);
-  const cash = 2_125_780;
+  const cash = 2_125_780; // 가용 가능 금액
   const totalAsset = 118_360_000;
   return {
     accountId: DEMO_ACCOUNT_ID,
     userId: DEMO_USER_ID,
+    status: 'active',
     currency: 'KRW',
     cash,
+    lockedAmount, // 미체결 주문이 예약한 금액 (reservations 합계)
     totalAsset,
     investedAmount,
     totalProfitLoss: totalAsset - STARTING_CAPITAL,
@@ -93,13 +105,25 @@ export function getAccount(): Account {
   };
 }
 
+/** Cash balance broken down into 총/묶인/가용 (ACC-004). */
+export function getBalance(): AccountBalance {
+  const account = getAccount();
+  return {
+    totalBalance: account.cash + account.lockedAmount,
+    lockedAmount: account.lockedAmount,
+    availableAmount: account.cash,
+  };
+}
+
 /** A freshly reset account: all holdings sold, full starting capital in cash. */
 export function getResetAccount(): Account {
   return {
     accountId: DEMO_ACCOUNT_ID,
     userId: DEMO_USER_ID,
+    status: 'active',
     currency: 'KRW',
     cash: STARTING_CAPITAL,
+    lockedAmount: 0,
     totalAsset: STARTING_CAPITAL,
     investedAmount: 0,
     totalProfitLoss: 0,
@@ -109,6 +133,11 @@ export function getResetAccount(): Account {
     rank: 4,
     updatedAt: new Date().toISOString(),
   };
+}
+
+/** Returns the demo account with status flipped to inactive (ACC-005, mock — not persisted). */
+export function getDeactivatedAccount(): Account {
+  return { ...getAccount(), status: 'inactive', updatedAt: new Date().toISOString() };
 }
 
 /** Seed symbols for the demo watchlist (관심종목). */

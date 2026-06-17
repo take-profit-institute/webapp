@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, TrendingUp, Briefcase, Trophy, Target, BookOpen, User, LogOut, ChevronLeft, ChevronRight
+  LayoutDashboard, TrendingUp, Briefcase, Wallet, Trophy, Target, BookOpen, User, LogOut, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useUIStore, useAuthStore } from '@/store/useStore';
 import ThemeToggle from './ThemeToggle';
@@ -11,6 +11,7 @@ const navItems = [
   { icon: LayoutDashboard, label: '대시보드', href: '/dashboard' },
   { icon: TrendingUp, label: '시장', href: '/market' },
   { icon: Briefcase, label: '포트폴리오', href: '/portfolio' },
+  { icon: Wallet, label: '잔고', href: '/wallet' },
   { icon: Trophy, label: '랭킹', href: '/ranking' },
   { icon: Target, label: '미션', href: '/missions' },
   { icon: BookOpen, label: '학습', href: '/learn' },
@@ -86,12 +87,12 @@ export default function Sidebar() {
               <p className="text-xs" style={{ color: 'var(--amber)' }}>랭킹 #{rank}</p>
             </div>
           </div>
-          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 8 }}>
+          <Link href="/wallet" className="block" style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 8 }}>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>가용 현금</p>
             <p className="text-sm font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>
               {cash.toLocaleString()}원
             </p>
-          </div>
+          </Link>
         </div>
       )}
 

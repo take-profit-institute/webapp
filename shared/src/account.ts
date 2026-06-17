@@ -1,14 +1,20 @@
 import { Type, type Static } from '@sinclair/typebox';
 import { Currency } from './common';
 
+/** Account lifecycle status. Set to `inactive` when the Auth service emits a 탈퇴 event. */
+export const AccountStatus = Type.Union([Type.Literal('active'), Type.Literal('inactive')]);
+export type AccountStatus = Static<typeof AccountStatus>;
+
 /** A user's virtual trading account summary (drives the dashboard stat cards). */
 export const Account = Type.Object(
   {
     accountId: Type.String(),
     userId: Type.String(),
+    status: AccountStatus,
     currency: Currency,
-    cash: Type.Number({ description: '가용 현금' }),
-    totalAsset: Type.Number({ description: '총 자산 = 평가금액 + 현금' }),
+    cash: Type.Number({ description: '가용 가능 금액 (주문 가능 현금)' }),
+    lockedAmount: Type.Number({ description: '묶인 금액 (미체결 주문 등으로 예약된 현금)' }),
+    totalAsset: Type.Number({ description: '총 자산 = 평가금액 + 현금(가용+묶인)' }),
     investedAmount: Type.Number({ description: '주식 평가금액 (현금 제외)' }),
     totalProfitLoss: Type.Number(),
     totalReturnPercent: Type.Number(),
@@ -19,6 +25,16 @@ export const Account = Type.Object(
   },
 );
 export type Account = Static<typeof Account>;
+
+/** Cash balance broken down into total / locked / available (ACC-004). */
+export const AccountBalance = Type.Object(
+  {
+    totalBalance: Type.Number({ description: '총 잔고 = 가용 + 묶인' }),
+    lockedAmount: Type.Number({ description: '묶인 금액 (미체결 주문 등)' }),
+    availableAmount: Type.Number({ description: '가용 가능 금액' }),
+  },
+);
+export type AccountBalance = Static<typeof AccountBalance>;
 
 /** A position the user currently holds. */
 export const Holding = Type.Object(

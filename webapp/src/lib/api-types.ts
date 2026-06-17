@@ -17,6 +17,8 @@ export type {
   MarketMovers,
   // account
   Account,
+  AccountStatus,
+  AccountBalance,
   Holding,
   Transaction,
   TransactionType,

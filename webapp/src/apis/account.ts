@@ -1,6 +1,7 @@
 /** Virtual trading account endpoints (`/api/account/*`). */
 import type {
   Account,
+  AccountBalance,
   Holding,
   OrderCancelResult,
   PortfolioPoint,
@@ -15,6 +16,16 @@ import { apiClient } from './client';
 /** 계좌 요약 (대시보드 통계). */
 export function getAccount(): Promise<Account> {
   return apiClient.get<Account>('/api/account');
+}
+
+/** 잔고 분리 조회 (총/묶인/가용). */
+export function getAccountBalance(): Promise<AccountBalance> {
+  return apiClient.get<AccountBalance>('/api/account/balance');
+}
+
+/** 예약(미체결) 주문 — 묶인 금액 내역. */
+export function getReservations(): Promise<Transaction[]> {
+  return apiClient.get<Transaction[]>('/api/account/reservations');
 }
 
 /** 보유 종목. */
@@ -60,6 +71,11 @@ export function cancelOrder(id: string): Promise<OrderCancelResult> {
 /** 계정 초기화 (포트폴리오 리셋). */
 export function resetAccount(): Promise<Account> {
   return apiClient.post<Account>('/api/account/reset');
+}
+
+/** 계좌 비활성화 (Auth 탈퇴 이벤트 처리 — mock). */
+export function deactivateAccount(): Promise<Account> {
+  return apiClient.post<Account>('/api/account/deactivate');
 }
 
 /** 관심종목 목록. */

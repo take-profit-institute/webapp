@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import {
-  getAccount,
+  getAccountBalance,
   getAllocation,
   getHoldings,
   getPortfolioHistory,
@@ -18,7 +18,7 @@ export default function PortfolioPage() {
   const [activeTab, setActiveTab] = useState('보유 종목');
 
   const { data: holdings, loading, error, refetch } = useApi(() => getHoldings(), []);
-  const { data: account } = useApi(() => getAccount(), []);
+  const { data: balance } = useApi(() => getAccountBalance(), []);
   const { data: transactions } = useApi(() => getTransactions(), []);
   const { data: history } = useApi(() => getPortfolioHistory(30), []);
   const { data: allocation } = useApi(() => getAllocation(), []);
@@ -42,7 +42,10 @@ export default function PortfolioPage() {
   const recentTransactions = transactions ?? [];
   const portfolioHistory = history ?? [];
   const sectorAllocation = allocation ?? [];
-  const cash = account?.cash ?? 0;
+  // 잔고 분리 (ACC-004): 총 = 가용 + 묶인
+  const available = balance?.availableAmount ?? 0;
+  const locked = balance?.lockedAmount ?? 0;
+  const totalCash = balance?.totalBalance ?? available + locked;
 
   const totalValue = myHoldings.reduce((s, h) => s + h.totalValue, 0);
   const totalPL = myHoldings.reduce((s, h) => s + h.profitLoss, 0);
@@ -65,7 +68,7 @@ export default function PortfolioPage() {
             <div>
               <p className="text-[10px] md:text-xs mb-0.5" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>총 평가 자산</p>
               <p className="text-2xl md:text-3xl font-black font-mono" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-primary)' }}>
-                {(totalValue + cash).toLocaleString()}<span className="text-xs ml-1" style={{ color: 'var(--text-secondary)' }}>원</span>
+                {(totalValue + totalCash).toLocaleString()}<span className="text-xs ml-1" style={{ color: 'var(--text-secondary)' }}>원</span>
               </p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <ArrowUpRight size={13} style={{ color: 'var(--gain)' }} />
@@ -74,9 +77,22 @@ export default function PortfolioPage() {
                 </span>
               </div>
             </div>
-            <div className="text-right hidden sm:block">
-              <p className="text-xs mb-1" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>가용 현금</p>
-              <p className="text-lg font-mono font-bold" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-secondary)' }}>{cash.toLocaleString()}원</p>
+            {/* 잔고 분리 조회 (ACC-004): 총 잔고 / 묶인 / 가용 */}
+            <div className="text-right hidden sm:block space-y-1">
+              <div>
+                <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>총 잔고</p>
+                <p className="text-base font-mono font-bold" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-primary)' }}>{totalCash.toLocaleString()}원</p>
+              </div>
+              <div className="flex items-center justify-end gap-3">
+                <div>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>가용</p>
+                  <p className="text-xs font-mono" style={{ fontFamily: 'JetBrains Mono', color: 'var(--gain)' }}>{available.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>묶인 금액</p>
+                  <p className="text-xs font-mono" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-secondary)' }}>{locked.toLocaleString()}</p>
+                </div>
+              </div>
             </div>
           </div>
           <svg width="100%" height="90" viewBox="0 0 500 90" preserveAspectRatio="none">
