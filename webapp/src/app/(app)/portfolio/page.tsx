@@ -5,21 +5,28 @@ import {
   getAccountBalance,
   getAllocation,
   getHoldings,
+  getOrders,
   getPortfolioHistory,
-  getTransactions,
   useApi,
 } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
 import { sectorColor } from '@/lib/format';
 
-const tabs = ['보유 종목', '거래 내역', '수익 분석'];
+const tabs = ['보유 종목', '주문 내역', '수익 분석'];
+
+const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+  filled: { label: '체결', color: 'var(--gain)', bg: 'var(--gain-dim)' },
+  pending: { label: '대기', color: 'var(--amber)', bg: 'var(--amber-subtle)' },
+  cancelled: { label: '취소', color: 'var(--text-muted)', bg: 'var(--bg-surface)' },
+};
 
 export default function PortfolioPage() {
   const [activeTab, setActiveTab] = useState('보유 종목');
+  const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
 
   const { data: holdings, loading, error, refetch } = useApi(() => getHoldings(), []);
   const { data: balance } = useApi(() => getAccountBalance(), []);
-  const { data: transactions } = useApi(() => getTransactions(), []);
+  const { data: orders } = useApi(() => getOrders(), []);
   const { data: history } = useApi(() => getPortfolioHistory(30), []);
   const { data: allocation } = useApi(() => getAllocation(), []);
 
@@ -39,7 +46,7 @@ export default function PortfolioPage() {
   }
 
   const myHoldings = holdings;
-  const recentTransactions = transactions ?? [];
+  const orderList = orders ?? [];
   const portfolioHistory = history ?? [];
   const sectorAllocation = allocation ?? [];
   // 잔고 분리 (ACC-004): 총 = 가용 + 묶인
@@ -246,29 +253,62 @@ export default function PortfolioPage() {
           </div>
         )}
 
-        {activeTab === '거래 내역' && (
+        {/* 주문 내역 (ORD-004) + 클릭 시 상세 (ORD-005) */}
+        {activeTab === '주문 내역' && (
           <div>
-            {recentTransactions.map((t, i) => (
-              <div key={t.id} className="flex items-center gap-3 px-4 py-3 transition-colors"
-                style={{ borderBottom: i < recentTransactions.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
-                  style={{ background: t.type === 'buy' ? 'var(--gain-dim)' : 'var(--loss-dim)', color: t.type === 'buy' ? 'var(--gain)' : 'var(--loss)' }}>
-                  {t.type === 'buy' ? '매수' : '매도'}
+            {orderList.length === 0 && (
+              <p className="text-sm text-center py-10" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>주문 내역이 없습니다</p>
+            )}
+            {orderList.map((o, i) => {
+              const meta = STATUS_META[o.status] ?? STATUS_META.filled;
+              const expanded = expandedOrder === o.id;
+              return (
+                <div key={o.id} style={{ borderBottom: i < orderList.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                  <button onClick={() => setExpandedOrder(expanded ? null : o.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 transition-colors text-left"
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                      style={{ background: o.type === 'buy' ? 'var(--gain-dim)' : 'var(--loss-dim)', color: o.type === 'buy' ? 'var(--gain)' : 'var(--loss)' }}>
+                      {o.type === 'buy' ? '매수' : '매도'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{o.name}</p>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: meta.bg, color: meta.color, fontFamily: 'Noto Sans KR' }}>{meta.label}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+                          {o.orderKind === 'limit' ? '지정가' : '시장가'}
+                        </span>
+                      </div>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{o.executedAt.slice(0, 10)} {o.executedAt.slice(11, 16)} · {o.quantity}주 @ {o.price.toLocaleString()}원</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-mono font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>{(o.amount / 10000).toFixed(0)}만원</p>
+                    </div>
+                  </button>
+                  {expanded && (
+                    <div className="px-4 pb-3 pt-1 grid grid-cols-2 gap-x-4 gap-y-1.5" style={{ background: 'var(--bg-surface)' }}>
+                      {[
+                        { label: '주문 ID', value: o.id },
+                        { label: '상태', value: meta.label },
+                        { label: '유형', value: o.orderKind === 'limit' ? '지정가' : '시장가' },
+                        { label: '구분', value: o.type === 'buy' ? '매수' : '매도' },
+                        { label: '수량', value: `${o.quantity}주` },
+                        { label: '단가', value: `${o.price.toLocaleString()}원` },
+                        { label: '체결 금액', value: `${o.amount.toLocaleString()}원` },
+                        { label: '수수료', value: `${o.fee.toLocaleString()}원` },
+                        { label: '일시', value: `${o.executedAt.slice(0, 10)} ${o.executedAt.slice(11, 16)}` },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="flex justify-between text-xs py-0.5">
+                          <span style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</span>
+                          <span style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{t.name}</p>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{t.executedAt.slice(0, 10)} {t.executedAt.slice(11, 16)} · {t.quantity}주 @ {t.price.toLocaleString()}원</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-mono font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>{(t.amount / 10000).toFixed(0)}만원</p>
-                  <p className="text-xs" style={{ color: t.type === 'buy' ? 'var(--gain)' : 'var(--loss)', fontFamily: 'Noto Sans KR' }}>
-                    {t.type === 'buy' ? '▲ 매수' : '▼ 매도'}
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

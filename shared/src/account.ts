@@ -61,10 +61,15 @@ export const TransactionStatus = Type.Union(
 );
 export type TransactionStatus = Static<typeof TransactionStatus>;
 
+/** 주문 유형: 시장가(market) / 지정가(limit) (ORD-002/003). */
+export const OrderKind = Type.Union([Type.Literal('market'), Type.Literal('limit')]);
+export type OrderKind = Static<typeof OrderKind>;
+
 export const Transaction = Type.Object(
   {
     id: Type.String(),
     type: TransactionType,
+    orderKind: Type.Optional(OrderKind),
     symbol: Type.String(),
     name: Type.String(),
     quantity: Type.Number(),
@@ -100,11 +105,24 @@ export type SectorAllocation = Static<typeof SectorAllocation>;
 export const PlaceOrderBody = Type.Object({
   symbol: Type.String(),
   type: TransactionType,
+  /** 시장가/지정가 (ORD-002/003). 생략 시 market. */
+  orderKind: Type.Optional(OrderKind),
+  /** 주문 수량 — 1주 단위 (ORD-010). */
   quantity: Type.Integer({ minimum: 1 }),
-  /** Optional limit price; when omitted the order fills at the current market price. */
+  /** 지정가 가격(정수, ORD-011). market이면 무시되고 현재가로 체결. */
   price: Type.Optional(Type.Number({ minimum: 0 })),
 });
 export type PlaceOrderBody = Static<typeof PlaceOrderBody>;
+
+/** 주문 목록 조회 필터 (ORD-004). */
+export const OrderListQuery = Type.Object({
+  status: Type.Optional(TransactionStatus),
+  symbol: Type.Optional(Type.String()),
+});
+export type OrderListQuery = Static<typeof OrderListQuery>;
+
+export const OrderIdParams = Type.Object({ id: Type.String() });
+export type OrderIdParams = Static<typeof OrderIdParams>;
 
 export const PortfolioHistoryQuery = Type.Object({
   days: Type.Optional(Type.Integer({ minimum: 1, maximum: 365 })),

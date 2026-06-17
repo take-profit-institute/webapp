@@ -4,11 +4,17 @@ import type {
   CandleInterval,
   Exchange,
   MarketMovers,
+  MarketStatus,
   NewsItem,
   Quote,
   StockDetail,
 } from '@/lib/api-types';
 import { apiClient } from './client';
+
+/** 장 운영 상태 (정규장/마감) — ORD-012. */
+export function getMarketStatus(): Promise<MarketStatus> {
+  return apiClient.get<MarketStatus>('/api/market/status');
+}
 
 export interface StockListParams {
   q?: string;

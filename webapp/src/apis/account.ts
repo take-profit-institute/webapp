@@ -4,10 +4,12 @@ import type {
   AccountBalance,
   Holding,
   OrderCancelResult,
+  OrderKind,
   PortfolioPoint,
   Quote,
   SectorAllocation,
   Transaction,
+  TransactionStatus,
   TransactionType,
   WatchlistItem,
 } from '@/lib/api-types';
@@ -53,14 +55,26 @@ export function getAllocation(): Promise<SectorAllocation[]> {
 export interface PlaceOrderInput {
   symbol: string;
   type: TransactionType;
+  /** 시장가/지정가 (ORD-002/003). 생략 시 market. */
+  orderKind?: OrderKind;
   quantity: number;
-  /** Optional limit price; omit to fill at the current market price. */
+  /** 지정가 가격(정수). market이면 무시. */
   price?: number;
 }
 
-/** 매수/매도 주문 (모의 체결). */
+/** 매수/매도 주문 (시장가/지정가). */
 export function placeOrder(input: PlaceOrderInput): Promise<Transaction> {
   return apiClient.post<Transaction>('/api/account/orders', input);
+}
+
+/** 주문 목록 조회 (ORD-004). */
+export function getOrders(params: { status?: TransactionStatus; symbol?: string } = {}): Promise<Transaction[]> {
+  return apiClient.get<Transaction[]>('/api/account/orders', { ...params });
+}
+
+/** 주문 상세 조회 (ORD-005). */
+export function getOrder(id: string): Promise<Transaction> {
+  return apiClient.get<Transaction>(`/api/account/orders/${encodeURIComponent(id)}`);
 }
 
 /** 주문 취소. */

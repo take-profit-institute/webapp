@@ -24,6 +24,7 @@ export {
   getStock,
   getCandles,
   getStockNews,
+  getMarketStatus,
 } from './market';
 export {
   getAccount,
@@ -34,6 +35,8 @@ export {
   getPortfolioHistory,
   getAllocation,
   placeOrder,
+  getOrders,
+  getOrder,
   cancelOrder,
   resetAccount,
   deactivateAccount,

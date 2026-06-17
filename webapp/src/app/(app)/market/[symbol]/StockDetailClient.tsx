@@ -1,20 +1,43 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, Star } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, Star, Clock } from 'lucide-react';
 import CandleChart from '@/components/CandleChart';
-import { addWatchlist, getStock, getCandles, getStockNews, getWatchlist, placeOrder, removeWatchlist, useApi } from '@/apis';
+import {
+  addWatchlist,
+  getAccountBalance,
+  getCandles,
+  getHoldings,
+  getMarketStatus,
+  getOrders,
+  getStock,
+  getStockNews,
+  getWatchlist,
+  placeOrder,
+  removeWatchlist,
+  useApi,
+} from '@/apis';
+import { useAuthStore } from '@/store/useStore';
 import { Loader, ErrorState } from '@/components/AsyncState';
 import { formatMarketCap, formatVolume } from '@/lib/format';
 
 export default function StockDetailClient({ symbol }: { symbol: string }) {
+  const router = useRouter();
   const { data: stock, loading, error, refetch } = useApi(() => getStock(symbol), [symbol]);
   const { data: candles } = useApi(() => getCandles(symbol, { limit: 60 }), [symbol]);
   const { data: news } = useApi(() => getStockNews(symbol), [symbol]);
   const { data: watchlist } = useApi(() => getWatchlist(), []);
+  const { data: balance } = useApi(() => getAccountBalance(), []);
+  const { data: holdings } = useApi(() => getHoldings(), []);
+  const { data: marketStatus } = useApi(() => getMarketStatus(), []);
+  const { data: myOrders, refetch: refetchOrders } = useApi(() => getOrders({ symbol }), [symbol]);
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
 
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
+  const [orderKind, setOrderKind] = useState<'market' | 'limit'>('market');
   const [quantity, setQuantity] = useState('');
+  const [limitPrice, setLimitPrice] = useState('');
   const [activeTab, setActiveTab] = useState('차트');
   const [orderStatus, setOrderStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [placing, setPlacing] = useState(false);
@@ -50,16 +73,51 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
 
   const tabs = ['차트', '기업정보', '재무', '뉴스'];
   const qty = parseInt(quantity) || 0;
-  const total = qty * stock.price;
+  const limitPriceNum = parseInt(limitPrice) || 0;
+  const effectivePrice = orderKind === 'limit' ? limitPriceNum : stock.price;
+  const total = qty * effectivePrice;
+  const fee = Math.round(total * 0.00015);
+
+  // 주문 사전 검증 (ORD-007/008/009)
+  const available = balance?.availableAmount ?? 0;
+  const heldQty = holdings?.find((h) => h.symbol === stock.symbol)?.quantity ?? 0;
+  const hasPending = myOrders?.some((o) => o.status === 'pending') ?? false;
+  const marketClosed = marketStatus ? !marketStatus.open : false;
+
+  let validationError: string | null = null;
+  if (qty >= 1) {
+    if (orderKind === 'limit' && limitPriceNum < 1) validationError = '지정가 가격을 입력하세요';
+    else if (hasPending) validationError = '이미 대기 중인 주문이 있습니다 (종목당 1건)';
+    else if (tradeType === 'buy' && total + fee > available) validationError = '가용 금액이 부족합니다';
+    else if (tradeType === 'sell' && qty > heldQty) validationError = `보유 수량(${heldQty}주)을 초과했습니다`;
+  }
+  const canSubmit = isLoggedIn && qty >= 1 && !validationError && !placing;
 
   const handleOrder = async () => {
-    if (qty < 1) return;
+    if (!isLoggedIn) {
+      router.push('/login'); // ORD-001
+      return;
+    }
+    if (qty < 1 || validationError) return;
     setPlacing(true);
     setOrderStatus(null);
     try {
-      const tx = await placeOrder({ symbol: stock.symbol, type: tradeType, quantity: qty });
-      setOrderStatus({ ok: true, message: `${tradeType === 'buy' ? '매수' : '매도'} 체결 완료 · ${tx.amount.toLocaleString()}원` });
+      const tx = await placeOrder({
+        symbol: stock.symbol,
+        type: tradeType,
+        orderKind,
+        quantity: qty,
+        price: orderKind === 'limit' ? limitPriceNum : undefined,
+      });
+      const label = tradeType === 'buy' ? '매수' : '매도';
+      const message =
+        tx.status === 'filled'
+          ? `${label} 체결 완료 · ${tx.amount.toLocaleString()}원`
+          : `${label} 예약 접수됨 (${orderKind === 'limit' ? '지정가' : '시장가·장마감'}) · ${tx.amount.toLocaleString()}원`;
+      setOrderStatus({ ok: true, message });
       setQuantity('');
+      setLimitPrice('');
+      refetchOrders();
     } catch (e) {
       setOrderStatus({ ok: false, message: e instanceof Error ? e.message : '주문에 실패했습니다' });
     } finally {
@@ -210,10 +268,20 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
         {/* Trade panel — sticky on desktop, normal flow on mobile */}
         <div className="lg:w-72 lg:shrink-0">
           <div className="card p-4 md:p-5 lg:sticky lg:top-6">
-            <h2 className="text-sm font-bold mb-4" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>주문</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>주문</h2>
+              {/* 장 운영 상태 (ORD-012) */}
+              {marketStatus && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1"
+                  style={{ background: marketStatus.open ? 'var(--gain-dim)' : 'var(--bg-surface)', color: marketStatus.open ? 'var(--gain)' : 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: marketStatus.open ? 'var(--gain)' : 'var(--text-muted)' }} />
+                  {marketStatus.open ? '정규장' : '장 마감'}
+                </span>
+              )}
+            </div>
 
             {/* Buy/Sell toggle */}
-            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl mb-4" style={{ background: 'var(--bg-surface)' }}>
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl mb-3" style={{ background: 'var(--bg-surface)' }}>
               <button onClick={() => setTradeType('buy')}
                 className="py-2 rounded-lg text-sm font-bold transition-all"
                 style={{ background: tradeType === 'buy' ? 'var(--gain)' : 'transparent', color: tradeType === 'buy' ? '#000' : 'var(--text-secondary)' }}>
@@ -226,7 +294,28 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
               </button>
             </div>
 
-            <div className="flex justify-between items-center mb-4 p-3 rounded-xl" style={{ background: 'var(--bg-surface)' }}>
+            {/* 주문 유형: 시장가 / 지정가 (ORD-002/003) */}
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl mb-3" style={{ background: 'var(--bg-surface)' }}>
+              {(['market', 'limit'] as const).map(kind => (
+                <button key={kind} onClick={() => setOrderKind(kind)}
+                  className="py-1.5 rounded-lg text-xs font-bold transition-all"
+                  style={{ background: orderKind === kind ? 'var(--amber-subtle)' : 'transparent', color: orderKind === kind ? 'var(--amber)' : 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+                  {kind === 'market' ? '시장가' : '지정가'}
+                </button>
+              ))}
+            </div>
+
+            {/* 장 마감 안내 — 시장가 즉시주문은 예약으로 유도 (ORD-012) */}
+            {marketClosed && orderKind === 'market' && (
+              <div className="flex items-start gap-1.5 p-2.5 rounded-lg mb-3" style={{ background: 'var(--amber-subtle)', border: '1px solid rgba(245,166,35,0.2)' }}>
+                <Clock size={12} style={{ color: 'var(--amber)', marginTop: 1 }} />
+                <p className="text-[11px] leading-snug" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>
+                  지금은 정규장 시간이 아닙니다. 시장가 주문은 <b style={{ color: 'var(--amber)' }}>예약 주문</b>으로 접수됩니다.
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-between items-center mb-3 p-3 rounded-xl" style={{ background: 'var(--bg-surface)' }}>
               <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>현재가</span>
               <div className="flex items-center gap-2">
                 <span className="font-mono font-bold text-sm" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-primary)' }}>{stock.price.toLocaleString()}</span>
@@ -236,33 +325,42 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
               </div>
             </div>
 
-            <div className="mb-4">
-              <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>수량 (주)</label>
+            {/* 지정가 가격 입력 (ORD-003/011 — 정수만) */}
+            {orderKind === 'limit' && (
+              <div className="mb-3">
+                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>지정가 (원, 1원 단위)</label>
+                <input type="number" min="0" step="1" value={limitPrice}
+                  onChange={e => setLimitPrice(e.target.value.replace(/[.,]/g, ''))}
+                  placeholder={stock.price.toLocaleString()}
+                  className="input-dark text-right font-mono font-bold" style={{ fontFamily: 'JetBrains Mono' }} />
+              </div>
+            )}
+
+            <div className="mb-3">
+              <label className="flex items-center justify-between text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>
+                <span>수량 (주)</span>
+                {tradeType === 'sell' && <span style={{ color: 'var(--text-muted)' }}>보유 {heldQty}주</span>}
+              </label>
               <div className="flex gap-2">
                 <button onClick={() => setQuantity(q => String(Math.max(0, parseInt(q || '0') - 1)))}
                   className="w-9 h-10 rounded-lg font-bold text-lg flex items-center justify-center shrink-0"
                   style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-normal)', color: 'var(--text-primary)' }}>−</button>
-                <input type="number" min="0" value={quantity} onChange={e => setQuantity(e.target.value)}
+                <input type="number" min="0" step="1" value={quantity}
+                  onChange={e => setQuantity(e.target.value.replace(/[.,]/g, ''))}
                   placeholder="0" className="input-dark text-center font-mono font-bold" style={{ fontFamily: 'JetBrains Mono' }} />
                 <button onClick={() => setQuantity(q => String(parseInt(q || '0') + 1))}
                   className="w-9 h-10 rounded-lg font-bold text-lg flex items-center justify-center shrink-0"
                   style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-normal)', color: 'var(--text-primary)' }}>+</button>
               </div>
-              <div className="grid grid-cols-4 gap-1.5 mt-2">
-                {[10, 25, 50, 100].map(pct => (
-                  <button key={pct} className="py-1 rounded-md text-xs transition-all"
-                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)' }}>
-                    {pct === 100 ? '최대' : `${pct}%`}
-                  </button>
-                ))}
-              </div>
             </div>
 
-            <div className="p-3 rounded-xl mb-4 space-y-2" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+            <div className="p-3 rounded-xl mb-3 space-y-2" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
               {[
+                { label: '주문 유형', value: orderKind === 'market' ? '시장가' : '지정가' },
                 { label: '주문 수량', value: `${qty}주` },
-                { label: '주문 단가', value: `${stock.price.toLocaleString()}원` },
-                { label: '수수료', value: `${Math.round(total * 0.00015).toLocaleString()}원` },
+                { label: '주문 단가', value: `${effectivePrice.toLocaleString()}원` },
+                { label: '수수료', value: `${fee.toLocaleString()}원` },
+                ...(tradeType === 'buy' ? [{ label: '가용 금액', value: `${available.toLocaleString()}원` }] : []),
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between text-xs">
                   <span style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</span>
@@ -275,11 +373,25 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
               </div>
             </div>
 
-            <button onClick={handleOrder} disabled={qty < 1 || placing}
-              className={`${tradeType === 'buy' ? 'btn-gain' : 'btn-loss'} text-sm`}
-              style={{ opacity: qty < 1 || placing ? 0.5 : 1 }}>
-              {placing ? '처리 중...' : tradeType === 'buy' ? '매수 주문' : '매도 주문'}
-            </button>
+            {/* 사전 검증 메시지 (ORD-007/008/009) */}
+            {validationError && (
+              <p className="text-xs mb-2 text-center" style={{ color: 'var(--loss)', fontFamily: 'Noto Sans KR' }}>{validationError}</p>
+            )}
+
+            {!isLoggedIn ? (
+              // ORD-001
+              <button onClick={() => router.push('/login')} className="btn-outline w-full text-sm">
+                로그인 후 주문 가능
+              </button>
+            ) : (
+              <button onClick={handleOrder} disabled={!canSubmit}
+                className={`${tradeType === 'buy' ? 'btn-gain' : 'btn-loss'} text-sm`}
+                style={{ opacity: canSubmit ? 1 : 0.5 }}>
+                {placing
+                  ? '처리 중...'
+                  : `${tradeType === 'buy' ? '매수' : '매도'} ${orderKind === 'limit' || marketClosed ? '예약' : '주문'}`}
+              </button>
+            )}
             {orderStatus && (
               <p className="text-center text-xs mt-2" style={{ color: orderStatus.ok ? 'var(--gain)' : 'var(--loss)', fontFamily: 'Noto Sans KR' }}>
                 {orderStatus.message}

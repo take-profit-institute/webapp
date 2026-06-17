@@ -1,5 +1,20 @@
-import type { Candle, NewsItem, Quote, StockDetail, StockFinancials } from '@candle/shared';
+import type { Candle, MarketStatus, NewsItem, Quote, StockDetail, StockFinancials } from '@candle/shared';
 import type { Currency, Exchange } from '@candle/shared';
+
+/** 장 운영 상태 (ORD-012). 평일 09:00~15:30 KST를 정규장으로 본다. */
+export function getMarketStatus(): MarketStatus {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST = UTC+9
+  const day = kst.getUTCDay(); // 0=일 .. 6=토
+  const minutes = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+  const open = day >= 1 && day <= 5 && minutes >= 540 && minutes <= 930; // 09:00~15:30
+  return {
+    open,
+    session: open ? 'regular' : 'closed',
+    asOf: now.toISOString(),
+    message: open ? undefined : '정규장 시간이 아닙니다 (평일 09:00~15:30 KST). 시장가 주문은 예약 주문으로 접수됩니다.',
+  };
+}
 
 /** Deterministic PRNG so mock data is stable across requests (mirrors the frontend). */
 function seedRandom(seed: number) {

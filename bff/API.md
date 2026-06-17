@@ -88,6 +88,7 @@ Access Token은 서명 없는 base64url payload(`header.payload.mock-signature`)
 | GET | `/api/users/nickname/check` | 닉네임 중복 검사 | user |
 | POST | `/api/users/me/withdraw` | 회원 탈퇴 | user |
 | GET | `/api/users/me/summary` | 마이페이지 집계 | user |
+| GET | `/api/market/status` | 장 운영 상태(정규장/마감) | market |
 | GET | `/api/market/stocks` | 종목 목록/검색 | market |
 | GET | `/api/market/movers` | 시장 동향(상승/하락/거래상위) | market |
 | GET | `/api/market/stocks/{symbol}` | 종목 상세 | market |
@@ -100,7 +101,9 @@ Access Token은 서명 없는 base64url payload(`header.payload.mock-signature`)
 | GET | `/api/account/transactions` | 거래 내역 | account |
 | GET | `/api/account/portfolio-history` | 포트폴리오 자산 추이 | account |
 | GET | `/api/account/allocation` | 섹터별 자산 구성 | account |
-| POST | `/api/account/orders` | 매수/매도 주문(모의 체결) | account |
+| GET | `/api/account/orders` | 주문 목록 조회 | account |
+| GET | `/api/account/orders/{id}` | 주문 상세 조회 | account |
+| POST | `/api/account/orders` | 매수/매도 주문(시장가/지정가) | account |
 | DELETE | `/api/account/orders/{id}` | 주문 취소 | account |
 | POST | `/api/account/reset` | 계정 초기화(포트폴리오 리셋) | account |
 | POST | `/api/account/deactivate` | 계좌 비활성화(탈퇴 이벤트 처리) | account |
@@ -276,6 +279,16 @@ JWT 유효성/만료 검증. *(AUTH-008/009)*
 
 ## Market
 
+### `GET /api/market/status`
+장 운영 상태. *(ORD-012)* 평일 09:00~15:30 KST를 정규장으로 판정하며, 마감 시 즉시(시장가) 주문은
+예약 주문으로 유도된다.
+
+**응답 `200`** — [`MarketStatus`](#marketstatus)
+
+```json
+{ "open": false, "session": "closed", "asOf": "2026-06-17T13:47:21.958Z", "message": "정규장 시간이 아닙니다 ..." }
+```
+
 ### `GET /api/market/stocks`
 종목 목록/검색.
 
@@ -428,23 +441,46 @@ JWT 유효성/만료 검증. *(AUTH-008/009)*
 
 > 색상은 응답에 포함되지 않습니다(프론트엔드가 섹터→색상 매핑).
 
+### `GET /api/account/orders`
+주문 목록 조회 *(ORD-004)* — 예약(pending)·체결(filled)·취소(cancelled) 통합.
+
+**쿼리** — [`OrderListQuery`](#orderlistquery) `status?`, `symbol?`
+
+**응답 `200`** — [`Transaction`](#transaction)`[]` (각 항목에 `orderKind` 포함)
+
+### `GET /api/account/orders/{id}`
+주문 상세 조회. *(ORD-005)*
+
+**경로 파라미터**: `id` (string) · **응답 `200`** — [`Transaction`](#transaction) · **`404`** — 미존재
+
 ### `POST /api/account/orders`
-매수/매도 주문(모의 즉시 체결). `price` 생략 시 현재가로 체결됩니다.
-**현재 주문은 영속화되지 않습니다**(체결만 시뮬레이션).
+매수/매도 주문 — 시장가/지정가. *(ORD-001~012)* **영속화하지 않고** 검증 후 체결/예약 결과를 합성 반환.
 
 **요청 본문** — [`PlaceOrderBody`](#placeorderbody)
 
 ```json
-{ "symbol": "005930", "type": "buy", "quantity": 3 }
+{ "symbol": "005930", "type": "buy", "orderKind": "limit", "quantity": 3, "price": 70000 }
 ```
 
-**응답 `201`** — [`Transaction`](#transaction) · **`404`** — 알 수 없는 종목
+**검증 규칙**
+
+| 코드 | 상황 | 요구사항 |
+|---|---|---|
+| `400` | 지정가인데 가격 없음 / 소수점 가격 | ORD-003 / ORD-011 |
+| `404` | 알 수 없는 종목 | — |
+| `409` | 동일 종목 PENDING 주문 존재 | ORD-009 |
+| `422` | 매수 가용 금액 부족 | ORD-007 |
+| `422` | 매도 보유 수량 초과 | ORD-008 |
+
+**체결 상태**: 정규장 시장가 → `filled`, 지정가 또는 장 마감 시장가 → `pending`(예약, ORD-012).
+
+**응답 `201`** — [`Transaction`](#transaction)
 
 ```json
 {
-  "id": "t_1781612985644", "type": "buy", "symbol": "005930", "name": "삼성전자",
-  "quantity": 3, "price": 71400, "amount": 214200, "fee": 32,
-  "status": "filled", "executedAt": "2026-06-16T12:29:45.644Z"
+  "id": "t_1781612985644", "type": "buy", "orderKind": "limit", "symbol": "005930", "name": "삼성전자",
+  "quantity": 3, "price": 70000, "amount": 210000, "fee": 32,
+  "status": "pending", "executedAt": "2026-06-16T12:29:45.644Z"
 }
 ```
 
@@ -603,6 +639,12 @@ Account 서비스 내부에서 enforce됩니다.
 #### enum `AccountStatus`
 `"active"` \| `"inactive"`
 
+#### enum `OrderKind`
+`"market"`(시장가) \| `"limit"`(지정가) *(ORD-002/003)*
+
+#### enum `MarketSession`
+`"regular"`(정규장) \| `"closed"`(마감) *(ORD-012)*
+
 #### enum `OAuthProvider`
 `"google"` \| `"kakao"` \| `"naver"` *(AUTH-003)*
 
@@ -750,19 +792,29 @@ OHLCV 캔들. `date`는 일봉이면 `YYYY-MM-DD`, 분/시 단위면 ISO datetim
 | `profitLoss` | number | 평가 손익 |
 | `profitLossPercent` | number | 평가 손익률(%) |
 
-#### `Transaction`
+#### `Transaction` (= 주문/체결)
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `id` | string | 거래 ID |
+| `id` | string | 주문/거래 ID |
 | `type` | [`TransactionType`](#enum-transactiontype) | 매수/매도 |
+| `orderKind` | [`OrderKind`](#enum-orderkind)? | 시장가/지정가 |
 | `symbol` | string | 종목코드 |
 | `name` | string | 종목명 |
 | `quantity` | number | 수량 |
-| `price` | number | 체결 단가 |
+| `price` | number | 체결/지정 단가 |
 | `amount` | number | 체결 금액(`quantity * price`) |
 | `fee` | number | 수수료 |
-| `status` | [`TransactionStatus`](#enum-transactionstatus) | 상태 |
-| `executedAt` | string(date-time) | 체결 시각 |
+| `status` | [`TransactionStatus`](#enum-transactionstatus) | 상태(filled/pending/cancelled) |
+| `executedAt` | string(date-time) | 체결/접수 시각 |
+
+#### `MarketStatus`
+장 운영 상태 (ORD-012).
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `open` | boolean | 정규장 여부 |
+| `session` | [`MarketSession`](#enum-marketsession) | regular/closed |
+| `asOf` | string(date-time) | 기준 시각 |
+| `message` | string? | 마감 안내 문구 |
 
 #### `PortfolioPoint`
 | 필드 | 타입 | 설명 |
@@ -993,9 +1045,16 @@ Access/Refresh 토큰 쌍 (AUTH-005/006).
 | 필드 | 타입 | 제약 |
 |---|---|---|
 | `symbol` | string | — |
-| `type` | [`TransactionType`](#enum-transactiontype) | — |
-| `quantity` | integer | 최소 1 |
-| `price` | number? | 최소 0, 생략 시 현재가 체결 |
+| `type` | [`TransactionType`](#enum-transactiontype) | 매수/매도 |
+| `orderKind` | [`OrderKind`](#enum-orderkind)? | 기본 `market` (ORD-002/003) |
+| `quantity` | integer | 최소 1, 1주 단위 (ORD-010) |
+| `price` | number? | 지정가 시 필수·정수 (ORD-011). market이면 무시 |
+
+#### `OrderListQuery`
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| `status` | [`TransactionStatus`](#enum-transactionstatus)? | filled/pending/cancelled |
+| `symbol` | string? | 종목 필터 |
 
 #### `PortfolioHistoryQuery`
 | 필드 | 타입 | 제약 |

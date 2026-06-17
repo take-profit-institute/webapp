@@ -1,11 +1,13 @@
 import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import { Type } from '@sinclair/typebox';
 import { getMarketProvider } from '../providers';
+import { getMarketStatus } from '../data/market';
 import { ErrorResponse } from '@candle/shared';
 import {
   Candle,
   CandleQuery,
   MarketMovers,
+  MarketStatus,
   NewsItem,
   Quote,
   StockDetail,
@@ -15,6 +17,12 @@ import {
 
 const marketRoutes: FastifyPluginAsyncTypebox = async (app) => {
   const provider = getMarketProvider();
+
+  app.get(
+    '/status',
+    { schema: { tags: ['market'], summary: '장 운영 상태 (정규장/마감)', response: { 200: MarketStatus } } },
+    async () => getMarketStatus(),
+  );
 
   app.get(
     '/stocks',

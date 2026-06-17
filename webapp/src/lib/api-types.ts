@@ -15,6 +15,7 @@ export type {
   StockFinancials,
   NewsItem,
   MarketMovers,
+  MarketStatus,
   // account
   Account,
   AccountStatus,
@@ -22,6 +23,8 @@ export type {
   Holding,
   Transaction,
   TransactionType,
+  TransactionStatus,
+  OrderKind,
   PortfolioPoint,
   SectorAllocation,
   OrderCancelResult,
