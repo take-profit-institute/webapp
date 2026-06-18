@@ -258,5 +258,18 @@ export function getDeactivatedAccount(): Account {
   return { ...getAccount(), status: 'inactive', updatedAt: new Date().toISOString() };
 }
 
-/** Seed symbols for the demo watchlist (관심종목). */
-export const watchlistSymbols = ['005930', 'NVDA', '035420'];
+/** In-memory watchlist (관심종목). Mutated by POST/DELETE routes. */
+export const watchlistSymbols = new Set<string>(['005930', '000660', '035420']);
+
+export const WATCHLIST_LIMIT = 30;
+
+export function addWatchlistSymbol(symbol: string): 'ok' | 'duplicate' | 'limit' {
+  if (watchlistSymbols.has(symbol)) return 'duplicate';
+  if (watchlistSymbols.size >= WATCHLIST_LIMIT) return 'limit';
+  watchlistSymbols.add(symbol);
+  return 'ok';
+}
+
+export function removeWatchlistSymbol(symbol: string): boolean {
+  return watchlistSymbols.delete(symbol);
+}

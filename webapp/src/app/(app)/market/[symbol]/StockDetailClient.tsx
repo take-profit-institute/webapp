@@ -16,13 +16,12 @@ import {
   getOrders,
   getStock,
   getStockNews,
-  getWatchlist,
   placeOrder,
   removeWatchlist,
   useApi,
 } from '@/apis';
 import type { IntradayTick } from '@/lib/api-types';
-import { useAuthStore } from '@/store/useStore';
+import { useAuthStore, useWatchlistStore } from '@/store/useStore';
 import { useMarketStore } from '@/store/useMarketStore';
 import { useMarketSocket } from '@/hooks/useMarketSocket';
 import { Loader, ErrorState } from '@/components/AsyncState';
@@ -33,7 +32,6 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
   const { data: stock, loading, error, refetch } = useApi(() => getStock(symbol), [symbol]);
   const { data: candles } = useApi(() => getCandles(symbol, { limit: 60 }), [symbol]);
   const { data: news } = useApi(() => getStockNews(symbol), [symbol]);
-  const { data: watchlist } = useApi(() => getWatchlist(), []);
   const { data: balance } = useApi(() => getAccountBalance(), []);
   const { data: holdings } = useApi(() => getHoldings(), []);
   const { data: marketStatus } = useApi(() => getMarketStatus(), []);
@@ -73,18 +71,17 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
   const [activeTab, setActiveTab] = useState('차트');
   const [orderStatus, setOrderStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [placing, setPlacing] = useState(false);
-  // null = follow the fetched watchlist; true/false = optimistic local override.
-  const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
-  const watched = watchedOverride ?? (watchlist?.some((q) => q.symbol === symbol) ?? false);
+  const { isWatching, add: storeAdd, remove: storeRemove } = useWatchlistStore();
+  const watched = isWatching(symbol);
 
   const toggleWatch = async () => {
     const next = !watched;
-    setWatchedOverride(next); // optimistic
+    next ? storeAdd(symbol) : storeRemove(symbol); // optimistic
     try {
       if (next) await addWatchlist(symbol);
       else await removeWatchlist(symbol);
     } catch {
-      setWatchedOverride(!next); // revert on failure
+      next ? storeRemove(symbol) : storeAdd(symbol); // revert
     }
   };
 

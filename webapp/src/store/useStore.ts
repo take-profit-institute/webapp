@@ -1,5 +1,7 @@
 'use client';
 import { create } from 'zustand';
+export { useWatchlistStore } from './useWatchlistStore';
+export { useNotificationStore } from './useNotificationStore';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { refreshToken as apiRefreshToken, setAuthTokenGetter, setTokenRefresher } from '@/apis';
 import type { OAuthLoginResult, UserProfile, UserRole } from '@/lib/api-types';

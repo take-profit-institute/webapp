@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { Bell, Search, TrendingUp, Wallet, BarChart2, Trophy } from 'lucide-react';
+import { useNotificationStore } from '@/store/useStore';
 import MiniSparkline from '@/components/MiniSparkline';
 import { Loader, ErrorState } from '@/components/AsyncState';
 import {
@@ -16,6 +17,7 @@ import { generateSparkline, symbolSeed } from '@/lib/chart-utils';
 import { sectorColor } from '@/lib/format';
 
 export default function DashboardPage() {
+  const { togglePanel, unreadCount } = useNotificationStore();
   const { data: account, loading, error, refetch } = useApi(() => getAccount(), []);
   const { data: history } = useApi(() => getPortfolioHistory(30), []);
   const { data: allocation } = useApi(() => getAllocation(), []);
@@ -95,10 +97,20 @@ export default function DashboardPage() {
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
             <input className="input-dark text-sm pl-9 w-40 py-2" placeholder="종목 검색..." />
           </div>
-          <button className="relative w-9 h-9 rounded-lg flex items-center justify-center"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
+          <button
+            onClick={togglePanel}
+            className="relative w-9 h-9 rounded-lg flex items-center justify-center transition-colors active:opacity-70"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
+          >
             <Bell size={16} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: 'var(--amber)' }} />
+            {unreadCount > 0 && (
+              <span
+                className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full flex items-center justify-center text-[10px] font-bold px-1"
+                style={{ background: 'var(--amber)', color: '#000', fontFamily: 'JetBrains Mono' }}
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </button>
         </div>
       </div>

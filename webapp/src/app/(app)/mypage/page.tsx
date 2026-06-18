@@ -1,10 +1,10 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Camera, Bell, Shield, HelpCircle, ChevronRight, TrendingUp, Award, Zap, BookOpen, Target, LogOut, Check, X, Pencil, UserMinus } from 'lucide-react';
+import { Camera, Bell, Shield, HelpCircle, ChevronRight, TrendingUp, Award, Zap, BookOpen, Target, LogOut, Check, X, Pencil, UserMinus, Sun, Moon } from 'lucide-react';
 import Link from 'next/link';
 import { checkNickname, getAccount, getMyPageSummary, logout, resetAccount, updateMyProfile, withdraw, useApi } from '@/apis';
-import { useAuthStore } from '@/store/useStore';
+import { useAuthStore, useUIStore } from '@/store/useStore';
 import type { InvestStyle } from '@/lib/api-types';
 
 const AVATAR_OPTIONS = ['🐯', '🦊', '🐻', '🐼', '🦁', '🐲', '🚀', '💎', '📈', '👑'];
@@ -38,6 +38,7 @@ export default function MyPage() {
   const { data: summary } = useApi(() => getMyPageSummary(), []);
   const isActive = account?.status !== 'inactive';
   const clearSession = useAuthStore((s) => s.clearSession);
+  const { theme, toggleTheme } = useUIStore();
 
   const profile = summary?.profile;
   // Optimistic overrides (BFF is stateless, so edits don't survive a refetch).
@@ -256,7 +257,7 @@ export default function MyPage() {
       </div>
 
       {/* Quick links for mobile — hidden on desktop since sidebar has them */}
-      <div className="md:hidden grid grid-cols-2 gap-2 mb-4">
+      <div className="lg:hidden grid grid-cols-2 gap-2 mb-4">
         <Link href="/missions" className="card p-3 flex items-center gap-2.5" style={{ textDecoration: 'none' }}>
           <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--amber-subtle)' }}>
             <Target size={15} style={{ color: 'var(--amber)' }} />
@@ -384,6 +385,34 @@ export default function MyPage() {
 
       {activeTab === '설정' && (
         <div className="space-y-2">
+          {/* 화면 테마 토글 */}
+          <button
+            onClick={toggleTheme}
+            className="w-full card-interactive p-4 flex items-center gap-3 text-left"
+          >
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--bg-surface)' }}>
+              {theme === 'light'
+                ? <Sun size={16} style={{ color: 'var(--amber)' }} />
+                : <Moon size={16} style={{ color: 'var(--amber)' }} />}
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>화면 테마</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+                {theme === 'light' ? '라이트 모드' : '다크 모드'} 사용 중
+              </p>
+            </div>
+            {/* Toggle switch */}
+            <div
+              className="relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0"
+              style={{ background: theme === 'dark' ? 'var(--amber)' : 'var(--border-normal)' }}
+            >
+              <div
+                className="absolute top-1 w-4 h-4 rounded-full bg-white transition-transform duration-200"
+                style={{ left: theme === 'dark' ? 24 : 4 }}
+              />
+            </div>
+          </button>
+
           {[
             { icon: Bell, label: '알림 설정', desc: '시세 알림, 거래 알림' },
             { icon: Shield, label: '보안 설정', desc: '비밀번호, 2단계 인증' },

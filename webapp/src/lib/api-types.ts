@@ -72,6 +72,11 @@ export type {
   // intraday
   IntradayTick,
   IntradayHistory,
+  // notification
+  Notification,
+  NotificationType,
+  NotificationStatus,
+  UnreadCountResult,
   // common
   Exchange,
   Currency,

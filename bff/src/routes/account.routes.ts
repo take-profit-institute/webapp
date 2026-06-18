@@ -16,6 +16,9 @@ import {
   sectorAllocation,
   transactions,
   watchlistSymbols,
+  addWatchlistSymbol,
+  removeWatchlistSymbol,
+  WATCHLIST_LIMIT,
 } from '../data/account';
 import { getMarketStatus, getQuote } from '../data/market';
 import { getMarketProvider } from '../providers';
@@ -460,26 +463,46 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     '/watchlist',
     { schema: { tags: ['account'], summary: '관심종목 목록', response: { 200: Type.Array(Quote) } } },
-    async () => watchlistSymbols.map((s) => getQuote(s)).filter((q): q is NonNullable<typeof q> => Boolean(q)),
+    async () => [...watchlistSymbols].map((s) => getQuote(s)).filter((q): q is NonNullable<typeof q> => Boolean(q)),
   );
 
   app.post(
     '/watchlist',
-    { schema: { tags: ['account'], summary: '관심종목 추가', body: AddWatchlistBody, response: { 201: WatchlistItem, 404: ErrorResponse } } },
+    {
+      schema: {
+        tags: ['account'],
+        summary: '관심종목 추가',
+        body: AddWatchlistBody,
+        response: { 201: WatchlistItem, 404: ErrorResponse, 409: ErrorResponse, 400: ErrorResponse },
+      },
+    },
     async (req, reply) => {
-      const quote = getQuote(req.body.symbol);
+      const { symbol } = req.body;
+      const quote = getQuote(symbol);
       if (!quote) {
-        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown symbol: ${req.body.symbol}` });
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown symbol: ${symbol}` });
       }
-      // NOTE: not persisted — confirms the add and echoes the resolved item.
+      const result = addWatchlistSymbol(symbol);
+      if (result === 'duplicate') {
+        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: '이미 관심종목에 등록된 종목입니다' });
+      }
+      if (result === 'limit') {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: `관심종목은 최대 ${WATCHLIST_LIMIT}개까지 등록할 수 있습니다` });
+      }
       return reply.status(201).send({ symbol: quote.symbol, name: quote.name, addedAt: new Date().toISOString() });
     },
   );
 
   app.delete(
     '/watchlist/:symbol',
-    { schema: { tags: ['account'], summary: '관심종목 제거', params: WatchlistSymbolParams, response: { 204: Type.Null() } } },
-    async (_req, reply) => reply.status(204).send(null),
+    { schema: { tags: ['account'], summary: '관심종목 제거', params: WatchlistSymbolParams, response: { 204: Type.Null(), 404: ErrorResponse } } },
+    async (req, reply) => {
+      const removed = removeWatchlistSymbol(req.params.symbol);
+      if (!removed) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: '관심종목에 등록되지 않은 종목입니다' });
+      }
+      return reply.status(204).send(null);
+    },
   );
 };
 

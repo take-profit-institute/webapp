@@ -5,6 +5,7 @@ import healthRoutes from './health.routes';
 import marketRoutes from './market.routes';
 import { learnRoutes, missionRoutes, rankingRoutes } from './social.routes';
 import userRoutes from './user.routes';
+import notificationRoutes from './notifications.routes';
 
 /** Registers every route group. Domain APIs live under `/api/*`. */
 const routes: FastifyPluginAsyncTypebox = async (app) => {
@@ -19,6 +20,7 @@ const routes: FastifyPluginAsyncTypebox = async (app) => {
       await api.register(rankingRoutes, { prefix: '/rankings' });
       await api.register(missionRoutes, { prefix: '/missions' });
       await api.register(learnRoutes, { prefix: '/learn' });
+      await api.register(notificationRoutes, { prefix: '/notifications' });
     },
     { prefix: '/api' },
   );

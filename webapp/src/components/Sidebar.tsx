@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, TrendingUp, Briefcase, Wallet, Trophy, Target, BookOpen, User, LogOut, ChevronLeft, ChevronRight
+  LayoutDashboard, TrendingUp, Briefcase, Wallet, Trophy, Target, BookOpen, User, LogOut, ChevronLeft, ChevronRight, Star
 } from 'lucide-react';
 import { logout } from '@/apis';
 import { useUIStore, useAuthStore } from '@/store/useStore';
@@ -14,6 +14,7 @@ const navItems = [
   { icon: Briefcase, label: '포트폴리오', href: '/portfolio' },
   { icon: Wallet, label: '잔고', href: '/wallet' },
   { icon: Trophy, label: '랭킹', href: '/ranking' },
+  { icon: Star, label: '관심종목', href: '/watchlist' },
   { icon: Target, label: '미션', href: '/missions' },
   { icon: BookOpen, label: '학습', href: '/learn' },
   { icon: User, label: '마이페이지', href: '/mypage' },

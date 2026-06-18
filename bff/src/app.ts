@@ -38,6 +38,7 @@ export async function buildApp(): Promise<FastifyInstance> {
         { name: 'ranking' },
         { name: 'mission' },
         { name: 'learn' },
+        { name: 'notification' },
       ],
     },
   });
