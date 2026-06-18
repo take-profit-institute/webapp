@@ -6,6 +6,7 @@ import { ErrorResponse } from '@candle/shared';
 import {
   Candle,
   CandleQuery,
+  IntradayHistory,
   MarketMovers,
   MarketStatus,
   NewsItem,
@@ -61,6 +62,15 @@ const marketRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/stocks/:symbol/news',
     { schema: { tags: ['market'], summary: '종목 뉴스', params: SymbolParams, response: { 200: Type.Array(NewsItem) } } },
     async (req) => provider.getNews(req.params.symbol),
+  );
+
+  app.get(
+    '/stocks/:symbol/intraday',
+    { schema: { tags: ['market'], summary: '당일 실시간 틱 히스토리', params: SymbolParams, response: { 200: IntradayHistory } } },
+    async (req) => ({
+      symbol: req.params.symbol,
+      ticks: app.tickStore.getHistory(req.params.symbol),
+    }),
   );
 };
 

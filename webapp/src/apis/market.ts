@@ -3,6 +3,7 @@ import type {
   Candle,
   CandleInterval,
   Exchange,
+  IntradayHistory,
   MarketMovers,
   MarketStatus,
   NewsItem,
@@ -27,7 +28,7 @@ export interface StockListParams {
  * When real data arrives this can be replaced by a build-time fetch of `getStocks()`. */
 export const MARKET_SYMBOLS = [
   '005930', '000660', '373220', '005380', '035420', '035720', '068270', '207940',
-  '006400', '051910', '091990', '247540', 'AAPL', 'TSLA', 'NVDA', 'MSFT',
+  '006400', '051910', '091990', '247540',
 ] as const;
 
 /** 종목 목록/검색. */
@@ -58,4 +59,9 @@ export function getCandles(
 /** 종목 뉴스. */
 export function getStockNews(symbol: string): Promise<NewsItem[]> {
   return apiClient.get<NewsItem[]>(`/api/market/stocks/${encodeURIComponent(symbol)}/news`);
+}
+
+/** 당일 실시간 틱 히스토리 — 초기 로드 후 WS로 이어 붙임. */
+export function getIntradayHistory(symbol: string): Promise<IntradayHistory> {
+  return apiClient.get<IntradayHistory>(`/api/market/stocks/${encodeURIComponent(symbol)}/intraday`);
 }

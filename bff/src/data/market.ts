@@ -65,10 +65,6 @@ const baseStocks: BaseStock[] = [
   { symbol: '051910', name: 'LG화학', price: 294000, change: 2500, changePercent: 0.86, sector: '화학', exchange: 'KOSPI', volume: 350 * K, marketCap: 20 * 조 },
   { symbol: '091990', name: '셀트리온헬스케어', price: 56200, change: 400, changePercent: 0.72, sector: '바이오', exchange: 'KOSDAQ', volume: 2.1 * M, marketCap: 7.6 * 조 },
   { symbol: '247540', name: '에코프로비엠', price: 128500, change: -3500, changePercent: -2.65, sector: '배터리', exchange: 'KOSDAQ', volume: 1.5 * M, marketCap: 12 * 조 },
-  { symbol: 'AAPL', name: '애플', price: 189840, change: 2340, changePercent: 1.25, sector: '기술', exchange: 'NASDAQ', volume: 52.3 * M, marketCap: 2.94 * T },
-  { symbol: 'TSLA', name: '테슬라', price: 242680, change: -5120, changePercent: -2.07, sector: '자동차', exchange: 'NASDAQ', volume: 89.1 * M, marketCap: 772 * B },
-  { symbol: 'NVDA', name: '엔비디아', price: 875200, change: 18400, changePercent: 2.15, sector: '반도체', exchange: 'NASDAQ', volume: 41.8 * M, marketCap: 2.16 * T },
-  { symbol: 'MSFT', name: '마이크로소프트', price: 415600, change: 3200, changePercent: 0.78, sector: '기술', exchange: 'NASDAQ', volume: 22.4 * M, marketCap: 3.09 * T },
 ];
 
 function currencyOf(exchange: Exchange): Currency {

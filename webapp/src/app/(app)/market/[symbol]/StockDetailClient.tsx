@@ -1,15 +1,17 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ArrowUpRight, ArrowDownRight, Star, Clock } from 'lucide-react';
 import CandleChart from '@/components/CandleChart';
+import IntradayChart from '@/components/IntradayChart';
 import {
   addWatchlist,
   createReservation,
   getAccountBalance,
   getCandles,
   getHoldings,
+  getIntradayHistory,
   getMarketStatus,
   getOrders,
   getStock,
@@ -19,7 +21,10 @@ import {
   removeWatchlist,
   useApi,
 } from '@/apis';
+import type { IntradayTick } from '@/lib/api-types';
 import { useAuthStore } from '@/store/useStore';
+import { useMarketStore } from '@/store/useMarketStore';
+import { useMarketSocket } from '@/hooks/useMarketSocket';
 import { Loader, ErrorState } from '@/components/AsyncState';
 import { formatMarketCap, formatVolume } from '@/lib/format';
 
@@ -34,6 +39,26 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
   const { data: marketStatus } = useApi(() => getMarketStatus(), []);
   const { data: myOrders, refetch: refetchOrders } = useApi(() => getOrders({ symbol }), [symbol]);
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+
+  // 실시간 시세 — WebSocket 연결 후 해당 종목 구독, REST 데이터가 fallback
+  useMarketSocket([symbol]);
+  const liveQuote = useMarketStore((s) => s.liveQuotes[symbol]);
+
+  // 당일 틱 히스토리 (선언을 useEffect 앞에)
+  const [showIntraday, setShowIntraday] = useState(true);
+  const [intradayTicks, setIntradayTicks] = useState<IntradayTick[]>([]);
+  const { data: intradayHistory } = useApi(() => getIntradayHistory(symbol), [symbol]);
+  useEffect(() => {
+    if (intradayHistory) setIntradayTicks(intradayHistory.ticks);
+  }, [intradayHistory]);
+  useEffect(() => {
+    if (!liveQuote || !showIntraday) return;
+    setIntradayTicks((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.timestamp === liveQuote.timestamp) return prev;
+      return [...prev, { price: liveQuote.price, timestamp: liveQuote.timestamp }];
+    });
+  }, [liveQuote, showIntraday]);
 
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [orderMode, setOrderMode] = useState<'now' | 'reserve'>('now');
@@ -78,10 +103,16 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
     );
   }
 
+  // WS 데이터 우선, 없으면 REST 응답 사용
+  const displayPrice = liveQuote?.price ?? stock.price;
+  const displayChange = liveQuote?.change ?? stock.change;
+  const displayChangePercent = liveQuote?.changePercent ?? stock.changePercent;
+  const displayVolume = liveQuote?.volume ?? stock.volume;
+
   const tabs = ['차트', '기업정보', '재무', '뉴스'];
   const qty = parseInt(quantity) || 0;
   const limitPriceNum = parseInt(limitPrice) || 0;
-  const effectivePrice = orderKind === 'limit' ? limitPriceNum : stock.price;
+  const effectivePrice = orderKind === 'limit' ? limitPriceNum : displayPrice;
   const total = qty * effectivePrice;
   const fee = Math.round(total * 0.00015);
 
@@ -247,21 +278,22 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
           <div className="card p-4 md:p-5">
             <div className="flex items-end gap-2 mb-1">
               <span className="text-2xl md:text-4xl font-black font-mono" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-primary)' }}>
-                {stock.price.toLocaleString()}
+                {displayPrice.toLocaleString()}
               </span>
               <span className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>{stock.currency}</span>
             </div>
             <div className="flex items-center gap-2">
-              {stock.change >= 0 ? <ArrowUpRight size={15} style={{ color: 'var(--gain)' }} /> : <ArrowDownRight size={15} style={{ color: 'var(--loss)' }} />}
-              <span className="font-mono font-bold text-sm" style={{ color: stock.change >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
-                {stock.change >= 0 ? '+' : ''}{stock.change.toLocaleString()} ({stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%)
+              {displayChange >= 0 ? <ArrowUpRight size={15} style={{ color: 'var(--gain)' }} /> : <ArrowDownRight size={15} style={{ color: 'var(--loss)' }} />}
+              <span className="font-mono font-bold text-sm" style={{ color: displayChange >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
+                {displayChange >= 0 ? '+' : ''}{displayChange.toLocaleString()} ({displayChangePercent >= 0 ? '+' : ''}{displayChangePercent.toFixed(2)}%)
               </span>
+              {liveQuote && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--gain)' }} />}
             </div>
             {/* Key stats — scroll on mobile */}
             <div className="flex gap-4 overflow-x-auto mt-3 pt-3 scrollbar-none" style={{ borderTop: '1px solid var(--border-subtle)' }}>
               {[
                 { label: '시가총액', value: formatMarketCap(stock.marketCap, stock.currency) },
-                { label: '거래량', value: formatVolume(stock.volume) },
+                { label: '거래량', value: formatVolume(displayVolume) },
                 { label: '52주 최고', value: stock.high52w.toLocaleString() },
                 { label: '52주 최저', value: stock.low52w.toLocaleString() },
               ].map(({ label, value }) => (
@@ -290,7 +322,32 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
               ))}
             </div>
 
-            {activeTab === '차트' && (candles ? <CandleChart data={candles} height={220} /> : <Loader label="차트 불러오는 중..." />)}
+            {activeTab === '차트' && (
+              <div>
+                {/* 오늘(intraday) / 기간별(candle) 토글 */}
+                <div className="flex gap-1 mb-3">
+                  {([true, false] as const).map((intraday) => (
+                    <button
+                      key={String(intraday)}
+                      onClick={() => setShowIntraday(intraday)}
+                      className="px-3 py-1 rounded-md text-xs font-medium transition-all"
+                      style={{
+                        background: showIntraday === intraday ? 'var(--amber)' : 'transparent',
+                        color: showIntraday === intraday ? '#000' : 'var(--text-secondary)',
+                      }}
+                    >
+                      {intraday ? '오늘' : '기간별'}
+                    </button>
+                  ))}
+                </div>
+                {showIntraday
+                  ? <IntradayChart ticks={intradayTicks} currency={stock.currency} height={220} />
+                  : candles
+                    ? <CandleChart data={candles} height={220} />
+                    : <Loader label="차트 불러오는 중..." />
+                }
+              </div>
+            )}
 
             {activeTab === '기업정보' && (
               <div className="space-y-3">
@@ -407,9 +464,9 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
                 <div className="flex justify-between items-center mb-3 p-3 rounded-xl" style={{ background: 'var(--bg-surface)' }}>
                   <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>현재가</span>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-sm" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-primary)' }}>{stock.price.toLocaleString()}</span>
-                    <span className="text-xs" style={{ color: stock.change >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
-                      {stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%
+                    <span className="font-mono font-bold text-sm" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-primary)' }}>{displayPrice.toLocaleString()}</span>
+                    <span className="text-xs" style={{ color: displayChange >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
+                      {displayChangePercent >= 0 ? '+' : ''}{displayChangePercent.toFixed(2)}%
                     </span>
                   </div>
                 </div>

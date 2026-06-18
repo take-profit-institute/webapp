@@ -1,9 +1,15 @@
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import websocket from '@fastify/websocket';
 import { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { env } from './config/env';
+import pubsubPlugin from './plugins/pubsub.plugin';
+import marketStreamPlugin from './services/market-stream.service';
+import tickStorePlugin from './services/tick-store.service';
+import mockMarketStream from './mock/market-stream.mock';
+import wsRoutes from './routes/ws.routes';
 import routes from './routes';
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -36,6 +42,13 @@ export async function buildApp(): Promise<FastifyInstance> {
     },
   });
   await app.register(swaggerUi, { routePrefix: '/docs' });
+
+  await app.register(pubsubPlugin);
+  await app.register(websocket);
+  await app.register(marketStreamPlugin);
+  await app.register(tickStorePlugin);
+  await app.register(mockMarketStream);
+  await app.register(wsRoutes);
 
   await app.register(routes);
 

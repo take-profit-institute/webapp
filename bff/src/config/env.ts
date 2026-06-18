@@ -20,6 +20,7 @@ export const env = {
     .map((s) => s.trim())
     .filter(Boolean),
   dataSource: str('DATA_SOURCE', 'mock') as DataSource,
+  redisUrl: process.env['REDIS_URL'] || '',
   kis: {
     baseUrl: str('KIS_BASE_URL', 'https://openapi.koreainvestment.com:9443'),
     appKey: str('KIS_APP_KEY', ''),

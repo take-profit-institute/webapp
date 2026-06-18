@@ -113,6 +113,22 @@ export const CandleQuery = Type.Object({
 });
 export type CandleQuery = Static<typeof CandleQuery>;
 
+// ── Intraday (real-time tick history) ─────────────────────────────
+
+export const IntradayTick = Type.Object({
+  price: Type.Number(),
+  timestamp: Type.String({ format: 'date-time' }),
+});
+export type IntradayTick = Static<typeof IntradayTick>;
+
+export const IntradayHistory = Type.Object({
+  symbol: Type.String(),
+  ticks: Type.Array(IntradayTick),
+});
+export type IntradayHistory = Static<typeof IntradayHistory>;
+
+// ── Market status ──────────────────────────────────────────────────
+
 /** 장 운영 상태 (ORD-012). 마감 시 즉시(시장가) 주문은 예약 주문으로 유도된다. */
 export const MarketSession = Type.Union([Type.Literal('regular'), Type.Literal('closed')]);
 export type MarketSession = Static<typeof MarketSession>;

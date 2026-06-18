@@ -25,6 +25,7 @@ export {
   getCandles,
   getStockNews,
   getMarketStatus,
+  getIntradayHistory,
 } from './market';
 export {
   getAccount,
