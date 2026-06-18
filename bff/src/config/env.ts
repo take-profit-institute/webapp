@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-export type DataSource = 'mock' | 'kis';
+export type DataSource = 'mock' | 'grpc' | 'kis';
 
 function str(key: string, fallback: string): string {
   const v = process.env[key];
@@ -25,5 +25,17 @@ export const env = {
     baseUrl: str('KIS_BASE_URL', 'https://openapi.koreainvestment.com:9443'),
     appKey: str('KIS_APP_KEY', ''),
     appSecret: str('KIS_APP_SECRET', ''),
+  },
+  grpc: {
+    authAddr:         str('GRPC_AUTH_ADDR',         'localhost:50051'),
+    userAddr:         str('GRPC_USER_ADDR',          'localhost:50052'),
+    marketAddr:       str('GRPC_MARKET_ADDR',        'localhost:50053'),
+    accountAddr:      str('GRPC_ACCOUNT_ADDR',       'localhost:50054'),
+    portfolioAddr:    str('GRPC_PORTFOLIO_ADDR',     'localhost:50055'),
+    rankingAddr:      str('GRPC_RANKING_ADDR',       'localhost:50056'),
+    notificationAddr: str('GRPC_NOTIFICATION_ADDR',  'localhost:50057'),
+    missionAddr:      str('GRPC_MISSION_ADDR',       'localhost:50058'),
+    learnAddr:        str('GRPC_LEARN_ADDR',         'localhost:50059'),
+    deadlineMs:       Number(str('GRPC_DEADLINE_MS', '5000')),
   },
 } as const;
