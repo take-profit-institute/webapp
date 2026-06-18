@@ -1,9 +1,13 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Candle — 모의투자 플랫폼",
   description: "실시간 시장 데이터로 배우는 안전한 주식 투자 경험",
+};
+
+export const viewport: Viewport = {
+  viewportFit: 'cover',
 };
 
 // Runs before first paint to apply the saved theme and avoid a flash of the wrong colors.

@@ -73,7 +73,7 @@ export default function RankingPage() {
           <div className="w-16 md:w-20 h-12 md:h-16 rounded-t-xl flex flex-col items-center justify-center"
             style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-normal)' }}>
             <span className="text-lg md:text-2xl font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-secondary)' }}>2</span>
-            <span className="text-[10px] font-mono" style={{ color: 'var(--gain)' }}>+{rankings[1].returnPercent}%</span>
+            <span className="text-xs font-mono" style={{ color: 'var(--gain)' }}>+{rankings[1].returnPercent}%</span>
           </div>
         </div>
         <div className="flex flex-col items-center">
@@ -83,7 +83,7 @@ export default function RankingPage() {
           <div className="w-20 md:w-24 h-16 md:h-24 rounded-t-xl flex flex-col items-center justify-center"
             style={{ background: 'var(--amber-glow)', border: '1px solid rgba(245,166,35,0.4)' }}>
             <span className="text-2xl md:text-3xl font-black gradient-text" style={{ fontFamily: 'Syne, sans-serif' }}>1</span>
-            <span className="text-[10px] font-mono" style={{ color: 'var(--gain)' }}>+{rankings[0].returnPercent}%</span>
+            <span className="text-xs font-mono" style={{ color: 'var(--gain)' }}>+{rankings[0].returnPercent}%</span>
           </div>
         </div>
         <div className="flex flex-col items-center">
@@ -118,8 +118,6 @@ export default function RankingPage() {
                 borderBottom: i < rankings.length - 1 ? '1px solid var(--border-subtle)' : 'none',
                 background: isMe ? 'var(--amber-subtle)' : 'transparent',
               }}
-              onMouseEnter={e => { if (!isMe) (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = isMe ? 'var(--amber-subtle)' : 'transparent'; }}
             >
               {/* Rank */}
               <div className="shrink-0 w-8 md:w-auto text-center">
@@ -148,7 +146,7 @@ export default function RankingPage() {
                     <span className="text-xs font-mono font-bold" style={{ color: 'var(--gain)', fontFamily: 'JetBrains Mono' }}>+{user.returnPercent}%</span>
                     <div className="flex items-center gap-0.5">
                       {user.dayChangePercent >= 0 ? <ArrowUpRight size={10} style={{ color: 'var(--gain)' }} /> : <ArrowDownRight size={10} style={{ color: 'var(--loss)' }} />}
-                      <span className="text-[10px] font-mono" style={{ color: user.dayChangePercent >= 0 ? 'var(--gain)' : 'var(--loss)' }}>{user.dayChangePercent >= 0 ? '+' : ''}{user.dayChangePercent}%</span>
+                      <span className="text-xs font-mono" style={{ color: user.dayChangePercent >= 0 ? 'var(--gain)' : 'var(--loss)' }}>{user.dayChangePercent >= 0 ? '+' : ''}{user.dayChangePercent}%</span>
                     </div>
                   </div>
                 </div>

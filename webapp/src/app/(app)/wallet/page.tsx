@@ -319,11 +319,11 @@ export default function WalletPage() {
                       min={tomorrow} max={maxReservationDate} disabled={amendTiming === 'prev_close'}
                       onChange={e => setAmendDate(e.target.value)}
                       className="input-dark text-xs" style={{ fontFamily: 'JetBrains Mono' }} />
-                    <input type="number" min="1" step="1" value={amendQty}
+                    <input type="number" inputMode="numeric" min="1" step="1" value={amendQty}
                       onChange={e => setAmendQty(e.target.value.replace(/[.,]/g, ''))}
                       className="input-dark text-center text-xs font-mono" placeholder="수량" style={{ fontFamily: 'JetBrains Mono' }} />
                     {amendTiming === 'open' && amendKind === 'limit' && (
-                      <input type="number" min="1" step="1" value={amendPrice}
+                      <input type="number" inputMode="numeric" min="1" step="1" value={amendPrice}
                         onChange={e => setAmendPrice(e.target.value.replace(/[.,]/g, ''))}
                         className="input-dark text-right text-xs font-mono col-span-2" placeholder="지정가" style={{ fontFamily: 'JetBrains Mono' }} />
                     )}

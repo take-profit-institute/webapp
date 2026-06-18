@@ -8,7 +8,7 @@ import { Loader, ErrorState } from '@/components/AsyncState';
 import { formatVolume } from '@/lib/format';
 import { generateSparkline, symbolSeed } from '@/lib/chart-utils';
 
-const exchanges = ['전체', 'KOSPI', 'KOSDAQ', 'NASDAQ'];
+const exchanges = ['전체', 'KOSPI', 'KOSDAQ'];
 const sectors = ['전체', '반도체', 'IT', '배터리', '자동차', '바이오'];
 
 export default function MarketPage() {
@@ -41,7 +41,6 @@ export default function MarketPage() {
         {[
           { label: 'KOSPI', value: '2,847.34', change: '+12.5', pct: '+0.44%', up: true },
           { label: 'KOSDAQ', value: '847.12', change: '-3.2', pct: '-0.38%', up: false },
-          { label: 'S&P 500', value: '5,308.13', change: '+28.4', pct: '+0.54%', up: true },
         ].map(idx => (
           <div key={idx.label} className="card p-3 md:p-4 flex items-center justify-between shrink-0 w-44 md:w-auto md:flex-1">
             <div>
@@ -106,7 +105,7 @@ export default function MarketPage() {
       {!loading && !error && (
       <>
         {/* Mobile card list */}
-        <div className="md:hidden space-y-2">
+        <div className="lg:hidden space-y-2">
           {filtered.map(s => {
             const spark = generateSparkline(s.price, 12, symbolSeed(s.symbol));
             return (
@@ -121,7 +120,7 @@ export default function MarketPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{s.name}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>{s.symbol}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>{s.symbol}</span>
                     <span className="badge-amber" style={{ fontSize: 9, padding: '1px 4px' }}>{s.exchange}</span>
                   </div>
                 </div>
@@ -143,7 +142,7 @@ export default function MarketPage() {
         </div>
 
         {/* Desktop table */}
-        <div className="hidden md:block card overflow-hidden">
+        <div className="hidden lg:block card overflow-hidden">
           <div className="grid text-xs px-4 py-3" style={{
             gridTemplateColumns: '2fr 1fr 1fr 1fr 80px 100px',
             color: 'var(--text-muted)',

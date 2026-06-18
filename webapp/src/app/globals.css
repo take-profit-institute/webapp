@@ -75,8 +75,11 @@
   box-sizing: border-box;
 }
 
-html {
-  scroll-behavior: smooth;
+/* Smooth scroll only for pointer devices — touch/Capacitor can jitter */
+@media (hover: hover) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 body {
@@ -199,6 +202,11 @@ body {
   background: var(--bg-elevated);
   border-color: var(--border-normal);
   transform: translateY(-1px);
+}
+.card-interactive:active {
+  background: var(--bg-elevated);
+  border-color: var(--border-normal);
+  transform: translateY(0);
 }
 
 /* Light theme adds subtle elevation so white cards stand out from the page */
@@ -369,6 +377,13 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Bottom nav padding for mobile — lg+ uses sidebar, no bottom nav */
+@media (max-width: 1023px) {
+  .main-scroll-area {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* Tab styles */

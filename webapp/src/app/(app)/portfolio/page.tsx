@@ -128,7 +128,7 @@ export default function PortfolioPage() {
         <div className="md:col-span-2 card p-4 md:p-5">
           <div className="flex items-end justify-between mb-3">
             <div>
-              <p className="text-[10px] md:text-xs mb-0.5" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>총 평가 자산</p>
+              <p className="text-xs mb-0.5" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>총 평가 자산</p>
               <p className="text-2xl md:text-3xl font-black font-mono" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-primary)' }}>
                 {(totalValue + totalCash).toLocaleString()}<span className="text-xs ml-1" style={{ color: 'var(--text-secondary)' }}>원</span>
               </p>
@@ -142,16 +142,16 @@ export default function PortfolioPage() {
             {/* 잔고 분리 조회 (ACC-004): 총 잔고 / 묶인 / 가용 */}
             <div className="text-right hidden sm:block space-y-1">
               <div>
-                <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>총 잔고</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>총 잔고</p>
                 <p className="text-base font-mono font-bold" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-primary)' }}>{totalCash.toLocaleString()}원</p>
               </div>
               <div className="flex items-center justify-end gap-3">
                 <div>
-                  <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>가용</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>가용</p>
                   <p className="text-xs font-mono" style={{ fontFamily: 'JetBrains Mono', color: 'var(--gain)' }}>{available.toLocaleString()}</p>
                 </div>
                 <div>
-                  <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>묶인 금액</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>묶인 금액</p>
                   <p className="text-xs font-mono" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-secondary)' }}>{locked.toLocaleString()}</p>
                 </div>
               </div>
@@ -270,10 +270,8 @@ export default function PortfolioPage() {
                 </button>
                 {/* Desktop row */}
                 <button onClick={() => setExpandedHolding(expandedHolding === h.symbol ? null : h.symbol)}
-                  className="hidden md:grid w-full px-5 py-4 transition-colors text-left"
-                  style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', borderBottom: i < myHoldings.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                  className="hidden md:grid w-full px-5 py-4 transition-colors text-left hover:bg-[var(--bg-elevated)]"
+                  style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', borderBottom: i < myHoldings.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
                       style={{ background: 'var(--bg-surface)', color: 'var(--amber)', fontFamily: 'JetBrains Mono' }}>
@@ -357,7 +355,7 @@ export default function PortfolioPage() {
                   <p className="text-sm font-mono font-bold" style={{ color: h.realizedProfit >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
                     {h.realizedProfit >= 0 ? '+' : ''}{h.realizedProfit.toLocaleString()}원
                   </p>
-                  <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>실현손익</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>실현손익</p>
                 </div>
               </div>
             ))}
@@ -376,9 +374,7 @@ export default function PortfolioPage() {
               return (
                 <div key={o.id} style={{ borderBottom: i < orderList.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                   <button onClick={() => setExpandedOrder(expanded ? null : o.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 transition-colors text-left"
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                    className="w-full flex items-center gap-3 px-4 py-3 transition-colors text-left hover:bg-[var(--bg-elevated)] active:bg-[var(--bg-elevated)]">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
                       style={{ background: o.type === 'buy' ? 'var(--gain-dim)' : 'var(--loss-dim)', color: o.type === 'buy' ? 'var(--gain)' : 'var(--loss)' }}>
                       {o.type === 'buy' ? '매수' : '매도'}
@@ -421,10 +417,10 @@ export default function PortfolioPage() {
                           <div className="space-y-2">
                             {editingOrderId === o.id ? (
                               <div className="grid grid-cols-2 gap-2">
-                                <input type="number" min="1" step="1" value={amendQty}
+                                <input type="number" inputMode="numeric" min="1" step="1" value={amendQty}
                                   onChange={e => setAmendQty(e.target.value.replace(/[.,]/g, ''))}
                                   className="input-dark text-center text-xs font-mono" placeholder="수량" style={{ fontFamily: 'JetBrains Mono' }} />
-                                <input type="number" min="1" step="1" value={amendPrice}
+                                <input type="number" inputMode="numeric" min="1" step="1" value={amendPrice}
                                   onChange={e => setAmendPrice(e.target.value.replace(/[.,]/g, ''))}
                                   className="input-dark text-right text-xs font-mono" placeholder="지정가" style={{ fontFamily: 'JetBrains Mono' }} />
                               </div>
@@ -478,7 +474,7 @@ export default function PortfolioPage() {
                 { label: '거래 횟수', value: '24회', color: 'var(--text-primary)' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="p-3 rounded-xl text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
-                  <p className="text-[10px] md:text-xs mb-1" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</p>
+                  <p className="text-xs mb-1" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</p>
                   <p className="text-sm md:text-lg font-black font-mono" style={{ color, fontFamily: 'JetBrains Mono' }}>{value}</p>
                 </div>
               ))}

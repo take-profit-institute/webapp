@@ -475,7 +475,7 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
                 {orderKind === 'limit' && (
                   <div className="mb-3">
                     <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>지정가 (원, 1원 단위)</label>
-                    <input type="number" min="0" step="1" value={limitPrice}
+                    <input type="number" inputMode="numeric" min="0" step="1" value={limitPrice}
                       onChange={e => setLimitPrice(e.target.value.replace(/[.,]/g, ''))}
                       placeholder={stock.price.toLocaleString()}
                       className="input-dark text-right font-mono font-bold" style={{ fontFamily: 'JetBrains Mono' }} />
@@ -491,7 +491,7 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
                     <button onClick={() => setQuantity(q => String(Math.max(0, parseInt(q || '0') - 1)))}
                       className="w-9 h-10 rounded-lg font-bold text-lg flex items-center justify-center shrink-0"
                       style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-normal)', color: 'var(--text-primary)' }}>−</button>
-                    <input type="number" min="0" step="1" value={quantity}
+                    <input type="number" inputMode="numeric" min="0" step="1" value={quantity}
                       onChange={e => setQuantity(e.target.value.replace(/[.,]/g, ''))}
                       placeholder="0" className="input-dark text-center font-mono font-bold" style={{ fontFamily: 'JetBrains Mono' }} />
                     <button onClick={() => setQuantity(q => String(parseInt(q || '0') + 1))}
@@ -583,7 +583,7 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
                 {timing === 'open' && openKind === 'limit' && (
                   <div className="mb-3">
                     <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>예약 지정가 (원, 1원 단위)</label>
-                    <input type="number" min="0" step="1" value={rsvPrice}
+                    <input type="number" inputMode="numeric" min="0" step="1" value={rsvPrice}
                       onChange={e => setRsvPrice(e.target.value.replace(/[.,]/g, ''))}
                       placeholder={stock.price.toLocaleString()}
                       className="input-dark text-right font-mono font-bold" style={{ fontFamily: 'JetBrains Mono' }} />
@@ -599,7 +599,7 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
                     <button onClick={() => setQuantity(q => String(Math.max(0, parseInt(q || '0') - 1)))}
                       className="w-9 h-10 rounded-lg font-bold text-lg flex items-center justify-center shrink-0"
                       style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-normal)', color: 'var(--text-primary)' }}>−</button>
-                    <input type="number" min="0" step="1" value={quantity}
+                    <input type="number" inputMode="numeric" min="0" step="1" value={quantity}
                       onChange={e => setQuantity(e.target.value.replace(/[.,]/g, ''))}
                       placeholder="0" className="input-dark text-center font-mono font-bold" style={{ fontFamily: 'JetBrains Mono' }} />
                     <button onClick={() => setQuantity(q => String(parseInt(q || '0') + 1))}

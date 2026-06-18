@@ -37,7 +37,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="hidden md:flex flex-col transition-all duration-300 relative shrink-0"
+      className="hidden lg:flex flex-col transition-all duration-300 relative shrink-0"
       style={{
         width: sidebarCollapsed ? 64 : 220,
         background: 'var(--bg-surface)',

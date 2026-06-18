@@ -111,9 +111,9 @@ export default function DashboardPage() {
               <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--bg-surface)' }}>
                 <Icon size={14} style={{ color: 'var(--amber)' }} />
               </div>
-              <span className={`badge-${positive ? 'gain' : 'loss'} text-[10px] md:text-xs`}>{change}</span>
+              <span className={`badge-${positive ? 'gain' : 'loss'} text-xs`}>{change}</span>
             </div>
-            <p className="text-[10px] md:text-xs mb-0.5" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</p>
+            <p className="text-xs mb-0.5" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</p>
             <p className="text-base md:text-xl font-black font-mono leading-tight" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-primary)' }}>
               {value}<span className="text-xs ml-0.5" style={{ color: 'var(--text-secondary)' }}>{unit}</span>
             </p>
@@ -233,10 +233,8 @@ export default function DashboardPage() {
           <div className="space-y-2">
             {(topStocks ?? []).map(s => (
               <Link key={s.symbol} href={`/market/${s.symbol}`}
-                className="flex items-center justify-between py-1 rounded-lg px-1.5 transition-colors"
+                className="flex items-center justify-between py-1 rounded-lg px-1.5 transition-colors hover:bg-[var(--bg-elevated)] active:bg-[var(--bg-elevated)]"
                 style={{ color: 'inherit' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               >
                 <span className="text-sm" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{s.name}</span>
                 <div className="flex items-center gap-2">
