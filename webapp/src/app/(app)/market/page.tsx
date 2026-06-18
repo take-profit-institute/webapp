@@ -1,9 +1,9 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Search, ArrowUpRight, ArrowDownRight, SlidersHorizontal } from 'lucide-react';
+import { Search, ArrowUpRight, ArrowDownRight, SlidersHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
 import MiniSparkline from '@/components/MiniSparkline';
-import { getStocks, useApi } from '@/apis';
+import { getStocks, getSparklines, useApi } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
 import { formatVolume } from '@/lib/format';
 import { generateSparkline, symbolSeed } from '@/lib/chart-utils';
@@ -11,14 +11,19 @@ import { generateSparkline, symbolSeed } from '@/lib/chart-utils';
 const exchanges = ['전체', 'KOSPI', 'KOSDAQ'];
 const sectors = ['전체', '반도체', 'IT', '배터리', '자동차', '바이오'];
 
+const PAGE_SIZE = 6;
+
 export default function MarketPage() {
   const [activeExchange, setActiveExchange] = useState('전체');
   const [activeSector, setActiveSector] = useState('전체');
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState<'none' | 'gain' | 'loss'>('none');
+  const [page, setPage] = useState(1);
 
   const { data, loading, error, refetch } = useApi(() => getStocks(), []);
+  const { data: sparklines } = useApi(() => getSparklines(14), []);
   const stockList = data ?? [];
+  const sparklinesMap = sparklines ?? {};
 
   let filtered = stockList.filter(s => {
     const matchExchange = activeExchange === '전체' || s.exchange === activeExchange;
@@ -29,6 +34,25 @@ export default function MarketPage() {
   if (sortBy === 'gain') filtered = [...filtered].sort((a, b) => b.changePercent - a.changePercent);
   if (sortBy === 'loss') filtered = [...filtered].sort((a, b) => a.changePercent - b.changePercent);
 
+  // Reset to page 1 whenever filters/sort change
+  useEffect(() => { setPage(1); }, [activeExchange, activeSector, query, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  /** 종목별 2주 데이터 계산 */
+  function getStockSparkData(symbol: string, fallbackPrice: number) {
+    const closes = sparklinesMap[symbol] ?? [];
+    const spark = closes.length >= 2 ? closes : generateSparkline(fallbackPrice, 12, symbolSeed(symbol));
+    const firstClose = closes[0] ?? fallbackPrice;
+    const lastClose = closes[closes.length - 1] ?? fallbackPrice;
+    const twChangePct = closes.length >= 2
+      ? ((lastClose - firstClose) / firstClose) * 100
+      : null;
+    const isUp = twChangePct !== null ? twChangePct >= 0 : lastClose >= firstClose;
+    return { spark, twChangePct, isUp };
+  }
+
   return (
     <div className="p-3 md:p-6 max-w-[1200px]">
       <div className="mb-4 md:mb-6">
@@ -36,7 +60,7 @@ export default function MarketPage() {
         <p className="text-xs md:text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>실시간 주가 현황</p>
       </div>
 
-      {/* Index cards — scrollable on mobile */}
+      {/* Index cards */}
       <div className="flex gap-3 overflow-x-auto pb-1 mb-4 scrollbar-none">
         {[
           { label: 'KOSPI', value: '2,847.34', change: '+12.5', pct: '+0.44%', up: true },
@@ -71,7 +95,7 @@ export default function MarketPage() {
             <span className="hidden sm:inline">{sortBy === 'gain' ? '상승순' : sortBy === 'loss' ? '하락순' : '정렬'}</span>
           </button>
         </div>
-        {/* Exchange filter — scroll on mobile */}
+        {/* Exchange + sector filter */}
         <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
           {exchanges.map(e => (
             <button key={e} onClick={() => setActiveExchange(e)}
@@ -101,13 +125,13 @@ export default function MarketPage() {
       {loading && <Loader />}
       {error && <ErrorState error={error} onRetry={refetch} />}
 
-      {/* Mobile: card list | Desktop: table */}
       {!loading && !error && (
       <>
         {/* Mobile card list */}
         <div className="lg:hidden space-y-2">
-          {filtered.map(s => {
-            const spark = generateSparkline(s.price, 12, symbolSeed(s.symbol));
+          {paginated.map(s => {
+            const { spark, twChangePct, isUp } = getStockSparkData(s.symbol, s.price);
+            const displayPct = twChangePct ?? s.changePercent;
             return (
               <Link key={s.symbol} href={`/market/${s.symbol}`}
                 className="card-interactive flex items-center px-4 py-3 gap-3"
@@ -124,17 +148,20 @@ export default function MarketPage() {
                     <span className="badge-amber" style={{ fontSize: 9, padding: '1px 4px' }}>{s.exchange}</span>
                   </div>
                 </div>
-                <MiniSparkline data={spark} width={44} height={22} positive={s.change >= 0} />
+                <MiniSparkline data={spark} width={44} height={22} positive={isUp} />
                 <div className="text-right shrink-0 w-20">
                   <p className="text-sm font-mono font-semibold" style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>
                     {s.price >= 100000 ? `${(s.price / 10000).toFixed(1)}만` : s.price.toLocaleString()}
                   </p>
                   <div className="flex items-center justify-end gap-0.5">
-                    {s.change >= 0 ? <ArrowUpRight size={11} style={{ color: 'var(--gain)' }} /> : <ArrowDownRight size={11} style={{ color: 'var(--loss)' }} />}
-                    <span className="text-xs font-mono font-bold" style={{ color: s.change >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
-                      {Math.abs(s.changePercent).toFixed(2)}%
+                    {isUp ? <ArrowUpRight size={11} style={{ color: 'var(--gain)' }} /> : <ArrowDownRight size={11} style={{ color: 'var(--loss)' }} />}
+                    <span className="text-xs font-mono font-bold" style={{ color: isUp ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
+                      {Math.abs(displayPct).toFixed(2)}%
                     </span>
                   </div>
+                  {twChangePct !== null && (
+                    <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>2주</p>
+                  )}
                 </div>
               </Link>
             );
@@ -151,19 +178,20 @@ export default function MarketPage() {
           }}>
             <span>종목</span>
             <span className="text-right">현재가</span>
-            <span className="text-right">등락</span>
+            <span className="text-right">등락 (2주)</span>
             <span className="text-right">거래량</span>
-            <span className="text-right">차트</span>
+            <span className="text-right">2주 추이</span>
             <span className="text-right">거래</span>
           </div>
-          {filtered.map((s, i) => {
-            const spark = generateSparkline(s.price, 15, symbolSeed(s.symbol));
+          {paginated.map((s, i) => {
+            const { spark, twChangePct, isUp } = getStockSparkData(s.symbol, s.price);
+            const displayPct = twChangePct ?? s.changePercent;
+            const closes = sparklinesMap[s.symbol] ?? [];
+            const twChangeAbs = closes.length >= 2 ? closes[closes.length - 1] - closes[0] : s.change;
             return (
               <Link key={s.symbol} href={`/market/${s.symbol}`}
-                className="grid px-4 py-3 transition-colors"
-                style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 80px 100px', borderBottom: i < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none', textDecoration: 'none' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                className="grid px-4 py-3 transition-colors hover:bg-[var(--bg-elevated)]"
+                style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 80px 100px', borderBottom: i < paginated.length - 1 ? '1px solid var(--border-subtle)' : 'none', textDecoration: 'none' }}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
@@ -184,13 +212,13 @@ export default function MarketPage() {
                 <div className="flex items-center justify-end">
                   <div className="flex flex-col items-end">
                     <div className="flex items-center gap-0.5">
-                      {s.change >= 0 ? <ArrowUpRight size={12} style={{ color: 'var(--gain)' }} /> : <ArrowDownRight size={12} style={{ color: 'var(--loss)' }} />}
-                      <span className="text-sm font-mono font-bold" style={{ color: s.change >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
-                        {Math.abs(s.changePercent).toFixed(2)}%
+                      {isUp ? <ArrowUpRight size={12} style={{ color: 'var(--gain)' }} /> : <ArrowDownRight size={12} style={{ color: 'var(--loss)' }} />}
+                      <span className="text-sm font-mono font-bold" style={{ color: isUp ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
+                        {Math.abs(displayPct).toFixed(2)}%
                       </span>
                     </div>
-                    <span className="text-xs" style={{ color: s.change >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono', opacity: 0.7 }}>
-                      {s.change >= 0 ? '+' : ''}{s.change.toLocaleString()}
+                    <span className="text-xs" style={{ color: isUp ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono', opacity: 0.7 }}>
+                      {twChangeAbs >= 0 ? '+' : ''}{twChangeAbs.toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -198,7 +226,7 @@ export default function MarketPage() {
                   <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>{formatVolume(s.volume)}</span>
                 </div>
                 <div className="flex items-center justify-end">
-                  <MiniSparkline data={spark} width={64} height={28} positive={s.change >= 0} />
+                  <MiniSparkline data={spark} width={64} height={28} positive={isUp} />
                 </div>
                 <div className="flex items-center justify-end gap-2" onClick={e => e.preventDefault()}>
                   <button className="px-3 py-1.5 rounded-lg text-xs font-bold"
@@ -210,6 +238,46 @@ export default function MarketPage() {
             );
           })}
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-4">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-30"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
+            >
+              <ChevronLeft size={14} />
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              <button key={p} onClick={() => setPage(p)}
+                className="w-8 h-8 rounded-lg text-xs font-bold transition-all"
+                style={{
+                  background: page === p ? 'var(--amber)' : 'var(--bg-card)',
+                  color: page === p ? '#000' : 'var(--text-secondary)',
+                  border: `1px solid ${page === p ? 'var(--amber)' : 'var(--border-subtle)'}`,
+                  fontFamily: 'JetBrains Mono',
+                }}>
+                {p}
+              </button>
+            ))}
+
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-30"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
+            >
+              <ChevronRight size={14} />
+            </button>
+
+            <span className="text-xs ml-1" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} / {filtered.length}
+            </span>
+          </div>
+        )}
       </>
       )}
     </div>

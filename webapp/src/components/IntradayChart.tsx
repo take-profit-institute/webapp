@@ -76,19 +76,10 @@ export default function IntradayChart({ ticks, currency, height = 220 }: Props) 
   const maxP = Math.max(...prices);
   const pad = Math.max((maxP - minP) * 0.15, 1);
 
-  // Show every N-th label so the X-axis stays readable
-  const interval = Math.max(0, Math.floor(data.length / 6) - 1);
-
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-        <XAxis
-          dataKey="time"
-          tick={{ fontSize: 9, fill: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}
-          tickLine={false}
-          axisLine={false}
-          interval={interval}
-        />
+        <XAxis dataKey="time" hide />
         <YAxis
           domain={[minP - pad, maxP + pad]}
           tick={{ fontSize: 9, fill: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}

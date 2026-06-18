@@ -26,6 +26,7 @@ export {
   getStockNews,
   getMarketStatus,
   getIntradayHistory,
+  getSparklines,
 } from './market';
 export {
   getAccount,

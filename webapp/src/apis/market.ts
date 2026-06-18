@@ -61,6 +61,11 @@ export function getStockNews(symbol: string): Promise<NewsItem[]> {
   return apiClient.get<NewsItem[]>(`/api/market/stocks/${encodeURIComponent(symbol)}/news`);
 }
 
+/** 전 종목 2주 스파크라인 — symbol → 일봉 종가 배열 (오래된 순). */
+export function getSparklines(limit = 14): Promise<Record<string, number[]>> {
+  return apiClient.get<Record<string, number[]>>('/api/market/sparklines', { limit });
+}
+
 /** 당일 실시간 틱 히스토리 — 초기 로드 후 WS로 이어 붙임. */
 export function getIntradayHistory(symbol: string): Promise<IntradayHistory> {
   return apiClient.get<IntradayHistory>(`/api/market/stocks/${encodeURIComponent(symbol)}/intraday`);

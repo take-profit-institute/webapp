@@ -65,6 +65,28 @@ const marketRoutes: FastifyPluginAsyncTypebox = async (app) => {
   );
 
   app.get(
+    '/sparklines',
+    {
+      schema: {
+        tags: ['market'],
+        summary: '전 종목 2주 스파크라인 (일봉 종가 배열)',
+        querystring: Type.Object({ limit: Type.Optional(Type.Integer({ minimum: 1, default: 14 })) }),
+        response: { 200: Type.Record(Type.String(), Type.Array(Type.Number())) },
+      },
+    },
+    async (req) => {
+      const limit = req.query.limit ?? 14;
+      const allStocks = await provider.listStocks({});
+      const result: Record<string, number[]> = {};
+      for (const stock of allStocks) {
+        const candles = await provider.getCandles(stock.symbol, '1d', limit);
+        result[stock.symbol] = candles.map((c) => c.close);
+      }
+      return result;
+    },
+  );
+
+  app.get(
     '/stocks/:symbol/intraday',
     { schema: { tags: ['market'], summary: '당일 실시간 틱 히스토리', params: SymbolParams, response: { 200: IntradayHistory } } },
     async (req) => ({
