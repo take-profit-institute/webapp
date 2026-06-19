@@ -6,15 +6,20 @@
   "workspaces": [
     "shared",
     "bff",
-    "webapp"
+    "webapp",
+    "admin"
   ],
   "scripts": {
-    "build": "npm run build -w @candle/shared && npm run build -w @candle/bff && npm run build -w @candle/webapp",
+    "bootstrap": "npm install",
+    "build": "npm run build -w @candle/shared && npm run build -w @candle/bff && npm run build -w @candle/webapp && npm run build -w @candle/admin",
     "build:shared": "npm run build -w @candle/shared",
     "dev:shared": "npm run dev -w @candle/shared",
     "dev:bff": "npm run dev -w @candle/bff",
     "dev:webapp": "npm run dev -w @candle/webapp",
+    "dev:admin": "npm run dev -w @candle/admin",
     "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   }
 }

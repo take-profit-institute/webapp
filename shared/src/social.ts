@@ -234,3 +234,27 @@ export const LearnFavoriteResult = Type.Object({
   favorite: Type.Boolean(),
 });
 export type LearnFavoriteResult = Static<typeof LearnFavoriteResult>;
+
+// ── Admin: Learn management (LEARN-014, LEARN-015) ─────────────────
+export const AdminUpdateLearnVisibilityBody = Type.Object({
+  published: Type.Boolean(),
+});
+export type AdminUpdateLearnVisibilityBody = Static<typeof AdminUpdateLearnVisibilityBody>;
+
+export const AdminLearnStats = Type.Object({
+  contentId: Type.String(),
+  title: Type.String(),
+  readCount: Type.Number(),
+  completedCount: Type.Number(),
+  completionRate: Type.Number(),
+  favoriteCount: Type.Number(),
+});
+export type AdminLearnStats = Static<typeof AdminLearnStats>;
+
+// ── Admin: Mission reward (MISSION-019) ───────────────────────────
+export const AdminUpdateMissionRewardBody = Type.Object({
+  reward: Type.Number({ minimum: 0 }),
+  badgeReward: Type.Optional(Type.String()),
+  achievementReward: Type.Optional(Type.String()),
+});
+export type AdminUpdateMissionRewardBody = Static<typeof AdminUpdateMissionRewardBody>;

@@ -7,18 +7,35 @@ function str(key: string, fallback: string): string {
   return v === undefined || v === '' ? fallback : v;
 }
 
+function csv(key: string, fallback: string): string[] {
+  return str(key, fallback)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function wildcardOriginToRegExp(origin: string): RegExp | null {
+  if (!origin.includes('*')) return null;
+
+  const escaped = origin.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^.]+');
+  return new RegExp(`^${escaped}$`);
+}
+
+const corsOriginEntries = csv(
+  'CORS_ORIGINS',
+  'capacitor://localhost,https://localhost,http://localhost,http://localhost:3000,http://localhost:3001,https://*.vercel.app,https://*.builderio.dev',
+);
+
 export const env = {
   nodeEnv: str('NODE_ENV', 'development'),
   isDev: str('NODE_ENV', 'development') !== 'production',
   port: Number(str('PORT', '4000')),
   host: str('HOST', '0.0.0.0'),
-  corsOrigins: str(
-    'CORS_ORIGINS',
-    'capacitor://localhost,https://localhost,http://localhost,http://localhost:3000',
-  )
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean),
+  corsOrigins: corsOriginEntries.filter((origin) => !origin.includes('*')),
+  corsOriginPatterns: corsOriginEntries.flatMap((origin) => {
+    const pattern = wildcardOriginToRegExp(origin);
+    return pattern ? [pattern] : [];
+  }),
   dataSource: str('DATA_SOURCE', 'mock') as DataSource,
   redisUrl: process.env['REDIS_URL'] || '',
   kis: {
