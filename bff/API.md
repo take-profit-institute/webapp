@@ -16,7 +16,7 @@ Candle 모의투자 플랫폼의 Backend-for-Frontend(BFF) API 문서입니다.
 | 도메인 API 프리픽스 | `/api` |
 | 콘텐츠 타입 | `application/json` |
 | 인증 | Bearer 토큰 (현재 **mock** — 검증/발급 미구현, 아래 참고) |
-| 데이터 소스 | `DATA_SOURCE` 환경변수: `mock`(기본) \| `kis`(예정) |
+| 데이터 소스 | `DATA_SOURCE` 환경변수: `mock`(기본) \| `grpc`(마이크로서비스) \| `kis`(예정) |
 | CORS 허용 출처 | `CORS_ORIGINS` 환경변수 (기본: capacitor/localhost/`localhost:3000`) |
 
 ### 프론트엔드 연동
@@ -94,10 +94,13 @@ Access Token은 서명 없는 base64url payload(`header.payload.mock-signature`)
 | GET | `/api/market/stocks/{symbol}` | 종목 상세 | market |
 | GET | `/api/market/stocks/{symbol}/candles` | 캔들(OHLCV) 데이터 | market |
 | GET | `/api/market/stocks/{symbol}/news` | 종목 뉴스 | market |
+| GET | `/api/market/stocks/{symbol}/intraday` | 당일 실시간 틱 히스토리 | market |
+| GET | `/api/market/sparklines` | 전 종목 2주 스파크라인 벌크 조회 | market |
 | GET | `/api/account` | 계좌 요약(대시보드 통계) | account |
 | GET | `/api/account/balance` | 잔고 분리 조회(총/묶인/가용) | account |
-| GET | `/api/account/reservations` | 예약(미체결) 주문 — 묶인 금액 내역 | account |
-| GET | `/api/account/holdings` | 보유 종목 | account |
+| GET | `/api/account/locked` | 미체결 지정가 주문(묶인 금액 원천) | account |
+| GET | `/api/account/holdings` | 보유 종목 목록 | account |
+| GET | `/api/account/holdings/{symbol}` | 보유 종목 상세 | account |
 | GET | `/api/account/transactions` | 거래 내역 | account |
 | GET | `/api/account/portfolio-history` | 포트폴리오 자산 추이 | account |
 | GET | `/api/account/allocation` | 섹터별 자산 구성 | account |
@@ -105,19 +108,48 @@ Access Token은 서명 없는 base64url payload(`header.payload.mock-signature`)
 | GET | `/api/account/orders/{id}` | 주문 상세 조회 | account |
 | POST | `/api/account/orders` | 매수/매도 주문(시장가/지정가) | account |
 | DELETE | `/api/account/orders/{id}` | 주문 취소 | account |
+| PATCH | `/api/account/orders/{id}` | 지정가 주문 정정 | account |
+| GET | `/api/account/reservations` | 예약 주문 목록 (RSV-009) | account |
+| GET | `/api/account/reservations/{id}` | 예약 주문 상세 | account |
+| POST | `/api/account/reservations` | 예약 주문 생성 | account |
+| DELETE | `/api/account/reservations/{id}` | 예약 주문 취소 | account |
+| PATCH | `/api/account/reservations/{id}` | 예약 주문 정정 | account |
 | POST | `/api/account/reset` | 계정 초기화(포트폴리오 리셋) | account |
 | POST | `/api/account/deactivate` | 계좌 비활성화(탈퇴 이벤트 처리) | account |
 | GET | `/api/account/watchlist` | 관심종목 목록 | account |
 | POST | `/api/account/watchlist` | 관심종목 추가 | account |
 | DELETE | `/api/account/watchlist/{symbol}` | 관심종목 제거 | account |
+| GET | `/api/notifications` | 알림 목록 | notification |
+| GET | `/api/notifications/unread-count` | 읽지 않은 알림 수 | notification |
+| PATCH | `/api/notifications/{id}/read` | 단건 읽음 처리 | notification |
+| PATCH | `/api/notifications/read-all` | 전체 읽음 처리 | notification |
+| DELETE | `/api/notifications/{id}` | 알림 삭제 | notification |
 | GET | `/api/rankings` | 투자 랭킹 | ranking |
 | GET | `/api/rankings/me` | 내 랭킹 | ranking |
 | GET | `/api/missions` | 미션/챌린지 목록 | mission |
+| GET | `/api/missions/progress` | 내 미션 진행 상태 요약 | mission |
+| GET | `/api/missions/challenges` | 챌린지 목록 | mission |
+| GET | `/api/missions/challenges/{id}` | 챌린지 상세 | mission |
+| POST | `/api/missions/challenges/{id}/join` | 챌린지 참여 | mission |
+| GET | `/api/missions/challenges/{id}/result` | 챌린지 결과 조회 | mission |
+| GET | `/api/missions/{id}` | 미션 상세 | mission |
+| POST | `/api/missions/{id}/join` | 미션 참여 | mission |
+| DELETE | `/api/missions/{id}/participation` | 미션 참여 취소 | mission |
 | POST | `/api/missions/{id}/claim` | 미션 보상 수령 | mission |
 | POST | `/api/missions/{id}/progress` | 미션 진행도 갱신 | mission |
+| POST | `/api/missions/admin` | 관리자 미션 생성 | mission |
+| PUT | `/api/missions/admin/{id}` | 관리자 미션 수정 | mission |
+| DELETE | `/api/missions/admin/{id}` | 관리자 미션 삭제 | mission |
+| GET | `/api/missions/admin/{id}/participants` | 관리자 참여자 조회 | mission |
+| GET | `/api/missions/admin/{id}/stats` | 관리자 미션 통계 | mission |
+| POST | `/api/missions/challenges/admin` | 관리자 챌린지 생성 | mission |
 | GET | `/api/learn` | 학습 콘텐츠 목록 | learn |
+| GET | `/api/learn/progress` | 내 학습 진도율 | learn |
+| GET | `/api/learn/favorites` | 즐겨찾기 콘텐츠 | learn |
+| GET | `/api/learn/recommended` | 추천 콘텐츠 | learn |
 | GET | `/api/learn/{id}` | 학습 콘텐츠 상세 | learn |
 | POST | `/api/learn/{id}/complete` | 학습 콘텐츠 완독 처리 | learn |
+| POST | `/api/learn/{id}/favorite` | 즐겨찾기 등록/해제 | learn |
 
 ---
 
@@ -358,6 +390,39 @@ JWT 유효성/만료 검증. *(AUTH-008/009)*
 [ { "id": "005930-n1", "symbol": "005930", "title": "삼성전자, 2분기 실적 시장 예상치 상회", "source": "한국경제", "publishedAt": "2026-06-15T13:30:00+09:00" } ]
 ```
 
+### `GET /api/market/stocks/{symbol}/intraday`
+당일 실시간 틱 히스토리. WebSocket(`ws://…/ws/quotes`)으로 스트리밍되는 틱을 메모리에 누적한 스냅샷이며,
+차트의 초기 로드 및 연결 전 구간 보정에 사용합니다.
+
+**경로 파라미터**: `symbol` (string)
+
+**응답 `200`** — [`IntradayHistory`](#intradayhistory)
+
+```json
+{
+  "symbol": "005930",
+  "ticks": [
+    { "time": "09:00", "price": 71200, "volume": 42000 },
+    { "time": "09:05", "price": 71400, "volume": 38500 }
+  ]
+}
+```
+
+### `GET /api/market/sparklines`
+전 종목의 2주(기본) 일봉 종가 배열을 단일 요청으로 반환합니다. 목록 화면에서 종목별로 개별 호출하는 대신
+이 벌크 엔드포인트를 사용해 요청 수를 줄입니다.
+
+**쿼리 파라미터**: `limit` (integer ≥ 1, 기본 `14`) — 조회할 일봉 개수
+
+**응답 `200`** — `Record<string, number[]>` (심볼 → 종가 배열, 오래된 순)
+
+```json
+{
+  "005930": [70600, 71200, 71400, 70800, 71600],
+  "000660": [195000, 196500, 198000]
+}
+```
+
 ---
 
 ## Account
@@ -390,9 +455,9 @@ JWT 유효성/만료 검증. *(AUTH-008/009)*
 { "totalBalance": 2958105, "lockedAmount": 832325, "availableAmount": 2125780 }
 ```
 
-### `GET /api/account/reservations`
-묶인 금액을 만든 **예약(미체결) 주문 내역**. 각 항목은 `status: "pending"`인 [`Transaction`](#transaction)이며,
-`amount + fee`의 합이 `lockedAmount`와 일치합니다.
+### `GET /api/account/locked`
+미체결 지정가 주문이 묶어둔 금액 내역. 각 항목은 `status: "pending"`인 [`Transaction`](#transaction)이며,
+`amount + fee` 합계가 `AccountBalance.lockedAmount`와 일치합니다.
 
 **응답 `200`** — [`Transaction`](#transaction)`[]`
 
@@ -403,9 +468,18 @@ JWT 유효성/만료 검증. *(AUTH-008/009)*
 ```
 
 ### `GET /api/account/holdings`
-보유 종목.
+보유 종목 목록.
+
+**쿼리 파라미터**: `includeInactive` (boolean, 기본 `false`) — 비활성 포지션 포함 여부
 
 **응답 `200`** — [`Holding`](#holding)`[]`
+
+### `GET /api/account/holdings/{symbol}`
+보유 종목 상세. *(HLD-003/HLD-011)*
+
+**경로 파라미터**: `symbol` (string)
+
+**응답 `200`** — [`Holding`](#holding) · **`404`** — 미보유 종목
 
 ### `GET /api/account/transactions`
 거래 내역.
@@ -485,15 +559,101 @@ JWT 유효성/만료 검증. *(AUTH-008/009)*
 ```
 
 ### `DELETE /api/account/orders/{id}`
-주문 취소. 원주문은 아직 저장되지 않으므로 전체 `Transaction` 대신 결과 객체를 반환합니다.
+주문 취소. *(CAN-001~004)* PENDING 상태의 지정가 주문만 취소 가능.
 
 **경로 파라미터**: `id` (string)
 
-**응답 `200`** — [`OrderCancelResult`](#ordercancelresult)
+**응답 `200`** — [`OrderCancelResult`](#ordercancelresult) · **`404`** — 미존재 · **`409`** — 이미 체결/취소
 
 ```json
-{ "id": "t_x", "status": "cancelled", "cancelledAt": "2026-06-17T03:18:48.861Z" }
+{ "id": "t_x", "status": "cancelled", "releasedAmount": 210032, "cancelledAt": "2026-06-17T03:18:48.861Z" }
 ```
+
+### `PATCH /api/account/orders/{id}`
+지정가 주문 정정. *(CAN-005/007/008)* 원주문을 취소하고 수량·가격을 수정한 새 주문을 생성. PENDING 지정가만 정정 가능.
+
+**경로 파라미터**: `id` (string)
+**요청 본문** — [`AmendOrderBody`](#amendorderbody) `{ "quantity": 2, "price": 71000 }`
+
+**응답 `201`** — [`Transaction`](#transaction) (신규 주문, `parentOrderId`로 원주문 참조) · **`404`** — 미존재 · **`409`** — 비정정 가능 상태
+
+---
+
+### `GET /api/account/reservations`
+예약 주문 목록. *(RSV-009)* 정해진 시점(시가/종가)에 자동 체결되는 스케줄 주문 목록이며,
+일반 지정가 주문(`/locked`)과 다른 별도 오브젝트입니다.
+
+**쿼리 파라미터** — [`ReservationListQuery`](#reservationlistquery) `status?`
+
+**응답 `200`** — [`Reservation`](#reservation)`[]`
+
+```json
+[
+  {
+    "id": "rsv_001", "symbol": "005930", "name": "삼성전자",
+    "type": "buy", "timing": "open", "orderKind": "market",
+    "quantity": 5, "scheduledDate": "2026-06-18",
+    "amount": 357000, "fee": 54, "status": "reserved",
+    "createdAt": "2026-06-17T10:30:00+09:00"
+  }
+]
+```
+
+### `GET /api/account/reservations/{id}`
+예약 주문 상세.
+
+**경로 파라미터**: `id` (string)
+
+**응답 `200`** — [`Reservation`](#reservation) · **`404`** — 미존재
+
+### `POST /api/account/reservations`
+예약 주문 생성. *(RSV-001~007)*
+
+**요청 본문** — [`CreateReservationBody`](#createreservationbody)
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `symbol` | string | 종목코드 |
+| `type` | `buy`\|`sell` | 매수/매도 |
+| `timing` | `open`\|`close`\|`prev_close` | 시가/종가/시간외종가 시점 |
+| `orderKind` | [`OrderKind`](#enum-orderkind) | 주문 종류 |
+| `quantity` | integer | 수량 |
+| `price` | number | 지정가(지정가일 때 필수, 정수) |
+| `scheduledDate` | string(YYYY-MM-DD) | 실행 예정일(내일~7일 이내, `close`/`prev_close`일 때 필수) |
+
+**시점별 허용 주문 종류**
+
+| `timing` | 허용 `orderKind` |
+|---|---|
+| `open` | `market`, `limit` |
+| `close` / `prev_close` | `ext_close`(시간외종가) |
+
+**응답 `201`** — [`Reservation`](#reservation) · **`400`** — 시점/종류 불일치, 가격 오류, 날짜 범위 초과 · **`404`** — 미존재 종목 · **`422`** — 잔고/수량 부족
+
+### `DELETE /api/account/reservations/{id}`
+예약 주문 취소. *(RSV-016~018)* RESERVED 상태만 취소 가능.
+
+**경로 파라미터**: `id` (string)
+
+**응답 `204`** (본문 없음) · **`404`** — 미존재 · **`409`** — 비취소 가능 상태
+
+### `PATCH /api/account/reservations/{id}`
+예약 주문 정정. *(CAN-006~008)* 원예약을 취소하고 수정된 새 예약을 생성.
+
+**경로 파라미터**: `id` (string)
+**요청 본문** — [`AmendReservationBody`](#amendreservationbody) (모든 필드 선택)
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `timing` | `open`\|`close`\|`prev_close` | 시점 변경 |
+| `orderKind` | [`OrderKind`](#enum-orderkind) | 주문 종류 변경 |
+| `quantity` | integer | 수량 변경 |
+| `price` | number | 지정가 변경 |
+| `scheduledDate` | string | 실행 예정일 변경 |
+
+**응답 `201`** — [`Reservation`](#reservation) (신규, `parentOrderId`로 원예약 참조) · **`400`** / **`404`** / **`409`**
+
+---
 
 ### `POST /api/account/reset`
 계정 초기화(포트폴리오 리셋). 보유 종목을 모두 정리하고 시드캐피털(1억원)을 현금으로 되돌린 계좌를 합성 반환.
@@ -534,6 +694,62 @@ Account 서비스 내부에서 enforce됩니다.
 
 ---
 
+## Notification
+
+### `GET /api/notifications`
+알림 목록. 최신순 정렬.
+
+**쿼리 파라미터** — [`NotificationListQuery`](#notificationlistquery)
+
+| 파라미터 | 타입 | 설명 |
+|---|---|---|
+| `limit` | integer (기본 `20`) | 최대 개수 |
+| `offset` | integer (기본 `0`) | 페이지 오프셋 |
+| `status` | [`NotificationStatus`](#enum-notificationstatus) | `unread`/`read` 필터 |
+
+**응답 `200`** — [`Notification`](#notification)`[]`
+
+```json
+[
+  {
+    "id": "n1", "type": "surge", "title": "📈 삼성전자 급등",
+    "body": "삼성전자가 전일 대비 5% 이상 상승했습니다.",
+    "status": "unread", "triggeredAt": "2026-06-17T09:35:00+09:00",
+    "meta": { "symbol": "005930", "changePercent": 5.2 }
+  }
+]
+```
+
+### `GET /api/notifications/unread-count`
+읽지 않은 알림 수. 벨 아이콘 배지에 사용.
+
+**응답 `200`** — [`UnreadCountResult`](#unreadcountresult)
+
+```json
+{ "count": 3 }
+```
+
+### `PATCH /api/notifications/{id}/read`
+단건 읽음 처리. 이미 읽음 상태여도 204 반환(멱등).
+
+**경로 파라미터**: `id` (string)
+
+**응답 `204`** (본문 없음) · **`404`** — 미존재
+
+### `PATCH /api/notifications/read-all`
+전체 읽음 처리. unread 상태인 모든 알림을 read로 변경.
+
+**응답 `204`** (본문 없음)
+
+### `DELETE /api/notifications/{id}`
+알림 삭제.
+
+**경로 파라미터**: `id` (string)
+
+**응답 `204`** (본문 없음) · **`404`** — 미존재
+
+---
+
 ## Ranking
 
 ### `GET /api/rankings`
@@ -557,7 +773,12 @@ Account 서비스 내부에서 enforce됩니다.
 ### `GET /api/missions`
 미션/챌린지 목록.
 
-**쿼리 파라미터**: `category` ([`MissionCategory`](#enum-missioncategory), 선택)
+**쿼리 파라미터** — [`MissionQuery`](#missionquery)
+
+| 파라미터 | 타입 | 설명 |
+|---|---|---|
+| `category` | [`MissionCategory`](#enum-missioncategory) | 카테고리 필터 |
+| `status` | [`MissionStatus`](#enum-missionstatus) | 상태 필터 |
 
 **응답 `200`** — [`Mission`](#mission)`[]`
 
@@ -565,15 +786,75 @@ Account 서비스 내부에서 enforce됩니다.
 [ { "id": "m1", "category": "daily", "title": "오늘의 첫 거래", "description": "오늘 첫 번째 주식 매수를 완료하세요", "reward": 500, "progress": 1, "total": 1, "completed": true, "icon": "🎯" } ]
 ```
 
+### `GET /api/missions/progress`
+내 미션 진행 상태 요약. *(MISSION-008)*
+
+**응답 `200`** — [`MissionProgressStatus`](#missionprogressstatus)
+
+```json
+{ "active": 3, "completed": 7, "totalPoints": 15500 }
+```
+
+### `GET /api/missions/challenges`
+챌린지 목록(시즌 운영 정보 포함). *(MISSION-013)*
+
+**응답 `200`** — [`Challenge`](#challenge)`[]`
+
+### `GET /api/missions/challenges/{id}`
+챌린지 상세. *(MISSION-014)*
+
+**경로 파라미터**: `id` (string)
+
+**응답 `200`** — [`Challenge`](#challenge) · **`404`** — 미존재
+
+### `POST /api/missions/challenges/{id}/join`
+챌린지 참여. *(MISSION-012)*
+
+**경로 파라미터**: `id` (string)
+
+**응답 `200`** — [`Challenge`](#challenge) (joined:true, participants 증가) · **`404`** — 미존재 · **`409`** — 종료된 챌린지
+
+### `GET /api/missions/challenges/{id}/result`
+챌린지 결과 조회. *(MISSION-014)* 참여한 챌린지만 조회 가능.
+
+**경로 파라미터**: `id` (string)
+
+**응답 `200`** — [`ChallengeResult`](#challengeresult) · **`404`** — 미존재 · **`409`** — 미참여
+
+```json
+{ "challenge": { "id": "c1", "..." : "..." }, "rank": 3, "returnPercent": 8.42, "rewardedPoints": 1000, "rewardedBadge": "🏆" }
+```
+
+### `GET /api/missions/{id}`
+미션 상세. *(MISSION-005)*
+
+**경로 파라미터**: `id` (string)
+
+**응답 `200`** — [`Mission`](#mission) · **`404`** — 미존재
+
+### `POST /api/missions/{id}/join`
+미션 참여. *(MISSION-006)* 참여 시 `status`가 `in_progress`로 전환.
+
+**경로 파라미터**: `id` (string)
+
+**응답 `200`** — [`Mission`](#mission) · **`404`** — 미존재 · **`409`** — 이미 완료/실패 상태
+
+### `DELETE /api/missions/{id}/participation`
+미션 참여 취소. *(MISSION-007)* `in_progress` 상태만 취소 가능.
+
+**경로 파라미터**: `id` (string)
+
+**응답 `200`** — [`Mission`](#mission) (status: cancelled) · **`404`** — 미존재 · **`409`** — 비취소 가능 상태
+
 ### `POST /api/missions/{id}/claim`
 미션 보상 수령. 완료된 미션만 수령 가능.
 
 **경로 파라미터**: `id` (string)
 
-**응답 `200`** — [`ClaimRewardResult`](#claimrewardresult) · **`404`** 미존재 · **`409`** 미완료/중복 수령
+**응답 `200`** — [`ClaimRewardResult`](#claimrewardresult) · **`404`** — 미존재 · **`409`** — 미완료/중복 수령
 
 ```json
-{ "mission": { "id": "m1", "...": "...", "completed": true, "claimed": true }, "rewardedPoints": 500, "totalPoints": 15500 }
+{ "mission": { "id": "m1", "...": "...", "completed": true, "claimed": true }, "rewardedPoints": 500, "rewardedBadge": "🎯", "totalPoints": 15500 }
 ```
 
 ### `POST /api/missions/{id}/progress`
@@ -582,14 +863,65 @@ Account 서비스 내부에서 enforce됩니다.
 **경로 파라미터**: `id` (string)
 **요청 본문** — [`MissionProgressBody`](#missionprogressbody) `{ "amount": 1 }` (기본 1)
 
-**응답 `200`** — [`Mission`](#mission) · **`404`** 미존재
+**응답 `200`** — [`Mission`](#mission) · **`404`** — 미존재
+
+---
+
+### 관리자 전용
+
+### `POST /api/missions/admin`
+미션 생성. *(MISSION-001/019)* 관리자 전용.
+
+**요청 본문** — [`UpsertMissionBody`](#upsertmissionbody)
+
+**응답 `201`** — [`Mission`](#mission)
+
+### `PUT /api/missions/admin/{id}`
+미션 수정. *(MISSION-002/019)*
+
+**경로 파라미터**: `id` (string)
+**요청 본문** — [`UpsertMissionBody`](#upsertmissionbody)
+
+**응답 `200`** — [`Mission`](#mission) · **`404`** — 미존재
+
+### `DELETE /api/missions/admin/{id}`
+미션 삭제. *(MISSION-003)*
+
+**경로 파라미터**: `id` (string)
+
+**응답 `204`** (본문 없음) · **`404`** — 미존재
+
+### `GET /api/missions/admin/{id}/participants`
+미션 참여자 조회. *(MISSION-018)*
+
+**경로 파라미터**: `id` (string)
+
+**응답 `200`** — [`MissionParticipant`](#missionparticipant)`[]` · **`404`** — 미존재
+
+### `GET /api/missions/admin/{id}/stats`
+미션 통계 조회. *(MISSION-020)*
+
+**경로 파라미터**: `id` (string)
+
+**응답 `200`** — [`MissionStats`](#missionstats) · **`404`** — 미존재
+
+```json
+{ "missionId": "m1", "participants": 42, "completed": 28, "failed": 5, "completionRate": 67, "totalRewardedPoints": 14000 }
+```
+
+### `POST /api/missions/challenges/admin`
+챌린지 생성. *(MISSION-011)*
+
+**요청 본문** — [`UpsertChallengeBody`](#upsertchallengebody)
+
+**응답 `201`** — [`Challenge`](#challenge)
 
 ---
 
 ## Learn
 
 ### `GET /api/learn`
-학습 콘텐츠 목록.
+학습 콘텐츠 목록. `published: true`인 콘텐츠만 반환.
 
 **쿼리 파라미터** — [`LearnQuery`](#learnquery)
 
@@ -597,11 +929,32 @@ Account 서비스 내부에서 enforce됩니다.
 |---|---|---|
 | `level` | [`LearnLevel`](#enum-learnlevel) | 난이도 필터 |
 | `category` | string | 카테고리 필터 |
+| `favorite` | boolean | 즐겨찾기만 |
+| `q` | string | 제목/설명/키워드 검색 |
+
+**응답 `200`** — [`LearnContent`](#learncontent)`[]`
+
+### `GET /api/learn/progress`
+내 학습 진도율 요약. *(LEARN-010)*
+
+**응답 `200`** — [`LearnProgressSummary`](#learnprogresssummary)
+
+```json
+{ "total": 9, "completed": 4, "inProgress": 2, "completionRate": 44 }
+```
+
+### `GET /api/learn/favorites`
+즐겨찾기 콘텐츠 목록. *(LEARN-012)*
+
+**응답 `200`** — [`LearnContent`](#learncontent)`[]`
+
+### `GET /api/learn/recommended`
+학습 기록 기반 추천 콘텐츠. *(LEARN-013)* 완료한 카테고리의 미완료 콘텐츠를 우선 추천, 최대 4개.
 
 **응답 `200`** — [`LearnContent`](#learncontent)`[]`
 
 ### `GET /api/learn/{id}`
-학습 콘텐츠 상세.
+학습 콘텐츠 상세. 조회 시 `readCount`를 1 증가.
 
 **경로 파라미터**: `id` (string) — 예: `l1`
 
@@ -612,14 +965,25 @@ Account 서비스 내부에서 enforce됩니다.
 ```
 
 ### `POST /api/learn/{id}/complete`
-학습 콘텐츠 완독 처리. `readCount`를 1 증가시킨 콘텐츠와 완료 정보를 합성 반환.
+학습 콘텐츠 완독 처리.
 
 **경로 파라미터**: `id` (string)
 
 **응답 `200`** — [`LearnProgressResult`](#learnprogressresult) · **`404`** — 미존재
 
 ```json
-{ "content": { "id": "l1", "...": "...", "readCount": 12841 }, "completed": true, "completedAt": "2026-06-17T03:18:48.861Z" }
+{ "content": { "id": "l1", "...": "...", "completed": true }, "completed": true, "completedAt": "2026-06-17T03:18:48.861Z" }
+```
+
+### `POST /api/learn/{id}/favorite`
+즐겨찾기 등록/해제 토글. *(LEARN-011)*
+
+**경로 파라미터**: `id` (string)
+
+**응답 `200`** — [`LearnFavoriteResult`](#learnfavoriteresult) · **`404`** — 미존재
+
+```json
+{ "content": { "id": "l1", "...": "...", "favorite": true }, "favorite": true }
 ```
 
 ---
@@ -665,6 +1029,16 @@ Account 서비스 내부에서 enforce됩니다.
 
 #### enum `MissionCategory`
 `"daily"` \| `"weekly"` \| `"special"`
+
+#### enum `MissionStatus`
+`"available"` \| `"in_progress"` \| `"completed"` \| `"failed"` \| `"cancelled"` \| `"expired"`
+
+#### enum `NotificationType`
+`"surge"` \| `"crash"` \| `"market_open"` \| `"market_close"` \| `"order_executed"` \| `"mission_complete"`
+확장 가능 — 신규 타입 추가 시 `meta` 필드로 타입별 데이터를 실어 하위 호환성 유지.
+
+#### enum `NotificationStatus`
+`"unread"` \| `"read"`
 
 #### enum `LearnLevel`
 `"beginner"` \| `"intermediate"` \| `"advanced"`
@@ -1087,6 +1461,139 @@ Access/Refresh 토큰 쌍 (AUTH-005/006).
 |---|---|---|
 | `level` | [`LearnLevel`](#enum-learnlevel)? | — |
 | `category` | string? | — |
+| `favorite` | boolean? | — |
+| `q` | string? | 전문 검색 |
+
+---
+
+### Notification
+
+#### `Notification`
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `id` | string | 알림 ID |
+| `type` | [`NotificationType`](#enum-notificationtype) | 알림 종류 |
+| `title` | string | 제목 |
+| `body` | string | 본문 |
+| `status` | [`NotificationStatus`](#enum-notificationstatus) | 읽음 상태 |
+| `triggeredAt` | string(date-time) | 발생 시각 |
+| `meta` | `Record<string, unknown>` | 타입별 추가 데이터(선택) |
+
+#### `UnreadCountResult`
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `count` | integer | 읽지 않은 알림 수 |
+
+#### `NotificationListQuery`
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| `limit` | integer? | 기본 20 |
+| `offset` | integer? | 기본 0 |
+| `status` | [`NotificationStatus`](#enum-notificationstatus)? | — |
+
+#### `NotificationIdParams`
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| `id` | string | — |
+
+---
+
+### 추가 Request Bodies
+
+#### `AmendOrderBody`
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| `quantity` | integer | ≥ 1 |
+| `price` | integer | 지정가(정수) |
+
+#### `CreateReservationBody`
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| `symbol` | string | — |
+| `type` | `buy`\|`sell` | — |
+| `timing` | `open`\|`close`\|`prev_close` | — |
+| `orderKind` | [`OrderKind`](#enum-orderkind) | — |
+| `quantity` | integer | ≥ 1 |
+| `price` | integer? | 지정가일 때 필수 |
+| `scheduledDate` | string? | `close`/`prev_close`일 때 필수, YYYY-MM-DD |
+
+#### `AmendReservationBody`
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| `timing` | `open`\|`close`\|`prev_close`? | — |
+| `orderKind` | [`OrderKind`](#enum-orderkind)? | — |
+| `quantity` | integer? | ≥ 1 |
+| `price` | integer? | — |
+| `scheduledDate` | string? | — |
+
+---
+
+### 추가 Response Types
+
+#### `IntradayHistory`
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `symbol` | string | 종목코드 |
+| `ticks` | `{ time: string; price: number; volume: number }[]` | 당일 분봉 틱 배열 |
+
+#### `Reservation`
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `id` | string | 예약 ID |
+| `symbol` | string | 종목코드 |
+| `name` | string | 종목명 |
+| `type` | `buy`\|`sell` | 매수/매도 |
+| `timing` | `open`\|`close`\|`prev_close` | 체결 시점 |
+| `orderKind` | [`OrderKind`](#enum-orderkind) | 주문 종류 |
+| `quantity` | integer | 수량 |
+| `price` | number? | 지정가(지정가일 때만) |
+| `scheduledDate` | string | 실행 예정일(YYYY-MM-DD) |
+| `amount` | number | 예상 체결 금액 |
+| `fee` | number | 예상 수수료 |
+| `status` | `reserved`\|`executed`\|`cancelled`\|`failed` | 예약 상태 |
+| `parentOrderId` | string? | 정정 원예약 ID |
+| `createdAt` | string(date-time) | 생성 시각 |
+
+#### `MissionProgressStatus`
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `active` | integer | 진행 중 미션 수 |
+| `completed` | integer | 완료 미션 수 |
+| `totalPoints` | integer | 누적 포인트 |
+
+#### `MissionParticipant`
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `userId` | string | — |
+| `username` | string | — |
+| `missionId` | string | — |
+| `status` | [`MissionStatus`](#enum-missionstatus) | — |
+| `progress` | number | — |
+| `joinedAt` | string(date-time) | — |
+
+#### `MissionStats`
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `missionId` | string | — |
+| `participants` | integer | 총 참여자 수 |
+| `completed` | integer | 완료 수 |
+| `failed` | integer | 실패 수 |
+| `completionRate` | integer | 완료율(%) |
+| `totalRewardedPoints` | integer | 지급된 총 포인트 |
+
+#### `LearnProgressSummary`
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `total` | integer | 전체 콘텐츠 수 |
+| `completed` | integer | 완료 수 |
+| `inProgress` | integer | 진행 중 수 |
+| `completionRate` | integer | 완료율(%) |
+
+#### `LearnFavoriteResult`
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `content` | [`LearnContent`](#learncontent) | 업데이트된 콘텐츠 |
+| `favorite` | boolean | 현재 즐겨찾기 상태 |
 
 ---
 

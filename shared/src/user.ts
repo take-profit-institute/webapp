@@ -197,3 +197,20 @@ export const UpdateProfileBody = Type.Object({
   investStyle: Type.Optional(InvestStyle),
 });
 export type UpdateProfileBody = Static<typeof UpdateProfileBody>;
+
+// ── Admin: User management (USER-019, USER-020) ────────────────────
+export const AdminUserListQuery = Type.Object({
+  status: Type.Optional(UserStatus),
+  q: Type.Optional(Type.String({ description: '이름/이메일 검색' })),
+  page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
+  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
+});
+export type AdminUserListQuery = Static<typeof AdminUserListQuery>;
+
+export const AdminUpdateUserStatusBody = Type.Object({
+  status: UserStatus,
+});
+export type AdminUpdateUserStatusBody = Static<typeof AdminUpdateUserStatusBody>;
+
+export const AdminUserIdParams = Type.Object({ id: Type.String() });
+export type AdminUserIdParams = Static<typeof AdminUserIdParams>;

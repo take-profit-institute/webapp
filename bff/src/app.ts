@@ -12,6 +12,12 @@ import mockMarketStream from './mock/market-stream.mock';
 import wsRoutes from './routes/ws.routes';
 import routes from './routes';
 
+function isAllowedCorsOrigin(origin: string | undefined): boolean {
+  if (!origin) return true;
+  if (env.corsOrigins.includes(origin)) return true;
+  return env.corsOriginPatterns.some((pattern) => pattern.test(origin));
+}
+
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: env.isDev
@@ -20,7 +26,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   }).withTypeProvider<TypeBoxTypeProvider>();
 
   await app.register(cors, {
-    origin: env.corsOrigins,
+    origin: (origin, callback) => {
+      callback(null, isAllowedCorsOrigin(origin));
+    },
     credentials: true,
   });
 
