@@ -7,6 +7,8 @@
  * `fetch` directly.
  */
 
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency';
+
 /** BFF origin. Inlined at build time by Next (static export), so it must be `NEXT_PUBLIC_*`. */
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? 'http://localhost:4000';
@@ -99,13 +101,23 @@ export async function request<T>(path: string, options: RequestOptions = {}, all
   return payload as T;
 }
 
+/**
+ * 쓰기 메서드의 Idempotency-Key 헤더를 만든다.
+ * 호출당 한 번 생성해 options.headers에 싣는다 → request의 내부 401 재시도가 같은 키를 보존한다.
+ * 이중탭/앱 재시작 재전송까지 막으려면 호출부가 의도 단위 키(`useIdempotencyKey`)를 넘긴다.
+ */
+function idempotencyHeaders(key?: string): Record<string, string> {
+  return { [IDEMPOTENCY_HEADER]: key ?? newIdempotencyKey() };
+}
+
 export const apiClient = {
   get: <T>(path: string, query?: Query) => request<T>(path, { method: 'GET', query }),
-  post: <T>(path: string, body?: unknown, query?: Query) =>
-    request<T>(path, { method: 'POST', body, query }),
-  patch: <T>(path: string, body?: unknown, query?: Query) =>
-    request<T>(path, { method: 'PATCH', body, query }),
-  put: <T>(path: string, body?: unknown, query?: Query) =>
-    request<T>(path, { method: 'PUT', body, query }),
-  del: <T = void>(path: string, query?: Query) => request<T>(path, { method: 'DELETE', query }),
+  post: <T>(path: string, body?: unknown, query?: Query, idempotencyKey?: string) =>
+    request<T>(path, { method: 'POST', body, query, headers: idempotencyHeaders(idempotencyKey) }),
+  patch: <T>(path: string, body?: unknown, query?: Query, idempotencyKey?: string) =>
+    request<T>(path, { method: 'PATCH', body, query, headers: idempotencyHeaders(idempotencyKey) }),
+  put: <T>(path: string, body?: unknown, query?: Query, idempotencyKey?: string) =>
+    request<T>(path, { method: 'PUT', body, query, headers: idempotencyHeaders(idempotencyKey) }),
+  del: <T = void>(path: string, query?: Query, idempotencyKey?: string) =>
+    request<T>(path, { method: 'DELETE', query, headers: idempotencyHeaders(idempotencyKey) }),
 };

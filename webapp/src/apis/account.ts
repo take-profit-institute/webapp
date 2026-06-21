@@ -99,9 +99,14 @@ export interface PlaceOrderInput {
   price?: number;
 }
 
-/** 매수/매도 주문 (시장가/지정가). */
-export function placeOrder(input: PlaceOrderInput): Promise<Transaction> {
-  return apiClient.post<Transaction>('/api/account/orders', input);
+/**
+ * 매수/매도 주문 (시장가/지정가).
+ *
+ * `idempotencyKey`를 넘기면 그 키로 전송한다(이중탭·재전송 방어 — `useIdempotencyKey` 참고).
+ * 생략하면 호출당 새 키가 자동 생성된다(in-flight 재시도까지만 안전).
+ */
+export function placeOrder(input: PlaceOrderInput, idempotencyKey?: string): Promise<Transaction> {
+  return apiClient.post<Transaction>('/api/account/orders', input, undefined, idempotencyKey);
 }
 
 /** 주문 목록 조회 (ORD-004). */
