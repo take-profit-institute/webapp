@@ -5,6 +5,7 @@ inputs:
   service: { required: true }
   tag: { required: true }
   env: { required: true, default: dev }
+  appset: { required: false, default: services, description: "services | batch" }
   token: { required: true, description: candle-k8s push 권한 PAT/App 토큰 }
 runs:
   using: composite
@@ -19,8 +20,13 @@ runs:
       shell: bash
       run: |
         cd _candle-k8s
-        FILE="platform/applications/services-${{ inputs.env }}.yaml"
-        yq -i '(.spec.generators[0].list.elements[] | select(.name == "${{ inputs.service }}")).tag = "${{ inputs.tag }}"' "$FILE"
+        FILE="platform/applications/${{ inputs.appset }}-${{ inputs.env }}.yaml"
+        SVC='${{ inputs.service }}'
+        if [ "$SVC" = "*" ]; then
+          yq -i '(.spec.generators[0].list.elements[]).tag = "${{ inputs.tag }}"' "$FILE"
+        else
+          yq -i "(.spec.generators[0].list.elements[] | select(.name == \"$SVC\")).tag = \"${{ inputs.tag }}\"" "$FILE"
+        fi
         git config user.name "candle-ci"
         git config user.email "ci@candle.local"
         git add "$FILE"
