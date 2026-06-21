@@ -22,6 +22,7 @@ import {
 } from '../data/account';
 import { getMarketStatus, getQuote } from '../data/market';
 import { getMarketProvider } from '../providers';
+import { requireIdempotencyKey } from '../grpc';
 import { ErrorResponse } from '@candle/shared';
 import {
   Account,
@@ -157,6 +158,12 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     },
     // NOTE: 주문은 영속화되지 않음 — 검증 후 체결/예약 결과를 합성해 반환.
     async (req, reply) => {
+      // 쓰기 요청: 클라이언트가 보낸 Idempotency-Key를 검증한다(누락/형식오류 → 400).
+      // gRPC 전환 시: grpc.account.placeOrder(body, { idempotencyKey, userId, requestId: req.id })
+      // → 인터셉터가 metadata로, withCommandMetadata()가 command_metadata로 같은 값을 주입.
+      const idempotencyKey = requireIdempotencyKey(req);
+      req.log.debug({ idempotencyKey }, 'order idempotency key accepted');
+
       const { type, quantity } = req.body;
       const orderKind: OrderKind = req.body.orderKind ?? 'market';
 
