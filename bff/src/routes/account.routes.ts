@@ -22,7 +22,15 @@ import {
 } from '../data/account';
 import { getMarketStatus, getQuote } from '../data/market';
 import { getMarketProvider } from '../providers';
-import { requireIdempotencyKey } from '../grpc';
+import { requireIdempotencyKey, mapGrpcError } from '../grpc';
+import { env } from '../config/env';
+import { grpcPlaceOrder, grpcCancelOrder } from '../grpc/trading.grpc-client';
+
+/** 임시 actor 추출 — 실제 인증(JWT) 연동 전까지 x-user-id 헤더/dev 폴백. */
+function resolveActor(req: { headers: Record<string, unknown> }): string {
+  const header = req.headers['x-user-id'];
+  return typeof header === 'string' && header ? header : 'demo-user';
+}
 import { ErrorResponse } from '@candle/shared';
 import {
   Account,
@@ -164,6 +172,25 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
       const idempotencyKey = requireIdempotencyKey(req);
       req.log.debug({ idempotencyKey }, 'order idempotency key accepted');
 
+      // 실제 gRPC 경로 — TradingService.PlaceOrder (멱등성 키를 metadata+command_metadata로 전파).
+      if (env.dataSource === 'grpc') {
+        try {
+          const tx = await grpcPlaceOrder({
+            userId: resolveActor(req),
+            symbol: req.body.symbol,
+            type: req.body.type,
+            orderKind: req.body.orderKind ?? 'market',
+            quantity: req.body.quantity,
+            price: req.body.price ?? 0,
+            idempotencyKey,
+          });
+          return reply.status(201).send(tx);
+        } catch (e) {
+          const { statusCode, message } = mapGrpcError(e);
+          throw Object.assign(new Error(message), { statusCode });
+        }
+      }
+
       const { type, quantity } = req.body;
       const orderKind: OrderKind = req.body.orderKind ?? 'market';
 
@@ -232,7 +259,23 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/orders/:id',
     { schema: { tags: ['account'], summary: '주문 취소 (CAN-001~004)', params: OrderIdParams, response: { 200: OrderCancelResult, 404: ErrorResponse, 409: ErrorResponse } } },
     async (req, reply) => {
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+
+      // 실제 gRPC 경로 — TradingService.CancelOrder.
+      if (env.dataSource === 'grpc') {
+        try {
+          const { releasedAmount } = await grpcCancelOrder({
+            userId: resolveActor(req),
+            orderId: req.params.id,
+            idempotencyKey,
+          });
+          return reply.send({ id: req.params.id, status: 'cancelled' as const, releasedAmount, cancelledAt: new Date().toISOString() });
+        } catch (e) {
+          const { statusCode, message } = mapGrpcError(e);
+          throw Object.assign(new Error(message), { statusCode });
+        }
+      }
+
       const order = reservations.find((o) => o.id === req.params.id) ?? transactions.find((o) => o.id === req.params.id);
       if (!order) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown order: ${req.params.id}` });
 

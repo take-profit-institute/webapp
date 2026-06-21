@@ -1,0 +1,13 @@
+# BFF gRPC 클라이언트 코드 생성 (ts-proto + nice-grpc)
+# 사용: npm run grpc:gen  (PROTO_DIR의 백엔드 proto에서 src/grpc/gen 생성)
+version: v2
+plugins:
+  - local: protoc-gen-ts_proto
+    out: src/grpc/gen
+    opt:
+      - outputServices=generic-definitions
+      - outputServices=nice-grpc
+      - esModuleInterop=true
+      - useExactTypes=false
+      - useOptionals=messages
+      - forceLong=string
