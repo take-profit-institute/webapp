@@ -12,6 +12,9 @@
 /** 쓰기 요청에 키를 싣는 HTTP 헤더 이름. BFF가 검증한다. */
 export const IDEMPOTENCY_HEADER = 'Idempotency-Key';
 
+/** 영속 슬롯 prefix. */
+const STORAGE_PREFIX = 'candle:idem:';
+
 /** crypto.getRandomValues 우선, 없으면 Math.random 폴백(비보안 컨텍스트 최후수단). */
 function randomBytes(length: number): Uint8Array {
   const bytes = new Uint8Array(length);
@@ -49,4 +52,51 @@ export function newIdempotencyKey(): string {
   bytes[6] = (bytes[6] & 0x0f) | 0x70; // version 7
   bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 4122 variant
   return formatUuid(bytes);
+}
+
+// ── 영속 키 (앱 재시작 후 재전송에 같은 키, 스펙 §1) ──────────────────────
+
+function canUseStorage(): boolean {
+  return typeof window !== 'undefined' && !!window.localStorage;
+}
+
+function readSlot(scope: string): { key: string; signature?: string } | null {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_PREFIX + scope);
+    return raw ? (JSON.parse(raw) as { key: string; signature?: string }) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * scope에 고정된 영속 멱등성 키를 반환한다(없으면 생성·저장).
+ *
+ * - 같은 scope + 같은 signature → 저장된 키 재사용(앱 재시작 후 재전송 포함).
+ * - signature가 바뀌면(수량·가격 등 의도 변경) 새 키로 교체(스펙 §1).
+ * - storage 불가(프라이빗 모드 등) → 영속 없이 새 키. 세션 내 안정성은 호출부/훅의 메모리 캐시가 담당.
+ *
+ * React 컴포넌트에서는 보통 `useIdempotencyKey`를 쓰고, 행(row)별 동적 대상에는 이 함수를 직접 쓴다.
+ */
+export function resolveIdempotencyKey(scope: string, signature?: string): string {
+  if (!canUseStorage()) return newIdempotencyKey();
+  const saved = readSlot(scope);
+  if (saved && saved.signature === signature) return saved.key;
+  const key = newIdempotencyKey();
+  try {
+    window.localStorage.setItem(STORAGE_PREFIX + scope, JSON.stringify({ key, signature }));
+  } catch {
+    /* quota/프라이빗 모드 — 영속 실패해도 키는 반환 */
+  }
+  return key;
+}
+
+/** 영속 키 슬롯을 비운다. 의도 완료(성공) 후 호출 → 다음 의도는 새 키. */
+export function clearIdempotencyKey(scope: string): void {
+  if (!canUseStorage()) return;
+  try {
+    window.localStorage.removeItem(STORAGE_PREFIX + scope);
+  } catch {
+    /* noop */
+  }
 }

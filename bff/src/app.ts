@@ -66,7 +66,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     if (error instanceof IdempotencyKeyError) {
       return reply
         .status(error.statusCode)
-        .send({ statusCode: error.statusCode, error: 'Bad Request', message: error.message });
+        .send({ statusCode: error.statusCode, error: 'Bad Request', code: error.errorCode, message: error.message });
     }
     reply.send(error);
   });

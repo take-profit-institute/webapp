@@ -12,6 +12,7 @@ import {
   useApi,
 } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
+import { clearIdempotencyKey, resolveIdempotencyKey } from '@/lib/idempotency';
 import { sectorColor } from '@/lib/format';
 
 const tabs = ['보유 종목', '과거 보유', '주문 내역', '수익 분석'];
@@ -82,7 +83,9 @@ export default function PortfolioPage() {
     setMutatingOrderId(id);
     setOrderActionMessage(null);
     try {
-      const result = await cancelOrder(id);
+      const scope = `cancel-order:${id}`;
+      const result = await cancelOrder(id, resolveIdempotencyKey(scope));
+      clearIdempotencyKey(scope); // 성공 — 다음 취소 의도는 새 키
       setOrderActionMessage({ ok: true, text: `주문 취소 완료 · ${result.releasedAmount.toLocaleString()}원 반환` });
       refetchOrders();
       refetchBalance();
@@ -103,7 +106,9 @@ export default function PortfolioPage() {
     setMutatingOrderId(id);
     setOrderActionMessage(null);
     try {
-      const amended = await amendOrder(id, { quantity, price });
+      const scope = `amend-order:${id}`;
+      const amended = await amendOrder(id, { quantity, price }, resolveIdempotencyKey(scope, JSON.stringify({ quantity, price })));
+      clearIdempotencyKey(scope); // 성공 — 다음 정정 의도는 새 키
       setOrderActionMessage({ ok: true, text: `정정 접수 완료 · 원주문 ${amended.parentOrderId}` });
       setEditingOrderId(null);
       refetchOrders();

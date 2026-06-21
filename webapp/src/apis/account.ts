@@ -47,19 +47,22 @@ export function getReservation(id: string): Promise<Reservation> {
   return apiClient.get<Reservation>(`/api/account/reservations/${encodeURIComponent(id)}`);
 }
 
-/** 예약 주문 생성 (RSV-001~008). */
-export function createReservation(input: CreateReservationBody): Promise<Reservation> {
-  return apiClient.post<Reservation>('/api/account/reservations', input);
+/**
+ * 예약 주문 생성 (RSV-001~008).
+ * 금융성 명령 — `idempotencyKey` 필수(의도 단위, `useIdempotencyKey`/`resolveIdempotencyKey`).
+ */
+export function createReservation(input: CreateReservationBody, idempotencyKey: string): Promise<Reservation> {
+  return apiClient.post<Reservation>('/api/account/reservations', input, undefined, idempotencyKey);
 }
 
-/** 예약 주문 취소 (RSV-016~018). */
-export function cancelReservation(id: string): Promise<void> {
-  return apiClient.del(`/api/account/reservations/${encodeURIComponent(id)}`);
+/** 예약 주문 취소 (RSV-016~018). 금융성 — `idempotencyKey` 필수. */
+export function cancelReservation(id: string, idempotencyKey: string): Promise<void> {
+  return apiClient.del(`/api/account/reservations/${encodeURIComponent(id)}`, undefined, idempotencyKey);
 }
 
-/** 예약 주문 정정 (CAN-006~008). */
-export function amendReservation(id: string, input: AmendReservationBody): Promise<Reservation> {
-  return apiClient.patch<Reservation>(`/api/account/reservations/${encodeURIComponent(id)}`, input);
+/** 예약 주문 정정 (CAN-006~008). 금융성 — `idempotencyKey` 필수. */
+export function amendReservation(id: string, input: AmendReservationBody, idempotencyKey: string): Promise<Reservation> {
+  return apiClient.patch<Reservation>(`/api/account/reservations/${encodeURIComponent(id)}`, input, undefined, idempotencyKey);
 }
 
 /** 보유 종목 조회 (HLD-002/HLD-012). */
@@ -101,11 +104,10 @@ export interface PlaceOrderInput {
 
 /**
  * 매수/매도 주문 (시장가/지정가).
- *
- * `idempotencyKey`를 넘기면 그 키로 전송한다(이중탭·재전송 방어 — `useIdempotencyKey` 참고).
- * 생략하면 호출당 새 키가 자동 생성된다(in-flight 재시도까지만 안전).
+ * 금융성 명령 — `idempotencyKey` 필수(의도 단위, `useIdempotencyKey`/`resolveIdempotencyKey`).
+ * 이중탭·재전송·앱 재시작 재전송을 같은 키로 묶어 중복 주문을 막는다.
  */
-export function placeOrder(input: PlaceOrderInput, idempotencyKey?: string): Promise<Transaction> {
+export function placeOrder(input: PlaceOrderInput, idempotencyKey: string): Promise<Transaction> {
   return apiClient.post<Transaction>('/api/account/orders', input, undefined, idempotencyKey);
 }
 
@@ -119,14 +121,14 @@ export function getOrder(id: string): Promise<Transaction> {
   return apiClient.get<Transaction>(`/api/account/orders/${encodeURIComponent(id)}`);
 }
 
-/** 주문 취소. */
-export function cancelOrder(id: string): Promise<OrderCancelResult> {
-  return apiClient.del<OrderCancelResult>(`/api/account/orders/${encodeURIComponent(id)}`);
+/** 주문 취소. 금융성 — `idempotencyKey` 필수. */
+export function cancelOrder(id: string, idempotencyKey: string): Promise<OrderCancelResult> {
+  return apiClient.del<OrderCancelResult>(`/api/account/orders/${encodeURIComponent(id)}`, undefined, idempotencyKey);
 }
 
-/** 지정가 주문 정정 (CAN-005/007/008). */
-export function amendOrder(id: string, input: AmendOrderBody): Promise<Transaction> {
-  return apiClient.patch<Transaction>(`/api/account/orders/${encodeURIComponent(id)}`, input);
+/** 지정가 주문 정정 (CAN-005/007/008). 금융성 — `idempotencyKey` 필수. */
+export function amendOrder(id: string, input: AmendOrderBody, idempotencyKey: string): Promise<Transaction> {
+  return apiClient.patch<Transaction>(`/api/account/orders/${encodeURIComponent(id)}`, input, undefined, idempotencyKey);
 }
 
 /** 계정 초기화 (포트폴리오 리셋). */

@@ -5,6 +5,7 @@ import { Wallet, Lock, CircleDollarSign, ArrowUpRight, ArrowDownRight, CalendarC
 import { amendReservation, cancelReservation, getAccount, getAccountBalance, getLockedOrders, getReservations, useApi } from '@/apis';
 import type { ReservationKind, ReservationTiming } from '@/lib/api-types';
 import { Loader, ErrorState } from '@/components/AsyncState';
+import { clearIdempotencyKey, resolveIdempotencyKey } from '@/lib/idempotency';
 
 const TIMING_LABEL: Record<string, string> = {
   open: '시가 (09:00)',
@@ -52,7 +53,9 @@ export default function WalletPage() {
     setReservationActionMessage(null);
     setCancelledIds((prev) => new Set(prev).add(id)); // optimistic
     try {
-      await cancelReservation(id);
+      const scope = `cancel-reservation:${id}`;
+      await cancelReservation(id, resolveIdempotencyKey(scope));
+      clearIdempotencyKey(scope); // 성공 — 다음 취소 의도는 새 키
       setReservationActionMessage({ ok: true, text: '예약 주문을 취소했습니다' });
       refetchReservations();
     } catch {
@@ -97,13 +100,16 @@ export default function WalletPage() {
     setMutatingReservationId(id);
     setReservationActionMessage(null);
     try {
-      const amended = await amendReservation(id, {
+      const scope = `amend-reservation:${id}`;
+      const body = {
         timing: amendTiming,
         orderKind,
         quantity,
         price: orderKind === 'limit' ? price : undefined,
         scheduledDate: amendTiming === 'prev_close' ? undefined : amendDate,
-      });
+      };
+      const amended = await amendReservation(id, body, resolveIdempotencyKey(scope, JSON.stringify(body)));
+      clearIdempotencyKey(scope); // 성공 — 다음 정정 의도는 새 키
       setReservationActionMessage({ ok: true, text: `예약 정정 접수 완료 · 원주문 ${amended.parentOrderId}` });
       setEditingReservationId(null);
       refetchReservations();
