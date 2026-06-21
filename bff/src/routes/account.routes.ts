@@ -232,6 +232,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/orders/:id',
     { schema: { tags: ['account'], summary: '주문 취소 (CAN-001~004)', params: OrderIdParams, response: { 200: OrderCancelResult, 404: ErrorResponse, 409: ErrorResponse } } },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const order = reservations.find((o) => o.id === req.params.id) ?? transactions.find((o) => o.id === req.params.id);
       if (!order) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown order: ${req.params.id}` });
 
@@ -254,6 +255,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/orders/:id',
     { schema: { tags: ['account'], summary: '지정가 주문 정정 (CAN-005/007/008)', params: OrderIdParams, body: AmendOrderBody, response: { 201: Transaction, 404: ErrorResponse, 409: ErrorResponse } } },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const order = reservations.find((o) => o.id === req.params.id) ?? transactions.find((o) => o.id === req.params.id);
       if (!order) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown order: ${req.params.id}` });
       if (order.status !== 'pending' || order.orderKind !== 'limit') {
@@ -308,6 +310,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     },
     // NOTE: 스케줄 실행/체결·자동취소(RSV-010~015)는 백엔드 책임. 목은 접수 결과만 합성.
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const { type, timing, orderKind, quantity } = req.body;
       const stock = await provider.getStock(req.body.symbol);
       if (!stock) {
@@ -378,6 +381,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     { schema: { tags: ['account'], summary: '예약 주문 취소 (RSV-016~018)', params: ReservationIdParams, response: { 204: Type.Null(), 404: ErrorResponse, 409: ErrorResponse } } },
     // NOTE: mock — 실제로는 reserved_balance 반환(RSV-014/취소). 여기선 접수 취소만.
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const r = demoReservations.find((x) => x.id === req.params.id);
       if (!r) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown reservation: ${req.params.id}` });
       if (r.status !== 'reserved') return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'RESERVED 상태의 예약 주문만 취소할 수 있습니다.' });
@@ -398,6 +402,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const original = demoReservations.find((x) => x.id === req.params.id);
       if (!original) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown reservation: ${req.params.id}` });
       if (original.status !== 'reserved') {
@@ -457,14 +462,20 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/reset',
     { schema: { tags: ['account'], summary: '계정 초기화 (포트폴리오 리셋)', response: { 200: Account } } },
     // NOTE: mock — returns a fresh starting-capital account without persisting.
-    async () => getResetAccount(),
+    async (req) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      return getResetAccount();
+    },
   );
 
   app.post(
     '/deactivate',
     { schema: { tags: ['account'], summary: '계좌 비활성화 (Auth 탈퇴 이벤트 처리)', response: { 200: Account } } },
     // NOTE: mock — real deactivation is triggered by an Auth 탈퇴 event in the Account service.
-    async () => getDeactivatedAccount(),
+    async (req) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      return getDeactivatedAccount();
+    },
   );
 
   app.get(
@@ -484,6 +495,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const { symbol } = req.body;
       const quote = getQuote(symbol);
       if (!quote) {
@@ -504,6 +516,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/watchlist/:symbol',
     { schema: { tags: ['account'], summary: '관심종목 제거', params: WatchlistSymbolParams, response: { 204: Type.Null(), 404: ErrorResponse } } },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const removed = removeWatchlistSymbol(req.params.symbol);
       if (!removed) {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: '관심종목에 등록되지 않은 종목입니다' });

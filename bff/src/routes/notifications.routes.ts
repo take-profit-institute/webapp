@@ -16,6 +16,7 @@ import {
   markAllRead,
   removeNotification,
 } from '../data/notifications';
+import { requireIdempotencyKey } from '../grpc';
 
 const notificationRoutes: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
@@ -61,6 +62,7 @@ const notificationRoutes: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const updated = markRead(req.params.id);
       if (!updated) {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: '알림을 찾을 수 없습니다' });
@@ -78,7 +80,8 @@ const notificationRoutes: FastifyPluginAsyncTypebox = async (app) => {
         response: { 204: Type.Null() },
       },
     },
-    async (_req, reply) => {
+    async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       markAllRead();
       return reply.status(204).send(null);
     },
@@ -95,6 +98,7 @@ const notificationRoutes: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const removed = removeNotification(req.params.id);
       if (!removed) {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: '알림을 찾을 수 없습니다' });

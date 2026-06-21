@@ -9,6 +9,7 @@ import {
   UpdateProfileBody,
   UserProfile,
 } from '@candle/shared';
+import { requireIdempotencyKey } from '../grpc';
 
 /**
  * User Service (mock) — 회원/프로필/마이페이지 (USER-*).
@@ -27,7 +28,11 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/me',
     { schema: { tags: ['user'], summary: '프로필 수정 (닉네임/이미지/투자성향)', body: UpdateProfileBody, response: { 200: UserProfile } } },
     // USER-003/008/010 — not persisted; merges and echoes.
-    async (req) => ({ ...demoUser, ...req.body }),
+    // 프로필 변경 = 멱등성 키 대상 (스펙 §1).
+    async (req) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      return { ...demoUser, ...req.body };
+    },
   );
 
   app.get(
@@ -41,7 +46,10 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/me/withdraw',
     { schema: { tags: ['user'], summary: '회원 탈퇴', response: { 200: UserProfile } } },
     // USER-004/005 — 상태를 WITHDRAWN으로(mock). 이후 로그인은 USER-006으로 차단됨.
-    async () => ({ ...demoUser, status: 'withdrawn' as const }),
+    async (req) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      return { ...demoUser, status: 'withdrawn' as const };
+    },
   );
 
   app.get(
