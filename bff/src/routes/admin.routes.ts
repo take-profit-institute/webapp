@@ -22,6 +22,7 @@ import {
   Paginated,
   UserProfile,
 } from '@candle/shared';
+import { requireIdempotencyKey } from '../grpc';
 
 const ADMIN_EMAIL = 'admin@candle.app';
 const ADMIN_PASSWORD = 'admin1234';
@@ -110,6 +111,7 @@ export const adminRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/users/:id/status',
     { schema: { tags: ['admin'], summary: '사용자 상태 변경 (USER-020)', params: AdminUserIdParams, body: AdminUpdateUserStatusBody, response: { 200: UserProfile, 404: ErrorResponse } } },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const user = mockUsers.find((u) => u.id === req.params.id);
       if (!user) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `사용자를 찾을 수 없습니다: ${req.params.id}` });
       user.status = req.body.status;
@@ -140,6 +142,7 @@ export const adminRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/learn/:id/visibility',
     { schema: { tags: ['admin'], summary: '콘텐츠 공개 설정 (LEARN-014)', params: LearnIdParams, body: AdminUpdateLearnVisibilityBody, response: { 200: LearnContent, 404: ErrorResponse } } },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const content = learnContents.find((c) => c.id === req.params.id);
       if (!content) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `콘텐츠를 찾을 수 없습니다: ${req.params.id}` });
       content.published = req.body.published;
@@ -189,6 +192,7 @@ export const adminRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/missions/:id/reward',
     { schema: { tags: ['admin'], summary: '미션 보상 설정 (MISSION-019)', params: MissionIdParams, body: AdminUpdateMissionRewardBody, response: { 200: Mission, 404: ErrorResponse } } },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const mission = missions.find((m) => m.id === req.params.id);
       if (!mission) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `미션을 찾을 수 없습니다: ${req.params.id}` });
       mission.reward = req.body.reward;

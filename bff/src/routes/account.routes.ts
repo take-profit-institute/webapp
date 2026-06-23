@@ -22,6 +22,15 @@ import {
 } from '../data/account';
 import { getMarketStatus, getQuote } from '../data/market';
 import { getMarketProvider } from '../providers';
+import { requireIdempotencyKey, mapGrpcError } from '../grpc';
+import { env } from '../config/env';
+import { grpcPlaceOrder, grpcCancelOrder } from '../grpc/trading.grpc-client';
+
+/** 임시 actor 추출 — 실제 인증(JWT) 연동 전까지 x-user-id 헤더/dev 폴백. */
+function resolveActor(req: { headers: Record<string, unknown> }): string {
+  const header = req.headers['x-user-id'];
+  return typeof header === 'string' && header ? header : 'demo-user';
+}
 import { ErrorResponse } from '@candle/shared';
 import {
   Account,
@@ -157,6 +166,31 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     },
     // NOTE: 주문은 영속화되지 않음 — 검증 후 체결/예약 결과를 합성해 반환.
     async (req, reply) => {
+      // 쓰기 요청: 클라이언트가 보낸 Idempotency-Key를 검증한다(누락/형식오류 → 400).
+      // gRPC 전환 시: grpc.account.placeOrder(body, { idempotencyKey, userId, requestId: req.id })
+      // → 인터셉터가 metadata로, withCommandMetadata()가 command_metadata로 같은 값을 주입.
+      const idempotencyKey = requireIdempotencyKey(req);
+      req.log.debug({ idempotencyKey }, 'order idempotency key accepted');
+
+      // 실제 gRPC 경로 — TradingService.PlaceOrder (멱등성 키를 metadata+command_metadata로 전파).
+      if (env.dataSource === 'grpc') {
+        try {
+          const tx = await grpcPlaceOrder({
+            userId: resolveActor(req),
+            symbol: req.body.symbol,
+            type: req.body.type,
+            orderKind: req.body.orderKind ?? 'market',
+            quantity: req.body.quantity,
+            price: req.body.price ?? 0,
+            idempotencyKey,
+          });
+          return reply.status(201).send(tx);
+        } catch (e) {
+          const { statusCode, message } = mapGrpcError(e);
+          throw Object.assign(new Error(message), { statusCode });
+        }
+      }
+
       const { type, quantity } = req.body;
       const orderKind: OrderKind = req.body.orderKind ?? 'market';
 
@@ -225,6 +259,23 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/orders/:id',
     { schema: { tags: ['account'], summary: '주문 취소 (CAN-001~004)', params: OrderIdParams, response: { 200: OrderCancelResult, 404: ErrorResponse, 409: ErrorResponse } } },
     async (req, reply) => {
+      const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+
+      // 실제 gRPC 경로 — TradingService.CancelOrder.
+      if (env.dataSource === 'grpc') {
+        try {
+          const { releasedAmount } = await grpcCancelOrder({
+            userId: resolveActor(req),
+            orderId: req.params.id,
+            idempotencyKey,
+          });
+          return reply.send({ id: req.params.id, status: 'cancelled' as const, releasedAmount, cancelledAt: new Date().toISOString() });
+        } catch (e) {
+          const { statusCode, message } = mapGrpcError(e);
+          throw Object.assign(new Error(message), { statusCode });
+        }
+      }
+
       const order = reservations.find((o) => o.id === req.params.id) ?? transactions.find((o) => o.id === req.params.id);
       if (!order) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown order: ${req.params.id}` });
 
@@ -247,6 +298,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/orders/:id',
     { schema: { tags: ['account'], summary: '지정가 주문 정정 (CAN-005/007/008)', params: OrderIdParams, body: AmendOrderBody, response: { 201: Transaction, 404: ErrorResponse, 409: ErrorResponse } } },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const order = reservations.find((o) => o.id === req.params.id) ?? transactions.find((o) => o.id === req.params.id);
       if (!order) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown order: ${req.params.id}` });
       if (order.status !== 'pending' || order.orderKind !== 'limit') {
@@ -301,6 +353,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     },
     // NOTE: 스케줄 실행/체결·자동취소(RSV-010~015)는 백엔드 책임. 목은 접수 결과만 합성.
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const { type, timing, orderKind, quantity } = req.body;
       const stock = await provider.getStock(req.body.symbol);
       if (!stock) {
@@ -371,6 +424,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     { schema: { tags: ['account'], summary: '예약 주문 취소 (RSV-016~018)', params: ReservationIdParams, response: { 204: Type.Null(), 404: ErrorResponse, 409: ErrorResponse } } },
     // NOTE: mock — 실제로는 reserved_balance 반환(RSV-014/취소). 여기선 접수 취소만.
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const r = demoReservations.find((x) => x.id === req.params.id);
       if (!r) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown reservation: ${req.params.id}` });
       if (r.status !== 'reserved') return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'RESERVED 상태의 예약 주문만 취소할 수 있습니다.' });
@@ -391,6 +445,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const original = demoReservations.find((x) => x.id === req.params.id);
       if (!original) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown reservation: ${req.params.id}` });
       if (original.status !== 'reserved') {
@@ -450,14 +505,20 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/reset',
     { schema: { tags: ['account'], summary: '계정 초기화 (포트폴리오 리셋)', response: { 200: Account } } },
     // NOTE: mock — returns a fresh starting-capital account without persisting.
-    async () => getResetAccount(),
+    async (req) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      return getResetAccount();
+    },
   );
 
   app.post(
     '/deactivate',
     { schema: { tags: ['account'], summary: '계좌 비활성화 (Auth 탈퇴 이벤트 처리)', response: { 200: Account } } },
     // NOTE: mock — real deactivation is triggered by an Auth 탈퇴 event in the Account service.
-    async () => getDeactivatedAccount(),
+    async (req) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      return getDeactivatedAccount();
+    },
   );
 
   app.get(
@@ -477,6 +538,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const { symbol } = req.body;
       const quote = getQuote(symbol);
       if (!quote) {
@@ -497,6 +559,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/watchlist/:symbol',
     { schema: { tags: ['account'], summary: '관심종목 제거', params: WatchlistSymbolParams, response: { 204: Type.Null(), 404: ErrorResponse } } },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const removed = removeWatchlistSymbol(req.params.symbol);
       if (!removed) {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: '관심종목에 등록되지 않은 종목입니다' });

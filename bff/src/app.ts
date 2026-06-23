@@ -11,6 +11,7 @@ import tickStorePlugin from './services/tick-store.service';
 import mockMarketStream from './mock/market-stream.mock';
 import wsRoutes from './routes/ws.routes';
 import routes from './routes';
+import { IdempotencyKeyError } from './grpc';
 
 function isAllowedCorsOrigin(origin: string | undefined): boolean {
   if (!origin) return true;
@@ -58,6 +59,17 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(tickStorePlugin);
   await app.register(mockMarketStream);
   await app.register(wsRoutes);
+
+  // 멱등성 키 검증 실패(IdempotencyKeyError)를 표준 400 응답으로 매핑.
+  // 그 외 에러는 Fastify 기본 처리에 위임한다.
+  app.setErrorHandler((error, _req, reply) => {
+    if (error instanceof IdempotencyKeyError) {
+      return reply
+        .status(error.statusCode)
+        .send({ statusCode: error.statusCode, error: 'Bad Request', code: error.errorCode, message: error.message });
+    }
+    reply.send(error);
+  });
 
   await app.register(routes);
 

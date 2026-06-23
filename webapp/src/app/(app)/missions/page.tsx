@@ -15,6 +15,7 @@ import {
   useApi,
 } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
+import { clearIdempotencyKey, resolveIdempotencyKey } from '@/lib/idempotency';
 import type { Challenge, Mission } from '@/lib/api-types';
 
 const tabs = ['미션', '챌린지', '보상'];
@@ -317,7 +318,18 @@ export default function MissionsPage() {
                     onJoin={() => mutateMission(mission.id, () => joinMission(mission.id), '미션 참여가 시작되었습니다')}
                     onCancel={() => mutateMission(mission.id, () => cancelMissionParticipation(mission.id), '미션 참여를 취소했습니다')}
                     onProgress={() => mutateMission(mission.id, () => progressMission(mission.id, 1), '진행 상태를 갱신했습니다')}
-                    onClaim={() => mutateMission(mission.id, () => claimMission(mission.id), '보상을 수령했습니다')}
+                    onClaim={() => {
+                      const scope = `claim-mission:${mission.id}`;
+                      return mutateMission(
+                        mission.id,
+                        async () => {
+                          const r = await claimMission(mission.id, resolveIdempotencyKey(scope));
+                          clearIdempotencyKey(scope); // 성공 — 다음 수령 의도는 새 키
+                          return r;
+                        },
+                        '보상을 수령했습니다',
+                      );
+                    }}
                   />
                 ))}
               </div>

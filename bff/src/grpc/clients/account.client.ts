@@ -50,7 +50,8 @@ export interface PlaceOrderRequest {
   orderType: 'market' | 'limit';
   quantity: number;
   limitPrice?: number;
-  idempotencyKey: string;
+  // 멱등성 키는 더 이상 본문에 직접 넣지 않는다.
+  // GrpcCallOptions.idempotencyKey → withCommandMetadata()가 command_metadata로 주입한다.
 }
 
 export interface TransactionFilter {

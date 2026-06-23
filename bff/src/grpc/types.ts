@@ -6,6 +6,13 @@ export interface GrpcCallOptions {
   requestId?: string;
   /** Extracted from JWT — sent as gRPC metadata `user_id`. */
   userId?: string;
+  /**
+   * 쓰기 호출의 멱등성 키 단일 소스. 프론트의 Idempotency-Key 헤더에서 온다.
+   * 인터셉터가 metadata `x-idempotency-key`로, withCommandMetadata()가
+   * request body `command_metadata.idempotency_key`로 같은 값을 주입한다.
+   * 읽기 호출에는 비워 둔다.
+   */
+  idempotencyKey?: string;
 }
 
 /** Subset of gRPC canonical status codes used in BFF error mapping. */

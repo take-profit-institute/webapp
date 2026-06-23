@@ -101,9 +101,9 @@ export function getLearnContent(id: string): Promise<LearnContent> {
   return apiClient.get<LearnContent>(`/api/learn/${encodeURIComponent(id)}`);
 }
 
-/** 미션 보상 수령. */
-export function claimMission(id: string): Promise<ClaimRewardResult> {
-  return apiClient.post<ClaimRewardResult>(`/api/missions/${encodeURIComponent(id)}/claim`);
+/** 미션 보상 수령. 금융성(보상) — `idempotencyKey` 필수(이중 수령 방어). */
+export function claimMission(id: string, idempotencyKey: string): Promise<ClaimRewardResult> {
+  return apiClient.post<ClaimRewardResult>(`/api/missions/${encodeURIComponent(id)}/claim`, undefined, undefined, idempotencyKey);
 }
 
 /** 미션 진행도 갱신. */

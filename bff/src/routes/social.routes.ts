@@ -25,6 +25,7 @@ import {
   UpsertChallengeBody,
   UpsertMissionBody,
 } from '@candle/shared';
+import { requireIdempotencyKey } from '../grpc';
 
 /** Ranking, missions and learning content — app-domain data (DB-backed later). */
 export const rankingRoutes: FastifyPluginAsyncTypebox = async (app) => {
@@ -61,6 +62,7 @@ export const missionRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/admin',
     { schema: { tags: ['mission'], summary: '관리자 미션 생성 (MISSION-001/019 mock)', body: UpsertMissionBody, response: { 201: Mission } } },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const mission: Mission = {
         id: `m_${Date.now()}`,
         ...req.body,
@@ -79,6 +81,7 @@ export const missionRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/admin/:id',
     { schema: { tags: ['mission'], summary: '관리자 미션 수정 (MISSION-002/019 mock)', params: MissionIdParams, body: UpsertMissionBody, response: { 200: Mission, 404: ErrorResponse } } },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const mission = missions.find((m) => m.id === req.params.id);
       if (!mission) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown mission: ${req.params.id}` });
       Object.assign(mission, req.body);
@@ -90,6 +93,7 @@ export const missionRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/admin/:id',
     { schema: { tags: ['mission'], summary: '관리자 미션 삭제 (MISSION-003 mock)', params: MissionIdParams, response: { 204: Type.Null(), 404: ErrorResponse } } },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const idx = missions.findIndex((m) => m.id === req.params.id);
       if (idx < 0) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown mission: ${req.params.id}` });
       missions.splice(idx, 1);
@@ -154,6 +158,7 @@ export const missionRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/challenges/admin',
     { schema: { tags: ['mission'], summary: '관리자 챌린지 생성 (MISSION-011 mock)', body: UpsertChallengeBody, response: { 201: Challenge } } },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const challenge: Challenge = {
         id: `c_${Date.now()}`,
         ...req.body,
@@ -170,6 +175,7 @@ export const missionRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/challenges/:id/join',
     { schema: { tags: ['mission'], summary: '챌린지 참여 (MISSION-012)', params: ChallengeIdParams, response: { 200: Challenge, 404: ErrorResponse, 409: ErrorResponse } } },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const challenge = challenges.find((c) => c.id === req.params.id);
       if (!challenge) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown challenge: ${req.params.id}` });
       if (challenge.status === 'completed') return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: '종료된 챌린지는 참여할 수 없습니다.' });
@@ -213,6 +219,7 @@ export const missionRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       const mission = missions.find((m) => m.id === req.params.id);
       if (!mission) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown mission: ${req.params.id}` });
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       refreshMissionStatus(mission);
       if (mission.status === 'failed' || mission.status === 'completed') return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: '참여할 수 없는 미션 상태입니다.' });
       mission.joined = true;
@@ -229,6 +236,7 @@ export const missionRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       const mission = missions.find((m) => m.id === req.params.id);
       if (!mission) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown mission: ${req.params.id}` });
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       if (mission.status !== 'in_progress') return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: '진행 중인 미션만 참여 취소할 수 있습니다.' });
       mission.status = 'cancelled';
       mission.joined = false;
@@ -242,6 +250,7 @@ export const missionRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       const mission = missions.find((m) => m.id === req.params.id);
       if (!mission) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown mission: ${req.params.id}` });
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       refreshMissionStatus(mission);
       if (!mission.completed) return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: '완료되지 않은 미션입니다' });
       if (mission.claimed) return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: '이미 보상을 수령했습니다' });
@@ -262,6 +271,7 @@ export const missionRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       const mission = missions.find((m) => m.id === req.params.id);
       if (!mission) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown mission: ${req.params.id}` });
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       refreshMissionStatus(mission);
       if (!mission.joined && mission.status === 'available') {
         mission.joined = true;
@@ -336,6 +346,7 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/:id/complete',
     { schema: { tags: ['learn'], summary: '학습 콘텐츠 완독 처리', params: LearnIdParams, response: { 200: LearnProgressResult, 404: ErrorResponse } } },
     async (req, reply) => {
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const content = learnContents.find((c) => c.id === req.params.id);
       if (!content) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown content: ${req.params.id}` });
       const completedAt = new Date().toISOString();
@@ -355,6 +366,7 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       const content = learnContents.find((c) => c.id === req.params.id && c.published);
       if (!content) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown content: ${req.params.id}` });
+      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       content.favorite = !content.favorite;
       return { content, favorite: content.favorite };
     },

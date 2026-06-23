@@ -24,6 +24,7 @@ import type { IntradayTick } from '@/lib/api-types';
 import { useAuthStore, useWatchlistStore } from '@/store/useStore';
 import { useMarketStore } from '@/store/useMarketStore';
 import { useMarketSocket } from '@/hooks/useMarketSocket';
+import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
 import { Loader, ErrorState } from '@/components/AsyncState';
 import { formatMarketCap, formatVolume } from '@/lib/format';
 
@@ -73,6 +74,16 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
   const [placing, setPlacing] = useState(false);
   const { isWatching, add: storeAdd, remove: storeRemove } = useWatchlistStore();
   const watched = isWatching(symbol);
+
+  // 의도 단위 멱등성 키 — 재시도·이중탭·앱 재시작 재전송에 같은 키, 주문 내용이 바뀌면 새 키.
+  const orderKey = useIdempotencyKey({
+    scope: `place-order:${symbol}`,
+    signature: JSON.stringify({ tradeType, orderKind, quantity, limitPrice }),
+  });
+  const reserveKey = useIdempotencyKey({
+    scope: `reserve:${symbol}`,
+    signature: JSON.stringify({ tradeType, timing, openKind, quantity, rsvPrice, rsvDate }),
+  });
 
   const toggleWatch = async () => {
     const next = !watched;
@@ -137,13 +148,17 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
     setPlacing(true);
     setOrderStatus(null);
     try {
-      const tx = await placeOrder({
-        symbol: stock.symbol,
-        type: tradeType,
-        orderKind,
-        quantity: qty,
-        price: orderKind === 'limit' ? limitPriceNum : undefined,
-      });
+      const tx = await placeOrder(
+        {
+          symbol: stock.symbol,
+          type: tradeType,
+          orderKind,
+          quantity: qty,
+          price: orderKind === 'limit' ? limitPriceNum : undefined,
+        },
+        orderKey.get(),
+      );
+      orderKey.reset(); // 성공 — 다음 주문은 새 키
       const label = tradeType === 'buy' ? '매수' : '매도';
       const message =
         tx.status === 'filled'
@@ -210,15 +225,19 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
     setPlacing(true);
     setOrderStatus(null);
     try {
-      const r = await createReservation({
-        symbol: stock.symbol,
-        type: tradeType,
-        timing,
-        orderKind: effectiveRsvKind,
-        quantity: qty,
-        price: timing === 'open' && openKind === 'limit' ? rsvPriceNum : undefined,
-        scheduledDate: rsvDateFixed ? undefined : rsvScheduledDate || undefined,
-      });
+      const r = await createReservation(
+        {
+          symbol: stock.symbol,
+          type: tradeType,
+          timing,
+          orderKind: effectiveRsvKind,
+          quantity: qty,
+          price: timing === 'open' && openKind === 'limit' ? rsvPriceNum : undefined,
+          scheduledDate: rsvDateFixed ? undefined : rsvScheduledDate || undefined,
+        },
+        reserveKey.get(),
+      );
+      reserveKey.reset(); // 성공 — 다음 예약은 새 키
       setOrderStatus({ ok: true, message: `예약 접수됨 · ${TIMING_LABEL[timing]} · ${r.scheduledDate}` });
       setQuantity('');
       setRsvPrice('');
