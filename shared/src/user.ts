@@ -76,6 +76,7 @@ export const ProviderInfo = Type.Object(
     id: OAuthProvider,
     name: Type.String(),
     color: Type.String({ description: 'Brand color for the button' }),
+    authorizationUrl: Type.Optional(Type.String({ description: 'Real OAuth authorization URL; absent in mock mode' })),
   },
 );
 export type ProviderInfo = Static<typeof ProviderInfo>;

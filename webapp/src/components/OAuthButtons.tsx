@@ -33,6 +33,16 @@ export default function OAuthButtons({ scenario = 'existing', redirectTo = '/das
   const [error, setError] = useState<string | null>(null);
 
   const handle = async (provider: OAuthProvider) => {
+    const providerInfo = providers.find((p) => p.id === provider);
+
+    // Real OAuth: redirect browser to Google consent screen.
+    // After consent, Google redirects to /auth/google/callback with ?code=...
+    if (providerInfo?.authorizationUrl) {
+      window.location.href = providerInfo.authorizationUrl;
+      return;
+    }
+
+    // Mock fallback (DATA_SOURCE=mock — no backend required)
     setLoading(provider);
     setError(null);
     try {

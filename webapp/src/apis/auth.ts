@@ -29,6 +29,17 @@ export function oauthLogin(
   return apiClient.post<OAuthLoginResult>(`/api/auth/oauth/${provider}`, undefined, { as });
 }
 
+/**
+ * 실제 OAuth 코드 교환 — 콜백 페이지가 Google에서 받은 `code`를 BFF로 전달.
+ * BFF가 auth-service에 코드를 포워딩하고 토큰 + 사용자 정보를 반환한다.
+ */
+export function oauthExchange(
+  provider: OAuthProvider,
+  authorizationCode: string,
+): Promise<OAuthLoginResult> {
+  return apiClient.post<OAuthLoginResult>(`/api/auth/oauth/${provider}`, { authorizationCode });
+}
+
 // ── Token lifecycle (AUTH-007~010) ─────────────────────────────────
 
 /** Access Token 재발급. */

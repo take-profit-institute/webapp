@@ -1,16 +1,25 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Check } from 'lucide-react';
 import { authApi } from '@/apis';
 import OAuthButtons from '@/components/OAuthButtons';
+import { useAuthStore } from '@/store/useStore';
 
 const steps = ['기본 정보', '투자 성향', '완료'];
 
 export default function SignupPage() {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  const { isLoggedIn, isNewUser } = useAuthStore();
+
+  // OAuth 신규 유저: 이미 계정이 만들어진 상태로 도착 → 투자 성향 선택부터 시작
+  const [step, setStep] = useState(() => (isLoggedIn && isNewUser ? 1 : 0));
+
+  useEffect(() => {
+    // 기존 유저가 /signup 직접 접근하면 대시보드로
+    if (isLoggedIn && !isNewUser) router.replace('/dashboard');
+  }, [isLoggedIn, isNewUser, router]);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
