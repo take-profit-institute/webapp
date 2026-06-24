@@ -1,19 +1,6 @@
-/**
- * gRPC channel factory — singleton per address.
- *
- * Currently returns opaque stub handles with no real TCP connection.
- *
- * TODO: After `pnpm add nice-grpc @grpc/grpc-js`:
- *   import { createChannel, ChannelCredentials } from 'nice-grpc';
- *   Replace GrpcChannel with the real Channel type.
- *   Replace getChannel() body with createChannel(address, ChannelCredentials.createInsecure())
- *   (Istio/Envoy sidecar handles mTLS at the mesh layer — keep insecure here.)
- */
+import { createChannel, ChannelCredentials, type Channel } from 'nice-grpc';
 
-export interface GrpcChannel {
-  readonly address: string;
-  close(): void;
-}
+export type GrpcChannel = Channel;
 
 const cache = new Map<string, GrpcChannel>();
 
@@ -22,13 +9,7 @@ export function getChannel(address: string): GrpcChannel {
   const cached = cache.get(address);
   if (cached) return cached;
 
-  const ch: GrpcChannel = {
-    address,
-    close() {
-      cache.delete(address);
-    },
-  };
-
+  const ch = createChannel(address, ChannelCredentials.createInsecure());
   cache.set(address, ch);
   return ch;
 }

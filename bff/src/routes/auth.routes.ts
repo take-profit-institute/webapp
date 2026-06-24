@@ -25,13 +25,13 @@ import type {
   UserProfile as UserProfileType,
   UserRole,
 } from '@candle/shared';
+import { mapGrpcError } from '../grpc/error-mapper';
 
-/** Supported OAuth providers (AUTH-003). */
-const providers: { id: 'google' | 'kakao' | 'naver'; name: string; color: string }[] = [
-  { id: 'google', name: 'Google', color: '#4285F4' },
-  { id: 'kakao', name: '카카오', color: '#FEE500' },
-  { id: 'naver', name: '네이버', color: '#03C75A' },
-];
+const PROVIDER_META: Record<string, { name: string; color: string }> = {
+  google: { name: 'Google', color: '#4285F4' },
+  kakao: { name: '카카오', color: '#FEE500' },
+  naver: { name: '네이버', color: '#03C75A' },
+};
 
 // ── Token helpers ──────────────────────────────────────────────────
 // NOTE: tokens are MOCK. A real Auth Service signs JWTs with a secret (AUTH-015/016);
@@ -79,8 +79,27 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
   // ── OAuth (AUTH-001~006) ─────────────────────────────────────────
   app.get(
     '/providers',
-    { schema: { tags: ['auth'], summary: '지원 OAuth Provider 목록 (mock)', response: { 200: Type.Array(ProviderInfo) } } },
-    async () => providers,
+    {
+      schema: {
+        tags: ['auth'],
+        summary: '지원 OAuth Provider 목록',
+        response: { 200: Type.Array(ProviderInfo), 500: ErrorResponse, 503: ErrorResponse },
+      },
+    },
+    async (req, reply) => {
+      try {
+        const res = await req.server.grpc.auth.listProviders({});
+        return res.providers.map((p) => ({
+          id: p.name as OAuthProvider,
+          authorizationUrl: p.authorizationUrl,
+          ...(PROVIDER_META[p.name] ?? { name: p.name, color: '#888888' }),
+        }));
+      } catch (err) {
+        const { statusCode, message } = mapGrpcError(err);
+        const httpStatus = (statusCode === 500 ? 500 : 503) as 500 | 503;
+        return reply.code(httpStatus).send({ statusCode: httpStatus, error: 'gRPC Error', message });
+      }
+    },
   );
 
   app.post(
