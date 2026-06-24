@@ -114,9 +114,11 @@ function idempotencyHeaders(key?: string): Record<string, string> {
   return { [IDEMPOTENCY_HEADER]: key ?? newIdempotencyKey() };
 }
 
-/** Auth request — uses AUTH_BASE_URL (gateway) with no 401 retry to avoid loops. */
+/** Auth request — uses AUTH_BASE_URL (gateway) with no 401 retry to avoid loops.
+ *  credentials: 'include' so the browser sends the refresh_token HttpOnly cookie
+ *  that auth-service sets on login (needed for /token/refresh and /logout). */
 export function authRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  return request<T>(path, options, false, AUTH_BASE_URL);
+  return request<T>(path, { credentials: 'include', ...options }, false, AUTH_BASE_URL);
 }
 
 export const authApiClient = {

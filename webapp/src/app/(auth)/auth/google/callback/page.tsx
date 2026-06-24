@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { oauthExchange } from '@/apis/auth';
 import { useAuthStore } from '@/store/useStore';
@@ -8,8 +8,14 @@ function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setSession = useAuthStore((s) => s.setSession);
+  // React Strict Mode가 개발환경에서 effect를 두 번 실행함.
+  // authorization code는 1회용이므로 두 번째 호출이 Google에서 거부됨 → 가드.
+  const exchanged = useRef(false);
 
   useEffect(() => {
+    if (exchanged.current) return;
+    exchanged.current = true;
+
     const code = searchParams.get('code');
     const error = searchParams.get('error');
 
@@ -23,7 +29,8 @@ function CallbackContent() {
         setSession(result);
         router.push(result.isNewUser ? '/signup' : '/dashboard');
       })
-      .catch(() => {
+      .catch((err: unknown) => {
+        console.error('[OAuth] code exchange failed:', err);
         router.push('/login?error=auth_failed');
       });
   }, []);
