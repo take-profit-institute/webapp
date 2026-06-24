@@ -9,13 +9,13 @@ import type {
   UpdateProfileBody,
   UserProfile,
 } from '@/lib/api-types';
-import { apiClient } from './client';
+import { authApiClient } from './client';
 
 // ── OAuth (AUTH-001~006) ───────────────────────────────────────────
 
 /** 지원 OAuth Provider 목록 (Google/Kakao/Naver). */
 export function getProviders(): Promise<ProviderInfo[]> {
-  return apiClient.get<ProviderInfo[]>('/api/auth/providers');
+  return authApiClient.get<ProviderInfo[]>('/api/auth/providers');
 }
 
 /**
@@ -26,7 +26,7 @@ export function oauthLogin(
   provider: OAuthProvider,
   as?: 'existing' | 'new' | 'suspended',
 ): Promise<OAuthLoginResult> {
-  return apiClient.post<OAuthLoginResult>(`/api/auth/oauth/${provider}`, undefined, { as });
+  return authApiClient.post<OAuthLoginResult>(`/api/auth/oauth/${provider}`, undefined, { as });
 }
 
 /**
@@ -37,41 +37,41 @@ export function oauthExchange(
   provider: OAuthProvider,
   authorizationCode: string,
 ): Promise<OAuthLoginResult> {
-  return apiClient.post<OAuthLoginResult>(`/api/auth/oauth/${provider}`, { authorizationCode });
+  return authApiClient.post<OAuthLoginResult>(`/api/auth/oauth/${provider}`, { authorizationCode });
 }
 
 // ── Token lifecycle (AUTH-007~010) ─────────────────────────────────
 
 /** Access Token 재발급. */
 export function refreshToken(token: string): Promise<RefreshTokenResult> {
-  return apiClient.post<RefreshTokenResult>('/api/auth/token/refresh', { refreshToken: token });
+  return authApiClient.post<RefreshTokenResult>('/api/auth/token/refresh', { refreshToken: token });
 }
 
 /** JWT 유효성 검증. */
 export function validateToken(token: string): Promise<TokenValidateResult> {
-  return apiClient.post<TokenValidateResult>('/api/auth/token/validate', { token });
+  return authApiClient.post<TokenValidateResult>('/api/auth/token/validate', { token });
 }
 
 /** 로그아웃 — Refresh Token 폐기 요청. */
 export function logout(refreshToken?: string): Promise<void> {
-  return apiClient.post<void>('/api/auth/logout', { refreshToken });
+  return authApiClient.post<void>('/api/auth/logout', { refreshToken });
 }
 
 // ── Current user / profile ─────────────────────────────────────────
 
 /** 현재 사용자. */
 export function getMe(): Promise<UserProfile> {
-  return apiClient.get<UserProfile>('/api/auth/me');
+  return authApiClient.get<UserProfile>('/api/auth/me');
 }
 
 /** 프로필 수정 (닉네임/아바타/투자성향). */
 export function updateProfile(input: UpdateProfileBody): Promise<UserProfile> {
-  return apiClient.patch<UserProfile>('/api/auth/me', input);
+  return authApiClient.patch<UserProfile>('/api/auth/me', input);
 }
 
 /** 계정 삭제. */
 export function deleteAccount(): Promise<void> {
-  return apiClient.del('/api/auth/me');
+  return authApiClient.del('/api/auth/me');
 }
 
 // ── Legacy email/password (dev only) ───────────────────────────────
@@ -87,10 +87,10 @@ export interface SignupInput {
 
 /** 로그인 (legacy). */
 export function login(input: LoginInput): Promise<AuthResponse> {
-  return apiClient.post<AuthResponse>('/api/auth/login', input);
+  return authApiClient.post<AuthResponse>('/api/auth/login', input);
 }
 
 /** 회원가입 (legacy). */
 export function signup(input: SignupInput): Promise<AuthResponse> {
-  return apiClient.post<AuthResponse>('/api/auth/signup', input);
+  return authApiClient.post<AuthResponse>('/api/auth/signup', input);
 }

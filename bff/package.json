@@ -28,7 +28,8 @@
     "fastify": "^5.2.0",
     "fastify-plugin": "^5.1.0",
     "ioredis": "^5.11.1",
-    "nice-grpc": "^2.1.16"
+    "nice-grpc": "^2.1.16",
+    "@bufbuild/protobuf": "^2.12.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

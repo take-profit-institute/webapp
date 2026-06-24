@@ -37,11 +37,6 @@ export const env = {
     return pattern ? [pattern] : [];
   }),
   dataSource: str('DATA_SOURCE', 'mock') as DataSource,
-  authServiceUrl: str('AUTH_SERVICE_URL', 'http://localhost:8081'),
-  google: {
-    clientId: str('GOOGLE_CLIENT_ID', ''),
-    redirectUri: str('GOOGLE_REDIRECT_URI', 'http://localhost:3000/auth/google/callback'),
-  },
   redisUrl: process.env['REDIS_URL'] || '',
   kis: {
     baseUrl: str('KIS_BASE_URL', 'https://openapi.koreainvestment.com:9443'),

@@ -25,7 +25,6 @@ import type {
   UserProfile as UserProfileType,
   UserRole,
 } from '@candle/shared';
-import { env } from '../config/env';
 
 /** Supported OAuth providers (AUTH-003). */
 const providers: { id: 'google' | 'kakao' | 'naver'; name: string; color: string }[] = [
@@ -76,41 +75,12 @@ function issueToken(userId: string): string {
   return `mock.${Buffer.from(userId).toString('base64url')}.${Date.now()}`;
 }
 
-/** Auth-service response shape (POST /api/v1/auth/oauth/google). */
-interface AuthServiceOAuthResponse {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-  refreshExpiresIn: number;
-  isNewUser: boolean;
-}
-
 const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
   // ── OAuth (AUTH-001~006) ─────────────────────────────────────────
   app.get(
     '/providers',
-    { schema: { tags: ['auth'], summary: '지원 OAuth Provider 목록', response: { 200: Type.Array(ProviderInfo) } } },
-    async () => {
-      if (env.google.clientId) {
-        const params = new URLSearchParams({
-          response_type: 'code',
-          client_id: env.google.clientId,
-          redirect_uri: env.google.redirectUri,
-          scope: 'openid email profile',
-          access_type: 'offline',
-          prompt: 'consent',
-        });
-        return [
-          {
-            id: 'google' as OAuthProvider,
-            name: 'Google',
-            color: '#4285F4',
-            authorizationUrl: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
-          },
-        ];
-      }
-      return providers;
-    },
+    { schema: { tags: ['auth'], summary: '지원 OAuth Provider 목록 (mock)', response: { 200: Type.Array(ProviderInfo) } } },
+    async () => providers,
   );
 
   app.post(
@@ -118,77 +88,14 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
     {
       schema: {
         tags: ['auth'],
-        summary: 'OAuth 로그인/자동 회원가입',
+        summary: 'OAuth 로그인/자동 회원가입 (mock)',
         params: ProviderParams,
         querystring: OAuthLoginQuery,
-        response: { 200: OAuthLoginResult, 400: ErrorResponse, 401: ErrorResponse, 403: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse },
-        // body is intentionally unscheduled: mock omits it; real flow sends { authorizationCode }
+        response: { 200: OAuthLoginResult, 403: ErrorResponse },
       },
     },
     async (req, reply) => {
       const { provider } = req.params;
-      const authorizationCode = (req.body as Record<string, string> | null)?.authorizationCode;
-
-      // Real OAuth exchange — forward code to auth-service
-      if (env.dataSource === 'grpc' && authorizationCode && provider === 'google') {
-        let authRes: Response;
-        try {
-          authRes = await fetch(`${env.authServiceUrl}/api/v1/auth/oauth/google`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ authorizationCode }),
-          });
-        } catch (e) {
-          app.log.error({ err: e }, 'Auth service connection failed');
-          return reply.status(503).send({ statusCode: 503, error: 'ServiceUnavailable', message: '인증 서비스에 연결할 수 없습니다' });
-        }
-
-        if (!authRes.ok) {
-          const err = await authRes.json().catch(() => ({})) as { message?: string };
-          const upstreamStatus = authRes.status as 400 | 401 | 403 | 500;
-          return reply.status(upstreamStatus).send({
-            statusCode: authRes.status,
-            error: 'AuthError',
-            message: err.message ?? 'OAuth 처리에 실패했습니다',
-          });
-        }
-
-        const authData = await authRes.json() as AuthServiceOAuthResponse;
-
-        // Decode JWT payload to extract user identity (sub, email, role, iat)
-        const payloadJson = Buffer.from(authData.accessToken.split('.')[1], 'base64url').toString();
-        const payload = JSON.parse(payloadJson) as {
-          sub: string;
-          email?: string;
-          role?: UserRole;
-          iat: number;
-        };
-
-        const user: UserProfileType = {
-          id: payload.sub,
-          username: payload.email?.split('@')[0] ?? payload.sub,
-          email: payload.email ?? '',
-          avatar: '🎯',
-          role: payload.role ?? 'USER',
-          status: 'active',
-          provider: 'google',
-          createdAt: new Date(payload.iat * 1000).toISOString(),
-        };
-
-        return {
-          tokens: {
-            accessToken: authData.accessToken,
-            refreshToken: authData.refreshToken,
-            tokenType: 'Bearer' as const,
-            expiresIn: authData.expiresIn,
-            refreshExpiresIn: authData.refreshExpiresIn,
-          },
-          user,
-          isNewUser: authData.isNewUser,
-        };
-      }
-
-      // Mock fallback (UI dev without backend)
       const scenario = req.query.as ?? 'existing';
 
       // AUTH-014 / USER-006: 정지·탈퇴 사용자는 로그인 거부.

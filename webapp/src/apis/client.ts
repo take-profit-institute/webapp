@@ -13,6 +13,10 @@ import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency';
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? 'http://localhost:4000';
 
+/** Gateway origin for auth endpoints. Falls back to BFF when not set (mock dev mode). */
+export const AUTH_BASE_URL =
+  process.env.NEXT_PUBLIC_AUTH_BASE_URL?.replace(/\/$/, '') ?? API_BASE_URL;
+
 /** Error thrown for any non-2xx response, carrying the BFF's error envelope when present. */
 export class ApiError extends Error {
   constructor(
@@ -53,8 +57,8 @@ function isAuthPath(path: string): boolean {
   return path.startsWith('/api/auth/');
 }
 
-function buildUrl(path: string, query?: Query): string {
-  const url = new URL(`${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`);
+function buildUrl(base: string, path: string, query?: Query): string {
+  const url = new URL(`${base}${path.startsWith('/') ? path : `/${path}`}`);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
@@ -64,11 +68,11 @@ function buildUrl(path: string, query?: Query): string {
 }
 
 /** Core request helper. Returns parsed JSON typed as `T`; throws {@link ApiError} on failure. */
-export async function request<T>(path: string, options: RequestOptions = {}, allowRetry = true): Promise<T> {
+export async function request<T>(path: string, options: RequestOptions = {}, allowRetry = true, baseUrl = API_BASE_URL): Promise<T> {
   const { query, body, headers, ...init } = options;
   const token = tokenGetter?.();
 
-  const res = await fetch(buildUrl(path, query), {
+  const res = await fetch(buildUrl(baseUrl, path, query), {
     ...init,
     headers: {
       Accept: 'application/json',
@@ -82,7 +86,7 @@ export async function request<T>(path: string, options: RequestOptions = {}, all
   // AUTH-009: on 401, try a one-time token refresh and replay the request.
   if (res.status === 401 && allowRetry && tokenRefresher && !isAuthPath(path)) {
     const refreshed = await tokenRefresher();
-    if (refreshed) return request<T>(path, options, false);
+    if (refreshed) return request<T>(path, options, false, baseUrl);
   }
 
   const isJson = res.headers.get('content-type')?.includes('application/json');
@@ -109,6 +113,21 @@ export async function request<T>(path: string, options: RequestOptions = {}, all
 function idempotencyHeaders(key?: string): Record<string, string> {
   return { [IDEMPOTENCY_HEADER]: key ?? newIdempotencyKey() };
 }
+
+/** Auth request — uses AUTH_BASE_URL (gateway) with no 401 retry to avoid loops. */
+export function authRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return request<T>(path, options, false, AUTH_BASE_URL);
+}
+
+export const authApiClient = {
+  get: <T>(path: string, query?: Query) => authRequest<T>(path, { method: 'GET', query }),
+  post: <T>(path: string, body?: unknown, query?: Query, idempotencyKey?: string) =>
+    authRequest<T>(path, { method: 'POST', body, query, headers: idempotencyHeaders(idempotencyKey) }),
+  patch: <T>(path: string, body?: unknown, query?: Query, idempotencyKey?: string) =>
+    authRequest<T>(path, { method: 'PATCH', body, query, headers: idempotencyHeaders(idempotencyKey) }),
+  del: <T = void>(path: string, query?: Query, idempotencyKey?: string) =>
+    authRequest<T>(path, { method: 'DELETE', query, headers: idempotencyHeaders(idempotencyKey) }),
+};
 
 export const apiClient = {
   get: <T>(path: string, query?: Query) => request<T>(path, { method: 'GET', query }),
