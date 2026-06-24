@@ -1,4 +1,4 @@
-/** Authentication endpoints (`/api/auth/*`). Mocked on the BFF for now. */
+/** Authentication endpoints (`/api/auth/*`). */
 import type {
   AuthResponse,
   OAuthLoginResult,
@@ -8,14 +8,50 @@ import type {
   TokenValidateResult,
   UpdateProfileBody,
   UserProfile,
+  UserRole,
 } from '@/lib/api-types';
 import { authApiClient } from './client';
+
+// auth-service returns { providers: [{ name: "<id>", authorizationUrl: "..." }] }
+// bff mock returns ProviderInfo[] directly — handle both shapes here.
+const PROVIDER_META: Record<string, { name: string; color: string }> = {
+  google: { name: 'Google', color: '#4285F4' },
+  kakao: { name: '카카오', color: '#FEE500' },
+  naver: { name: '네이버', color: '#03C75A' },
+};
+
+type AuthServiceProvidersResponse = { providers: { name: string; authorizationUrl: string }[] };
+
+// auth-service POST /oauth/:provider 응답 (flat, user 없음)
+type AuthServiceLoginResponse = {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  refreshExpiresIn: number;
+  isNewUser: boolean;
+};
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    return JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
+  } catch {
+    return null;
+  }
+}
 
 // ── OAuth (AUTH-001~006) ───────────────────────────────────────────
 
 /** 지원 OAuth Provider 목록 (Google/Kakao/Naver). */
-export function getProviders(): Promise<ProviderInfo[]> {
-  return authApiClient.get<ProviderInfo[]>('/api/auth/providers');
+export async function getProviders(): Promise<ProviderInfo[]> {
+  const raw = await authApiClient.get<ProviderInfo[] | AuthServiceProvidersResponse>('/api/auth/providers');
+  if (Array.isArray(raw)) return raw;
+  return raw.providers.map(({ name: id, authorizationUrl }) => ({
+    id: id as OAuthProvider,
+    authorizationUrl,
+    ...(PROVIDER_META[id] ?? { name: id, color: '#888888' }),
+  }));
 }
 
 /**
@@ -30,14 +66,45 @@ export function oauthLogin(
 }
 
 /**
- * 실제 OAuth 코드 교환 — 콜백 페이지가 Google에서 받은 `code`를 BFF로 전달.
- * BFF가 auth-service에 코드를 포워딩하고 토큰 + 사용자 정보를 반환한다.
+ * 실제 OAuth 코드 교환 — 콜백 페이지가 Google에서 받은 `code`를 게이트웨이로 전달.
+ * auth-service는 flat 응답을 반환하므로 OAuthLoginResult 형태로 변환한다.
  */
-export function oauthExchange(
+export async function oauthExchange(
   provider: OAuthProvider,
   authorizationCode: string,
 ): Promise<OAuthLoginResult> {
-  return authApiClient.post<OAuthLoginResult>(`/api/auth/oauth/${provider}`, { authorizationCode });
+  const raw = await authApiClient.post<AuthServiceLoginResponse | OAuthLoginResult>(
+    `/api/auth/oauth/${provider}`,
+    { authorizationCode },
+  );
+
+  // BFF mock은 이미 OAuthLoginResult 형태 (tokens 필드 존재)
+  if ('tokens' in raw) return raw as OAuthLoginResult;
+
+  // auth-service 응답: flat — JWT에서 사용자 정보 추출
+  const res = raw as AuthServiceLoginResponse;
+  const jwt = decodeJwtPayload(res.accessToken) ?? {};
+
+  return {
+    tokens: {
+      accessToken: res.accessToken,
+      refreshToken: res.refreshToken,
+      tokenType: 'Bearer',
+      expiresIn: res.expiresIn,
+      refreshExpiresIn: res.refreshExpiresIn,
+    },
+    user: {
+      id: String(jwt['sub'] ?? ''),
+      username: String(jwt['email'] ?? jwt['sub'] ?? '').split('@')[0],
+      email: String(jwt['email'] ?? ''),
+      avatar: '🎯',
+      role: (String(jwt['role'] ?? 'USER')) as UserRole,
+      status: 'active',
+      provider,
+      createdAt: jwt['iat'] ? new Date((jwt['iat'] as number) * 1000).toISOString() : new Date().toISOString(),
+    },
+    isNewUser: res.isNewUser,
+  };
 }
 
 // ── Token lifecycle (AUTH-007~010) ─────────────────────────────────
