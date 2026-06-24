@@ -26,9 +26,9 @@ import { requireIdempotencyKey, mapGrpcError } from '../grpc';
 import { env } from '../config/env';
 import { grpcPlaceOrder, grpcCancelOrder } from '../grpc/trading.grpc-client';
 
-/** 임시 actor 추출 — 실제 인증(JWT) 연동 전까지 x-user-id 헤더/dev 폴백. */
+/** 게이트웨이가 JWT 검증 후 주입한 X-Account-Id 헤더로 actor 추출. */
 function resolveActor(req: { headers: Record<string, unknown> }): string {
-  const header = req.headers['x-user-id'];
+  const header = req.headers['x-account-id'];
   return typeof header === 'string' && header ? header : 'demo-user';
 }
 import { ErrorResponse } from '@candle/shared';
