@@ -121,7 +121,7 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
         summary: 'OAuth 로그인/자동 회원가입',
         params: ProviderParams,
         querystring: OAuthLoginQuery,
-        response: { 200: OAuthLoginResult, 403: ErrorResponse },
+        response: { 200: OAuthLoginResult, 400: ErrorResponse, 401: ErrorResponse, 403: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse },
         // body is intentionally unscheduled: mock omits it; real flow sends { authorizationCode }
       },
     },
@@ -145,7 +145,8 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
         if (!authRes.ok) {
           const err = await authRes.json().catch(() => ({})) as { message?: string };
-          return reply.status(authRes.status).send({
+          const upstreamStatus = authRes.status as 400 | 401 | 403 | 500;
+          return reply.status(upstreamStatus).send({
             statusCode: authRes.status,
             error: 'AuthError',
             message: err.message ?? 'OAuth 처리에 실패했습니다',
