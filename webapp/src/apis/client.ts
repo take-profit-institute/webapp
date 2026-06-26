@@ -73,6 +73,7 @@ export async function request<T>(path: string, options: RequestOptions = {}, all
   const token = tokenGetter?.();
 
   const res = await fetch(buildUrl(baseUrl, path, query), {
+    credentials: 'include',
     ...init,
     headers: {
       Accept: 'application/json',
