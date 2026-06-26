@@ -1,109 +1,83 @@
-# webapp 모노레포 CI
-#  - bff: 컨테이너 이미지 → ECR → candle-k8s 태그 bump
-#  - webapp(+admin): 정적 빌드 → S3 sync → CloudFront invalidation
 name: ci
 
-# CI temporarily disabled — using docker-push.sh for local builds to Docker Hub.
-# Re-enable push trigger when AWS infra (ECR/S3/CloudFront) is ready.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      env:
-        description: 배포 환경
-        default: dev
-        type: choice
-        options: [dev, prod]
-
-permissions:
-  id-token: write
-  contents: read
-
-env:
-  AWS_REGION: ap-northeast-2
-  DEPLOY_ENV: ${{ inputs.env || 'dev' }}
 
 jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      bff: ${{ steps.f.outputs.bff }}
-      webapp: ${{ steps.f.outputs.webapp }}
-      admin: ${{ steps.f.outputs.admin }}
+      bff: ${{ steps.filter.outputs.bff }}
+      webapp: ${{ steps.filter.outputs.webapp }}
+      admin: ${{ steps.filter.outputs.admin }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
-        id: f
+        id: filter
         with:
           filters: |
-            bff: ['bff/**', 'shared/**']
+            bff:    ['bff/**', 'shared/**']
             webapp: ['webapp/**', 'shared/**']
-            admin: ['admin/**', 'shared/**']
+            admin:  ['admin/**', 'shared/**']
 
-  bff-image:
+  push-bff:
     needs: changes
-    if: ${{ needs.changes.outputs.bff == 'true' }}
+    if: needs.changes.outputs.bff == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: npm }
-      - run: npm ci
-      - run: npm run typecheck && npm test --workspace @candle/bff --if-present
-
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
-          role-to-assume: ${{ vars.CI_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-      - id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build & push bff image
-        env:
-          REGISTRY: ${{ steps.ecr.outputs.registry }}
-        run: |
-          docker build -f bff/Dockerfile -t $REGISTRY/candle/bff:${{ github.sha }} .
-          docker push $REGISTRY/candle/bff:${{ github.sha }}
-
-      - uses: ./.github/actions/bump-tag
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
         with:
-          service: bff
-          tag: ${{ github.sha }}
-          env: ${{ env.DEPLOY_ENV }}
-          token: ${{ secrets.GITOPS_TOKEN }}
+          context: .
+          file: bff/Dockerfile
+          push: true
+          tags: |
+            yyubin/candle-bff:dev
+            yyubin/candle-bff:${{ github.sha }}
 
-  # 정적 SPA — webapp / admin 공통 (matrix). 정적은 ArgoCD 아님(S3+CloudFront 직접)
-  static:
+  push-webapp:
     needs: changes
+    if: needs.changes.outputs.webapp == 'true'
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        app: [webapp, admin]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: npm }
-      - run: npm ci
-
-      - name: Build ${{ matrix.app }}
-        run: npm run build --workspace @candle/${{ matrix.app }}
-
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
-          role-to-assume: ${{ vars.CI_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: webapp/Dockerfile
+          push: true
+          tags: |
+            yyubin/candle-webapp:dev
+            yyubin/candle-webapp:${{ github.sha }}
 
-      - name: Deploy to S3 + invalidate
-        env:
-          # 버킷명은 결정적: candle-<env>-<app>. distribution id는 repo variable.
-          BUCKET: candle-${{ env.DEPLOY_ENV }}-${{ matrix.app }}
-          DIST_ID: ${{ vars[format('{0}_{1}_DISTRIBUTION', matrix.app, env.DEPLOY_ENV)] }}
-        run: |
-          DIR="${{ matrix.app }}/dist"
-          aws s3 sync "$DIR" "s3://$BUCKET" --delete \
-            --cache-control "public,max-age=31536000,immutable" \
-            --exclude index.html --exclude '.well-known/*'
-          # index.html / 딥링크는 캐시 짧게
-          aws s3 sync "$DIR" "s3://$BUCKET" \
-            --cache-control "no-cache" \
-            --exclude '*' --include index.html --include '.well-known/*'
-          aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths '/*'
+  push-admin:
+    needs: changes
+    if: needs.changes.outputs.admin == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: admin/Dockerfile
+          push: true
+          tags: |
+            yyubin/candle-admin:dev
+            yyubin/candle-admin:${{ github.sha }}
