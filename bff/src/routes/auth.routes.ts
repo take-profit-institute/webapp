@@ -180,8 +180,26 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
   // ── Current user / profile ───────────────────────────────────────
   app.get(
     '/me',
-    { schema: { tags: ['auth'], summary: '현재 사용자', response: { 200: UserProfile } } },
-    async () => demoUser,
+    { schema: { tags: ['auth'], summary: '현재 사용자 (auth)', response: { 200: UserProfile, 401: ErrorResponse, 503: ErrorResponse } } },
+    async (req, reply) => {
+      const userId = req.headers['x-account-id'];
+      const uid = Array.isArray(userId) ? userId[0] : userId;
+      if (!uid) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
+      try {
+        const res = await req.server.grpc.auth.getMe({ userId: uid });
+        if (!res.user) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '사용자를 찾을 수 없습니다.' });
+        return {
+          ...demoUser,
+          id: res.user.userId,
+          email: res.user.email,
+          provider: res.user.provider as UserProfileType['provider'],
+        };
+      } catch (err) {
+        const { statusCode, message } = mapGrpcError(err);
+        const httpStatus = (statusCode >= 500 ? 503 : statusCode) as 401 | 503;
+        return reply.code(httpStatus).send({ statusCode, error: 'gRPC Error', message });
+      }
+    },
   );
 
   app.patch(

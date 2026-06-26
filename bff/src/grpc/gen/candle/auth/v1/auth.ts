@@ -147,6 +147,167 @@ export const ListProvidersResponse: MessageFns<ListProvidersResponse> = {
   },
 };
 
+export interface AuthUser {
+  userId: string;
+  email: string;
+  provider: string;
+  providerSubject: string;
+}
+
+export interface GetMeRequest {
+  userId: string;
+}
+
+export interface GetMeResponse {
+  user?: AuthUser | undefined;
+}
+
+function createBaseAuthUser(): AuthUser {
+  return { userId: "", email: "", provider: "", providerSubject: "" };
+}
+
+export const AuthUser: MessageFns<AuthUser> = {
+  encode(message: AuthUser, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") writer.uint32(10).string(message.userId);
+    if (message.email !== "") writer.uint32(18).string(message.email);
+    if (message.provider !== "") writer.uint32(26).string(message.provider);
+    if (message.providerSubject !== "") writer.uint32(34).string(message.providerSubject);
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AuthUser {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAuthUser();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: if (tag === 10) { message.userId = reader.string(); continue; } break;
+        case 2: if (tag === 18) { message.email = reader.string(); continue; } break;
+        case 3: if (tag === 26) { message.provider = reader.string(); continue; } break;
+        case 4: if (tag === 34) { message.providerSubject = reader.string(); continue; } break;
+      }
+      if ((tag & 7) === 4 || tag === 0) break;
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AuthUser {
+    return {
+      userId: isSet(object.userId) ? globalThis.String(object.userId) : isSet(object.user_id) ? globalThis.String(object.user_id) : "",
+      email: isSet(object.email) ? globalThis.String(object.email) : "",
+      provider: isSet(object.provider) ? globalThis.String(object.provider) : "",
+      providerSubject: isSet(object.providerSubject) ? globalThis.String(object.providerSubject) : isSet(object.provider_subject) ? globalThis.String(object.provider_subject) : "",
+    };
+  },
+
+  toJSON(message: AuthUser): unknown {
+    const obj: any = {};
+    if (message.userId !== "") obj.userId = message.userId;
+    if (message.email !== "") obj.email = message.email;
+    if (message.provider !== "") obj.provider = message.provider;
+    if (message.providerSubject !== "") obj.providerSubject = message.providerSubject;
+    return obj;
+  },
+
+  create(base?: DeepPartial<AuthUser>): AuthUser { return AuthUser.fromPartial(base ?? {}); },
+  fromPartial(object: DeepPartial<AuthUser>): AuthUser {
+    const message = createBaseAuthUser();
+    message.userId = object.userId ?? "";
+    message.email = object.email ?? "";
+    message.provider = object.provider ?? "";
+    message.providerSubject = object.providerSubject ?? "";
+    return message;
+  },
+};
+
+function createBaseGetMeRequest(): GetMeRequest {
+  return { userId: "" };
+}
+
+export const GetMeRequest: MessageFns<GetMeRequest> = {
+  encode(message: GetMeRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") writer.uint32(10).string(message.userId);
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetMeRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetMeRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: if (tag === 10) { message.userId = reader.string(); continue; } break;
+      }
+      if ((tag & 7) === 4 || tag === 0) break;
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetMeRequest {
+    return { userId: isSet(object.userId) ? globalThis.String(object.userId) : isSet(object.user_id) ? globalThis.String(object.user_id) : "" };
+  },
+
+  toJSON(message: GetMeRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") obj.userId = message.userId;
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetMeRequest>): GetMeRequest { return GetMeRequest.fromPartial(base ?? {}); },
+  fromPartial(object: DeepPartial<GetMeRequest>): GetMeRequest {
+    const message = createBaseGetMeRequest();
+    message.userId = object.userId ?? "";
+    return message;
+  },
+};
+
+function createBaseGetMeResponse(): GetMeResponse {
+  return { user: undefined };
+}
+
+export const GetMeResponse: MessageFns<GetMeResponse> = {
+  encode(message: GetMeResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.user !== undefined) AuthUser.encode(message.user, writer.uint32(10).fork()).join();
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetMeResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetMeResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: if (tag === 10) { message.user = AuthUser.decode(reader, reader.uint32()); continue; } break;
+      }
+      if ((tag & 7) === 4 || tag === 0) break;
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetMeResponse {
+    return { user: isSet(object.user) ? AuthUser.fromJSON(object.user) : undefined };
+  },
+
+  toJSON(message: GetMeResponse): unknown {
+    const obj: any = {};
+    if (message.user !== undefined) obj.user = AuthUser.toJSON(message.user);
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetMeResponse>): GetMeResponse { return GetMeResponse.fromPartial(base ?? {}); },
+  fromPartial(object: DeepPartial<GetMeResponse>): GetMeResponse {
+    const message = createBaseGetMeResponse();
+    message.user = object.user !== undefined && object.user !== null ? AuthUser.fromPartial(object.user) : undefined;
+    return message;
+  },
+};
+
 export type AuthServiceDefinition = typeof AuthServiceDefinition;
 export const AuthServiceDefinition = {
   name: "AuthService",
@@ -160,15 +321,25 @@ export const AuthServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    getMe: {
+      name: "GetMe",
+      requestType: GetMeRequest as typeof GetMeRequest,
+      requestStream: false,
+      responseType: GetMeResponse as typeof GetMeResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
 export interface AuthServiceImplementation<CallContextExt = {}> {
   listProviders(request: ListProvidersRequest, context: CallContext & CallContextExt): Promise<DeepPartial<ListProvidersResponse>>;
+  getMe(request: GetMeRequest, context: CallContext & CallContextExt): Promise<DeepPartial<GetMeResponse>>;
 }
 
 export interface AuthServiceClient<CallOptionsExt = {}> {
   listProviders(request: DeepPartial<ListProvidersRequest>, options?: CallOptions & CallOptionsExt): Promise<ListProvidersResponse>;
+  getMe(request: DeepPartial<GetMeRequest>, options?: CallOptions & CallOptionsExt): Promise<GetMeResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

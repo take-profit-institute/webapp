@@ -13,6 +13,7 @@ import {
 import type { UserProfile as SharedUserProfile } from '@candle/shared';
 import type { UserProfile as GrpcUserProfile } from '../grpc/gen/candle/user/v1/user';
 import { mapGrpcError, requireIdempotencyKey } from '../grpc';
+import { parallelFetch } from '../grpc/parallel';
 
 function toSharedProfile(grpc: GrpcUserProfile): SharedUserProfile {
   return {
@@ -38,14 +39,21 @@ const E4xx = { 401: ErrorResponse, 404: ErrorResponse, 503: ErrorResponse };
 const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     '/me',
-    { schema: { tags: ['user'], summary: '사용자 정보 조회', response: { 200: UserProfile, ...E4xx } } },
+    { schema: { tags: ['user'], summary: '사용자 정보 조회 (auth + user 병합)', response: { 200: UserProfile, ...E4xx } } },
     async (req, reply) => {
       const userId = extractUserId(req);
       if (!userId) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
       try {
-        const res = await req.server.grpc.user.getMe({ userId }, { userId });
-        if (!res.profile) return reply.code(404).send({ statusCode: 404, error: 'Not Found', message: '사용자를 찾을 수 없습니다.' });
-        return toSharedProfile(res.profile);
+        const { authMe, userMe } = await parallelFetch({
+          authMe: req.server.grpc.auth.getMe({ userId }),
+          userMe: req.server.grpc.user.getMe({ userId }, { userId }),
+        });
+        if (!userMe.profile) return reply.code(404).send({ statusCode: 404, error: 'Not Found', message: '사용자를 찾을 수 없습니다.' });
+        return {
+          ...toSharedProfile(userMe.profile),
+          ...(authMe.user?.provider ? { provider: authMe.user.provider as SharedUserProfile['provider'] } : {}),
+          ...(authMe.user?.email ? { email: authMe.user.email } : {}),
+        };
       } catch (err) {
         const { statusCode, message } = mapGrpcError(err);
         return reply.code(statusCode).send({ statusCode, error: 'gRPC Error', message });
