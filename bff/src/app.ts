@@ -11,7 +11,7 @@ import tickStorePlugin from './services/tick-store.service';
 import mockMarketStream from './mock/market-stream.mock';
 import wsRoutes from './routes/ws.routes';
 import routes from './routes';
-import { IdempotencyKeyError } from './grpc';
+import { grpcRegistry, IdempotencyKeyError } from './grpc';
 
 function isAllowedCorsOrigin(origin: string | undefined): boolean {
   if (!origin) return true;
@@ -52,6 +52,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     },
   });
   await app.register(swaggerUi, { routePrefix: '/docs' });
+
+  await app.register(grpcRegistry);
 
   await app.register(pubsubPlugin);
   await app.register(websocket);
