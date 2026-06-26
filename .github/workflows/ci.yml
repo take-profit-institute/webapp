@@ -3,9 +3,9 @@
 #  - webapp(+admin): 정적 빌드 → S3 sync → CloudFront invalidation
 name: ci
 
+# CI temporarily disabled — using docker-push.sh for local builds to Docker Hub.
+# Re-enable push trigger when AWS infra (ECR/S3/CloudFront) is ready.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       env:
