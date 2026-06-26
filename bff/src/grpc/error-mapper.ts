@@ -1,4 +1,5 @@
-import { GrpcStatus, type GrpcError } from './types';
+import { ClientError } from 'nice-grpc';
+import { GrpcStatus } from './types';
 
 const STATUS_MAP: Record<number, number> = {
   [GrpcStatus.NOT_FOUND]: 404,
@@ -16,25 +17,19 @@ const STATUS_MAP: Record<number, number> = {
   [GrpcStatus.UNKNOWN]: 500,
 };
 
-export function isGrpcError(err: unknown): err is GrpcError {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    typeof (err as GrpcError).code === 'number'
-  );
-}
-
 export function grpcToHttpStatus(code: number): number {
   return STATUS_MAP[code] ?? 500;
 }
 
 export function mapGrpcError(err: unknown): { statusCode: number; message: string } {
-  if (isGrpcError(err)) {
+  if (err instanceof ClientError) {
     return {
       statusCode: grpcToHttpStatus(err.code),
-      message: err.details ?? err.message,
+      message: err.details || err.message,
     };
   }
-  return { statusCode: 500, message: 'Internal server error' };
+  // ClientError가 아닌 경우 — 연결 실패(ECONNREFUSED 등) 가능성
+  const msg = err instanceof Error ? err.message : 'Internal server error';
+  console.error('[grpc] unexpected non-ClientError:', err);
+  return { statusCode: 503, message: msg };
 }

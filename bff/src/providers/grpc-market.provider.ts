@@ -8,7 +8,7 @@
 import type { Candle, MarketMovers, NewsItem, Quote, StockDetail } from '@candle/shared';
 import type { MarketProvider, StockListFilter } from './market.provider';
 import type { MarketServiceClient } from '../grpc/clients/market.client';
-import { isGrpcError } from '../grpc/error-mapper';
+import { ClientError } from 'nice-grpc';
 import { GrpcStatus } from '../grpc/types';
 
 export class GrpcMarketProvider implements MarketProvider {
@@ -22,7 +22,7 @@ export class GrpcMarketProvider implements MarketProvider {
     try {
       return await this.client.getStock({ symbol });
     } catch (err) {
-      if (isGrpcError(err) && err.code === GrpcStatus.NOT_FOUND) return undefined;
+      if (err instanceof ClientError && err.code === GrpcStatus.NOT_FOUND) return undefined;
       throw err;
     }
   }
