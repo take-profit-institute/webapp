@@ -5,10 +5,12 @@ import BottomNav from '@/components/BottomNav';
 import NotificationPanel from '@/components/NotificationPanel';
 import { getWatchlist, getUnreadCount } from '@/apis';
 import { useWatchlistStore, useNotificationStore } from '@/store/useStore';
+import { useFCM } from '@/hooks/useFCM';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { setSymbols } = useWatchlistStore();
   const { setUnreadCount } = useNotificationStore();
+  useFCM();
 
   // Bootstrap watchlist store and unread count on first mount
   useEffect(() => {

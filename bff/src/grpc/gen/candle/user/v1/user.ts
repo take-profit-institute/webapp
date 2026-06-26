@@ -17,6 +17,7 @@ export interface UserProfile {
   profileImageUrl: string;
   deleted: boolean;
   audit?: Audit | undefined;
+  email: string;
 }
 
 export interface GetMeRequest {
@@ -39,7 +40,7 @@ export interface UpdateProfileResponse {
 }
 
 function createBaseUserProfile(): UserProfile {
-  return { userId: "", nickname: "", profileImageUrl: "", deleted: false, audit: undefined };
+  return { userId: "", nickname: "", profileImageUrl: "", deleted: false, audit: undefined, email: "" };
 }
 
 export const UserProfile: MessageFns<UserProfile> = {
@@ -58,6 +59,9 @@ export const UserProfile: MessageFns<UserProfile> = {
     }
     if (message.audit !== undefined) {
       Audit.encode(message.audit, writer.uint32(42).fork()).join();
+    }
+    if (message.email !== "") {
+      writer.uint32(50).string(message.email);
     }
     return writer;
   },
@@ -109,6 +113,14 @@ export const UserProfile: MessageFns<UserProfile> = {
           message.audit = Audit.decode(reader, reader.uint32());
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.email = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -133,6 +145,7 @@ export const UserProfile: MessageFns<UserProfile> = {
         : "",
       deleted: isSet(object.deleted) ? globalThis.Boolean(object.deleted) : false,
       audit: isSet(object.audit) ? Audit.fromJSON(object.audit) : undefined,
+      email: isSet(object.email) ? globalThis.String(object.email) : "",
     };
   },
 
@@ -153,6 +166,9 @@ export const UserProfile: MessageFns<UserProfile> = {
     if (message.audit !== undefined) {
       obj.audit = Audit.toJSON(message.audit);
     }
+    if (message.email !== "") {
+      obj.email = message.email;
+    }
     return obj;
   },
 
@@ -166,6 +182,7 @@ export const UserProfile: MessageFns<UserProfile> = {
     message.profileImageUrl = object.profileImageUrl ?? "";
     message.deleted = object.deleted ?? false;
     message.audit = (object.audit !== undefined && object.audit !== null) ? Audit.fromPartial(object.audit) : undefined;
+    message.email = object.email ?? "";
     return message;
   },
 };

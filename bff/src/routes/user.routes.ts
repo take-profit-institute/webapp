@@ -3,79 +3,126 @@ import { DEMO_USER_ID, getAccount } from '../data/account';
 import { missions, rankings } from '../data/social';
 import { demoUser, isNicknameAvailable } from '../data/user';
 import {
+  ErrorResponse,
   MyPageSummary,
   NicknameCheckQuery,
   NicknameCheckResult,
   UpdateProfileBody,
   UserProfile,
 } from '@candle/shared';
-import { requireIdempotencyKey } from '../grpc';
+import type { UserProfile as SharedUserProfile } from '@candle/shared';
+import type { UserProfile as GrpcUserProfile } from '../grpc/gen/candle/user/v1/user';
+import { mapGrpcError, requireIdempotencyKey } from '../grpc';
 
-/**
- * User Service (mock) — 회원/프로필/마이페이지 (USER-*).
- * 회원 생성(USER-001)·상태 제공(USER-018)·Auth 매핑(USER-017)·감사(USER-022/023)는
- * 실제 User Service 내부 책임이라 목 범위 밖이며, 여기서는 조회/수정/탈퇴/집계 계약만 제공합니다.
- */
+function toSharedProfile(grpc: GrpcUserProfile): SharedUserProfile {
+  return {
+    id: grpc.userId,
+    username: grpc.nickname,
+    email: grpc.email,
+    avatar: grpc.profileImageUrl,
+    role: 'USER',
+    status: grpc.deleted ? 'withdrawn' : 'active',
+    createdAt: grpc.audit?.createdAt?.toISOString() ?? new Date(0).toISOString(),
+  };
+}
+
+function extractUserId(req: { headers: Record<string, string | string[] | undefined> }): string | undefined {
+  const v = req.headers['x-account-id'];
+  return Array.isArray(v) ? v[0] : v;
+}
+
+const E401 = { 401: ErrorResponse };
+const E404 = { 404: ErrorResponse };
+const E4xx = { 401: ErrorResponse, 404: ErrorResponse, 503: ErrorResponse };
+
 const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     '/me',
-    { schema: { tags: ['user'], summary: '사용자 정보 조회', response: { 200: UserProfile } } },
-    // USER-002/011/012/022 — 기본 프로필 + 이메일 + 가입일.
-    async () => demoUser,
+    { schema: { tags: ['user'], summary: '사용자 정보 조회', response: { 200: UserProfile, ...E4xx } } },
+    async (req, reply) => {
+      const userId = extractUserId(req);
+      if (!userId) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
+      try {
+        const res = await req.server.grpc.user.getMe({ userId }, { userId });
+        if (!res.profile) return reply.code(404).send({ statusCode: 404, error: 'Not Found', message: '사용자를 찾을 수 없습니다.' });
+        return toSharedProfile(res.profile);
+      } catch (err) {
+        const { statusCode, message } = mapGrpcError(err);
+        return reply.code(statusCode).send({ statusCode, error: 'gRPC Error', message });
+      }
+    },
   );
 
   app.patch(
     '/me',
-    { schema: { tags: ['user'], summary: '프로필 수정 (닉네임/이미지/투자성향)', body: UpdateProfileBody, response: { 200: UserProfile } } },
-    // USER-003/008/010 — not persisted; merges and echoes.
-    // 프로필 변경 = 멱등성 키 대상 (스펙 §1).
-    async (req) => {
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
-      return { ...demoUser, ...req.body };
+    { schema: { tags: ['user'], summary: '프로필 수정 (닉네임/이미지/투자성향)', body: UpdateProfileBody, response: { 200: UserProfile, ...E4xx } } },
+    async (req, reply) => {
+      const userId = extractUserId(req);
+      if (!userId) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
+      const idempotencyKey = requireIdempotencyKey(req);
+      try {
+        const res = await req.server.grpc.user.updateProfile(
+          {
+            userId,
+            nickname: req.body.username ?? '',
+            profileImageUrl: req.body.avatar ?? '',
+            commandMetadata: { idempotencyKey },
+          },
+          { userId, idempotencyKey },
+        );
+        if (!res.profile) return reply.code(404).send({ statusCode: 404, error: 'Not Found', message: '사용자를 찾을 수 없습니다.' });
+        const profile = toSharedProfile(res.profile);
+        return req.body.investStyle ? { ...profile, investStyle: req.body.investStyle } : profile;
+      } catch (err) {
+        const { statusCode, message } = mapGrpcError(err);
+        return reply.code(statusCode).send({ statusCode, error: 'gRPC Error', message });
+      }
     },
   );
 
   app.get(
     '/nickname/check',
     { schema: { tags: ['user'], summary: '닉네임 중복 검사', querystring: NicknameCheckQuery, response: { 200: NicknameCheckResult } } },
-    // USER-009
+    // TODO: proto에 CheckNickname 추가 시 gRPC 연결
     async (req) => ({ nickname: req.query.nickname, available: isNicknameAvailable(req.query.nickname) }),
   );
 
   app.post(
     '/me/withdraw',
-    { schema: { tags: ['user'], summary: '회원 탈퇴', response: { 200: UserProfile } } },
-    // USER-004/005 — 상태를 WITHDRAWN으로(mock). 이후 로그인은 USER-006으로 차단됨.
+    { schema: { tags: ['user'], summary: '회원 탈퇴', response: { 200: UserProfile, ...E401 } } },
+    // TODO: proto에 Withdraw 추가 시 gRPC 연결
     async (req) => {
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      requireIdempotencyKey(req);
       return { ...demoUser, status: 'withdrawn' as const };
     },
   );
 
   app.get(
     '/me/summary',
-    { schema: { tags: ['user'], summary: '마이페이지 집계 (프로필+성과+자산+랭킹+챌린지)', response: { 200: MyPageSummary } } },
-    // USER-012~016 — BFF가 User·Account·Ranking·Mission 결과를 합성한 read 모델.
-    async () => {
-      const account = getAccount();
-      const myRanking = rankings.find((r) => r.userId === DEMO_USER_ID);
-      return {
-        profile: demoUser,
-        performance: {
-          totalReturnPercent: account.totalReturnPercent,
-          totalProfitLoss: account.totalProfitLoss,
-        },
-        assets: {
-          totalAsset: account.totalAsset,
-          cash: account.cash,
-          investedAmount: account.investedAmount,
-        },
-        ranking: myRanking ? { rank: myRanking.rank, returnPercent: myRanking.returnPercent } : undefined,
-        challenges: {
-          active: missions.filter((m) => !m.completed).length,
-          completed: missions.filter((m) => m.completed).length,
-        },
-      };
+    { schema: { tags: ['user'], summary: '마이페이지 집계 (프로필+성과+자산+랭킹+챌린지)', response: { 200: MyPageSummary, ...E4xx } } },
+    async (req, reply) => {
+      const userId = extractUserId(req);
+      if (!userId) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
+      try {
+        const res = await req.server.grpc.user.getMe({ userId }, { userId });
+        if (!res.profile) return reply.code(404).send({ statusCode: 404, error: 'Not Found', message: '사용자를 찾을 수 없습니다.' });
+        const profile = toSharedProfile(res.profile);
+        const account = getAccount();
+        const myRanking = rankings.find((r) => r.userId === DEMO_USER_ID);
+        return {
+          profile,
+          performance: { totalReturnPercent: account.totalReturnPercent, totalProfitLoss: account.totalProfitLoss },
+          assets: { totalAsset: account.totalAsset, cash: account.cash, investedAmount: account.investedAmount },
+          ranking: myRanking ? { rank: myRanking.rank, returnPercent: myRanking.returnPercent } : undefined,
+          challenges: {
+            active: missions.filter((m) => !m.completed).length,
+            completed: missions.filter((m) => m.completed).length,
+          },
+        };
+      } catch (err) {
+        const { statusCode, message } = mapGrpcError(err);
+        return reply.code(statusCode).send({ statusCode, error: 'gRPC Error', message });
+      }
     },
   );
 };

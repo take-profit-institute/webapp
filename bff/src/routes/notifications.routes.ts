@@ -18,7 +18,30 @@ import {
 } from '../data/notifications';
 import { requireIdempotencyKey } from '../grpc';
 
+// In-memory token store (replace with DB in production)
+const fcmTokens = new Map<string, { token: string; platform: string; updatedAt: string }>();
+
 const notificationRoutes: FastifyPluginAsyncTypebox = async (app) => {
+  app.post(
+    '/token',
+    {
+      schema: {
+        tags: ['notification'],
+        summary: 'FCM 토큰 등록',
+        body: Type.Object({
+          token: Type.String(),
+          platform: Type.Union([Type.Literal('web'), Type.Literal('ios'), Type.Literal('android')]),
+        }),
+        response: { 204: Type.Null() },
+      },
+    },
+    async (req, reply) => {
+      const { token, platform } = req.body;
+      fcmTokens.set(token, { token, platform, updatedAt: new Date().toISOString() });
+      return reply.status(204).send(null);
+    },
+  );
+
   app.get(
     '/',
     {
