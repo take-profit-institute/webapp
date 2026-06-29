@@ -2,8 +2,11 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { WsClientMessage, WsServerMessage } from '@/lib/api-types';
 import { useMarketStore } from '@/store/useMarketStore';
+import { API_BASE_URL } from '@/apis';
 
-const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE_URL ?? 'ws://localhost:4000';
+// WS도 REST와 같은 게이트웨이(8000)로 보낸다. 명시적 override가 없으면 API base에서 파생.
+// http→ws / https→wss 자동 변환.
+const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE_URL ?? API_BASE_URL.replace(/^http/, 'ws');
 
 export function useMarketSocket(symbols: string[]) {
   const wsRef = useRef<WebSocket | null>(null);
