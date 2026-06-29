@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, Star, Clock } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, Star, Clock, MessageCircle } from 'lucide-react';
 import CandleChart from '@/components/CandleChart';
 import IntradayChart from '@/components/IntradayChart';
 import {
@@ -279,6 +279,11 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
             <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>{symbol}</p>
           </div>
         </div>
+        <Link href={`/market/${symbol}/chat`} title="종목 채팅방"
+          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
+          <MessageCircle size={14} />
+        </Link>
         <button onClick={toggleWatch} aria-pressed={watched} title={watched ? '관심종목 제거' : '관심종목 추가'}
           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
           style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: watched ? 'var(--amber)' : 'var(--text-secondary)' }}>
