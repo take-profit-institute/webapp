@@ -11,6 +11,7 @@ export function createDeadlineInterceptor(defaultMs: number): ClientInterceptor 
   ): AsyncGenerator<Response, Response | void, undefined> {
     const ms = options?.deadlineMs ?? defaultMs;
     const signal = options.signal ?? AbortSignal.timeout(ms);
-    yield* call.next(call.request, { ...options, signal });
+    // unary 메서드는 미들웨어가 응답 메시지를 return해야 함(yield만 하면 void 반환 → nice-grpc 에러).
+    return yield* call.next(call.request, { ...options, signal });
   };
 }

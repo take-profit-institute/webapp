@@ -12,6 +12,7 @@ export function createIdempotencyInterceptor(): ClientMiddleware<GrpcCallOptions
     const metadata = Metadata(options.metadata);
     if (options.idempotencyKey) metadata.set(IDEMPOTENCY_METADATA, options.idempotencyKey);
     if (options.userId) metadata.set(ACTOR_METADATA, options.userId);
-    yield* call.next(call.request, { ...options, metadata });
+    // unary 메서드는 미들웨어가 응답 메시지를 return해야 함(yield만 하면 void 반환 → nice-grpc 에러).
+    return yield* call.next(call.request, { ...options, metadata });
   };
 }

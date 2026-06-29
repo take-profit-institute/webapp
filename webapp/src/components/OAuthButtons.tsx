@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { getProviders, oauthLogin, useApi } from '@/apis';
 import { useAuthStore } from '@/store/useStore';
+import { createOAuthState } from '@/lib/oauth-state';
 import type { OAuthProvider, ProviderInfo } from '@/lib/api-types';
 
 /** Fallback if the providers fetch fails (offline BFF) — keeps the buttons usable. */
@@ -35,10 +36,14 @@ export default function OAuthButtons({ scenario = 'existing', redirectTo = '/das
   const handle = async (provider: OAuthProvider) => {
     const providerInfo = providers.find((p) => p.id === provider);
 
-    // Real OAuth: redirect browser to Google consent screen.
-    // After consent, Google redirects to /auth/google/callback with ?code=...
+    // Real OAuth: redirect browser to the provider consent screen.
+    // CSRF state는 프론트가 생성·검증한다(백엔드 stateless). state를 저장하고 URL에 붙인 뒤
+    // 콜백(/auth/{provider}/callback)에서 ?code=...&state=... 를 받아 검증한다.
     if (providerInfo?.authorizationUrl) {
-      window.location.href = providerInfo.authorizationUrl;
+      const state = createOAuthState(provider);
+      const url = new URL(providerInfo.authorizationUrl);
+      url.searchParams.set('state', state);
+      window.location.assign(url.toString());
       return;
     }
 

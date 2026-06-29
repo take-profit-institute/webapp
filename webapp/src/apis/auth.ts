@@ -72,10 +72,12 @@ export function oauthLogin(
 export async function oauthExchange(
   provider: OAuthProvider,
   authorizationCode: string,
+  state?: string,
 ): Promise<OAuthLoginResult> {
+  // state는 CSRF 검증용으로 프론트가 생성한 값. naver는 토큰 교환에도 이 state가 필요하다.
   const raw = await authApiClient.post<AuthServiceLoginResponse | OAuthLoginResult>(
     `/api/auth/oauth/${provider}`,
-    { authorizationCode },
+    { authorizationCode, state },
   );
 
   // BFF mock은 이미 OAuthLoginResult 형태 (tokens 필드 존재)
