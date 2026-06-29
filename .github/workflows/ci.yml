@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -38,6 +39,7 @@ jobs:
           context: .
           file: bff/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             yyubin/candle-bff:dev
             yyubin/candle-bff:${{ github.sha }}
@@ -48,6 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -58,6 +61,7 @@ jobs:
           context: .
           file: webapp/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             yyubin/candle-webapp:dev
             yyubin/candle-webapp:${{ github.sha }}
@@ -68,6 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -78,6 +83,7 @@ jobs:
           context: .
           file: admin/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             yyubin/candle-admin:dev
             yyubin/candle-admin:${{ github.sha }}
