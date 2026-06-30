@@ -7,6 +7,10 @@ export const API_BASE_URL =
 export const AUTH_BASE_URL =
   process.env.NEXT_PUBLIC_AUTH_BASE_URL?.replace(/\/$/, '') ?? API_BASE_URL;
 
+// 채팅 방 배정 REST 베이스. dev=chatting-service 직결(8090), prod=게이트웨이(미설정 시 API base 폴백).
+export const CHAT_API_BASE_URL =
+  process.env.NEXT_PUBLIC_CHAT_API_BASE_URL?.replace(/\/$/, '') ?? API_BASE_URL;
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,

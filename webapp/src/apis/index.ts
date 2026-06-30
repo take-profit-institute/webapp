@@ -12,10 +12,12 @@ export * as accountApi from './account';
 export * as authApi from './auth';
 export * as socialApi from './social';
 export * as usersApi from './users';
+export * as chatApi from './chat';
 
 export { API_BASE_URL, ApiError, apiClient, setAuthTokenGetter, setTokenRefresher } from './client';
 export { useApi } from './useApi';
 export type { UseApiResult } from './useApi';
+export { getChatRoom } from './chat';
 
 // Flat re-exports for the common calls.
 export {

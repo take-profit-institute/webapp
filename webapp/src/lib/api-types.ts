@@ -89,4 +89,8 @@ export type {
   WsSubscribe,
   WsUnsubscribe,
   WsClientMessage,
+  // chat
+  RoomAssignment,
+  ChatWireMessage,
+  ChatBroadcast,
 } from '@candle/shared';

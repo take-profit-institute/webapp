@@ -1,14 +1,17 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Send, Users } from 'lucide-react';
-import { getStock, useApi } from '@/apis';
+import { getChatRoom, getStock, useApi } from '@/apis';
+import { useChatSocket } from '@/hooks/useChatSocket';
 import { useAuthStore } from '@/store/useStore';
+import type { ChatBroadcast, ChatWireMessage } from '@/lib/api-types';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NOTE: 현재는 UI 전용 mock이다. 실제 WS 연동(chat-gateway + Redis Pub/Sub)은
-// docs/chat-architecture.md 설계에 따라 useChatSocket 훅으로 교체될 자리다.
-// 메시지 모델/렌더는 그대로 두고 데이터 소스만 갈아끼우면 되도록 구성했다.
+// 실시간 채팅: 방 배정(REST /chat/rooms) → WS(/chat/ws) → Redis Pub/Sub 팬아웃.
+// 백엔드 봉투는 {accountId, message, ts}뿐이라, 닉/아바타는 클라가 프레임에 동봉한다
+// (ChatWireMessage). 본인 메시지도 팬아웃으로 되돌아오므로 송신은 echo 없이 보낸다.
+// 설계: docs/CHATTING_SERVICE.md, docs/CHAT_DEPLOYMENT.md
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ChatMessage {
@@ -21,27 +24,6 @@ interface ChatMessage {
   mine?: boolean;
 }
 
-const FAKE_USERS = [
-  { nickname: '불개미킹', avatar: '🔥' },
-  { nickname: '존버는승리', avatar: '💎' },
-  { nickname: '익절각', avatar: '📈' },
-  { nickname: '물타기장인', avatar: '🌊' },
-  { nickname: '퀀트왕', avatar: '🤖' },
-];
-
-const FAKE_LINES = [
-  '오늘 거래량 미쳤네요',
-  '이거 지금 들어가도 되나요?',
-  '저는 존버 갑니다 ㅋㅋ',
-  '단기 조정인 듯',
-  '실적 발표 언제죠?',
-  '아까 매수한 사람 부럽다',
-  '외인 순매수 들어왔대요',
-  '차트 이쁘게 빠지네',
-  '50만원에 지지 받나',
-  '에이 그냥 적금이 낫겠다',
-];
-
 let seq = 0;
 const nextId = () => `m${Date.now()}_${seq++}`;
 
@@ -53,17 +35,16 @@ export default function ChatRoomClient({ symbol }: { symbol: string }) {
   const { data: stock } = useApi(() => getStock(symbol), [symbol]);
   const stockName = stock?.name ?? symbol;
 
-  const username = useAuthStore((s) => s.username);
-  const avatar = useAuthStore((s) => s.avatar);
+  // 방 배정 — roomId/방번호/배정시점 인원
+  const { data: room } = useApi(() => getChatRoom(symbol), [symbol]);
+  const roomId = room?.roomId ?? null;
+  const roomNo = room?.room ?? 1;
+  const memberCount = room?.count ?? 0;
 
-  // mock 방 메타데이터 (실제로는 방 배정 API가 종목코드_방번호를 내려줌)
-  const roomNo = 1;
-  const [memberCount, setMemberCount] = useState(342);
+  const myAccountId = useAuthStore((s) => s.user?.id);
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     { id: nextId(), kind: 'system', text: `${symbol} 채팅방에 입장했습니다`, ts: Date.now() },
-    { id: nextId(), kind: 'user', nickname: '익절각', avatar: '📈', text: '오늘 분위기 좋네요', ts: Date.now() - 60_000 },
-    { id: nextId(), kind: 'user', nickname: '존버는승리', avatar: '💎', text: '저점 잡으신 분들 축하드립니다', ts: Date.now() - 30_000 },
   ]);
   const [draft, setDraft] = useState('');
 
@@ -75,36 +56,44 @@ export default function ChatRoomClient({ symbol }: { symbol: string }) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
-  // mock: 주기적으로 다른 유저 메시지 수신 + 인원수 가볍게 출렁임
-  useEffect(() => {
-    const msgTimer = setInterval(() => {
-      const u = FAKE_USERS[Math.floor(Math.random() * FAKE_USERS.length)];
-      const line = FAKE_LINES[Math.floor(Math.random() * FAKE_LINES.length)];
+  // 서버 봉투 수신 → 동봉된 표시정보(ChatWireMessage) 복원 → UI 메시지로 매핑
+  const onBroadcast = useCallback(
+    (b: ChatBroadcast) => {
+      let inner: ChatWireMessage | null = null;
+      try {
+        inner = JSON.parse(b.message) as ChatWireMessage;
+      } catch {
+        return; // 프로토콜 외 프레임 무시
+      }
+      if (!inner || typeof inner.text !== 'string') return;
       setMessages((prev) => [
         ...prev.slice(-200),
-        { id: nextId(), kind: 'user', nickname: u.nickname, avatar: u.avatar, text: line, ts: Date.now() },
+        {
+          id: nextId(),
+          kind: 'user',
+          nickname: inner.nick,
+          avatar: inner.avatar,
+          text: inner.text,
+          ts: b.ts,
+          mine: !!myAccountId && b.accountId === myAccountId,
+        },
       ]);
-    }, 4000);
-    const countTimer = setInterval(() => {
-      setMemberCount((c) => Math.max(1, c + Math.floor(Math.random() * 7) - 3));
-    }, 5000);
-    return () => {
-      clearInterval(msgTimer);
-      clearInterval(countTimer);
-    };
-  }, []);
+    },
+    [myAccountId],
+  );
+
+  const { send: sendSocket, status } = useChatSocket(roomId, onBroadcast);
 
   const send = () => {
     const text = draft.trim();
     if (!text) return;
-    setMessages((prev) => [
-      ...prev,
-      { id: nextId(), kind: 'user', nickname: username, avatar, text, ts: Date.now(), mine: true },
-    ]);
-    setDraft('');
+    // 송신만 — 본인 메시지는 팬아웃으로 되돌아와 렌더된다(중복 방지).
+    if (sendSocket(text)) setDraft('');
   };
 
   const grouped = useMemo(() => messages, [messages]);
+
+  const connected = status === 'open';
 
   return (
     <div className="flex flex-col h-[calc(100dvh-60px)] lg:h-[100dvh]">
@@ -130,7 +119,10 @@ export default function ChatRoomClient({ symbol }: { symbol: string }) {
           <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>{symbol}</p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0" style={{ color: 'var(--text-secondary)' }}>
-          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--gain)' }} />
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${connected ? 'animate-pulse' : ''}`}
+            style={{ background: connected ? 'var(--gain)' : 'var(--text-muted)' }}
+          />
           <Users size={14} />
           <span className="text-sm font-mono" style={{ fontFamily: 'JetBrains Mono' }}>{memberCount}</span>
         </div>
@@ -201,19 +193,19 @@ export default function ChatRoomClient({ symbol }: { symbol: string }) {
               send();
             }
           }}
-          placeholder="메시지를 입력하세요"
+          placeholder={connected ? '메시지를 입력하세요' : '연결 중…'}
           maxLength={300}
           className="input-dark flex-1"
           aria-label="채팅 메시지 입력"
         />
         <button
           onClick={send}
-          disabled={!draft.trim()}
+          disabled={!draft.trim() || !connected}
           aria-label="전송"
           className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-all"
           style={{
-            background: draft.trim() ? 'var(--amber)' : 'var(--bg-card)',
-            color: draft.trim() ? '#000' : 'var(--text-muted)',
+            background: draft.trim() && connected ? 'var(--amber)' : 'var(--bg-card)',
+            color: draft.trim() && connected ? '#000' : 'var(--text-muted)',
             border: '1px solid var(--border-subtle)',
           }}
         >

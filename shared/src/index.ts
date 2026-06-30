@@ -12,4 +12,5 @@ export * from './account';
 export * from './social';
 export * from './user';
 export * from './ws';
+export * from './chat';
 export * from './notification';
