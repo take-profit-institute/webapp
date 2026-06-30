@@ -22,13 +22,14 @@ jobs:
             webapp: ['webapp/**', 'shared/**']
             admin:  ['admin/**', 'shared/**']
 
+  # 배포 타깃(EKS t3.large)·백엔드 CI 모두 amd64 → amd64 단일 아치만 빌드.
+  # (멀티아치 QEMU 에뮬레이션은 빌드가 느리고 Docker Hub 풀이 2배라 레지스트리 타임아웃을 유발했음)
   push-bff:
     needs: changes
     if: needs.changes.outputs.bff == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -39,10 +40,12 @@ jobs:
           context: .
           file: bff/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
             yyubin/candle-bff:dev
             yyubin/candle-bff:${{ github.sha }}
+          cache-from: type=gha,scope=bff
+          cache-to: type=gha,mode=max,scope=bff
 
   push-webapp:
     needs: changes
@@ -50,7 +53,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -61,10 +63,12 @@ jobs:
           context: .
           file: webapp/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
             yyubin/candle-webapp:dev
             yyubin/candle-webapp:${{ github.sha }}
+          cache-from: type=gha,scope=webapp
+          cache-to: type=gha,mode=max,scope=webapp
 
   push-admin:
     needs: changes
@@ -72,7 +76,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -83,7 +86,9 @@ jobs:
           context: .
           file: admin/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
             yyubin/candle-admin:dev
             yyubin/candle-admin:${{ github.sha }}
+          cache-from: type=gha,scope=admin
+          cache-to: type=gha,mode=max,scope=admin
