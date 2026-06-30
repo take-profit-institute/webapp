@@ -18,8 +18,15 @@ import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
 //    (provider 콘솔에 이 딥링크/앱링크 등록도 필요)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** 딥링크 콜백 URI. provider 콘솔 등록값과 일치해야 한다. appId(com.candle.app) 기반 커스텀 스킴. */
-export const NATIVE_OAUTH_REDIRECT_URI =
+/**
+ * provider redirect가 닿는 https 브릿지 URL. provider 콘솔 + auth-service allowlist와 동일해야 한다.
+ * (Kakao/Naver/Google-web 모두 redirect_uri에 https만 허용 → 커스텀 스킴 직접 등록 불가라 브릿지를 둔다)
+ */
+export const OAUTH_BRIDGE_REDIRECT_URI =
+  process.env.NEXT_PUBLIC_OAUTH_REDIRECT_BRIDGE_URL ?? 'https://webapp-webapp.vercel.app/auth/callback';
+
+/** 브릿지 페이지가 앱으로 바운스하는 커스텀 스킴(AndroidManifest/Info.plist 등록값). 앱이 받는 딥링크. */
+export const OAUTH_APP_DEEP_LINK =
   process.env.NEXT_PUBLIC_OAUTH_NATIVE_REDIRECT_URI ?? 'com.candle.app://auth/callback';
 
 export function isNativePlatform(): boolean {
@@ -33,16 +40,16 @@ export interface NativeOAuthResult {
   error: string | null;
 }
 
-/** 콜백 스킴 매칭용 prefix(쿼리 제외). */
-const CALLBACK_PREFIX = NATIVE_OAUTH_REDIRECT_URI.split('?')[0];
+/** 딥링크 매칭용 prefix(쿼리 제외). */
+const DEEP_LINK_PREFIX = OAUTH_APP_DEEP_LINK.split('?')[0];
 
 /**
- * 시스템 브라우저로 OAuth 동의를 열고, 딥링크 콜백에서 {code,state}를 받아 반환한다.
- * authorizationUrl의 redirect_uri는 네이티브 딥링크로 강제 교체한다(백엔드 기본값은 웹용).
+ * 시스템 브라우저로 OAuth 동의를 열고, 브릿지→딥링크 복귀에서 {code,state}를 받아 반환한다.
+ * 인가 redirect_uri는 브릿지(https)로 강제 교체하고(백엔드 기본값은 웹 콜백), 앱은 커스텀 스킴으로 받는다.
  */
 export async function runNativeOAuth(authorizationUrl: string): Promise<NativeOAuthResult> {
   const url = new URL(authorizationUrl);
-  url.searchParams.set('redirect_uri', NATIVE_OAUTH_REDIRECT_URI);
+  url.searchParams.set('redirect_uri', OAUTH_BRIDGE_REDIRECT_URI);
 
   return new Promise<NativeOAuthResult>((resolve, reject) => {
     let settled = false;
@@ -58,7 +65,7 @@ export async function runNativeOAuth(authorizationUrl: string): Promise<NativeOA
     Promise.all([
       // 딥링크 복귀 — 우리 콜백 스킴만 처리
       App.addListener('appUrlOpen', (event) => {
-        if (settled || !event.url.startsWith(CALLBACK_PREFIX)) return;
+        if (settled || !event.url.startsWith(DEEP_LINK_PREFIX)) return;
         cleanup();
         void Browser.close().catch(() => {});
         const cb = new URL(event.url);

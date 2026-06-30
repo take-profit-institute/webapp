@@ -5,7 +5,7 @@ import { getProviders, oauthLogin, useApi } from '@/apis';
 import { oauthExchange } from '@/apis/auth';
 import { useAuthStore } from '@/store/useStore';
 import { createOAuthState, consumeOAuthState } from '@/lib/oauth-state';
-import { isNativePlatform, runNativeOAuth, NATIVE_OAUTH_REDIRECT_URI } from '@/lib/native-oauth';
+import { isNativePlatform, runNativeOAuth, OAUTH_BRIDGE_REDIRECT_URI } from '@/lib/native-oauth';
 import type { OAuthProvider, ProviderInfo } from '@/lib/api-types';
 
 /** Fallback if the providers fetch fails (offline BFF) — keeps the buttons usable. */
@@ -67,7 +67,8 @@ export default function OAuthButtons({ scenario = 'existing', redirectTo = '/das
             setLoading(null);
             return;
           }
-          const result = await oauthExchange(provider, code, returnedState ?? undefined, NATIVE_OAUTH_REDIRECT_URI);
+          // 교환 redirect_uri = 인가 때 쓴 브릿지 URL과 동일해야 함(OAuth 일치 요건)
+          const result = await oauthExchange(provider, code, returnedState ?? undefined, OAUTH_BRIDGE_REDIRECT_URI);
           setSession(result);
           router.push(result.isNewUser ? '/signup' : redirectTo);
         } catch (e) {
