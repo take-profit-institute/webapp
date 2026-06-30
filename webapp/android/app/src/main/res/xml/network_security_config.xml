@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  개발 전용 cleartext(HTTP) 허용. Capacitor 앱은 운영에서 https/wss로만 통신하므로
+  아래 dev 호스트(에뮬레이터→호스트 루프백 10.0.2.2, localhost)에만 평문을 허용한다.
+  그 외 도메인은 시스템 기본값(Android 9+에서 cleartext 차단)을 그대로 따른다.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- 에뮬레이터에서 호스트 머신(게이트웨이 8000 / chatting-service 8090) -->
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <!-- 실기기 USB 디버깅 시 호스트 LAN IP를 쓰면 여기에 추가 -->
+    </domain-config>
+</network-security-config>

@@ -5,6 +5,9 @@ const config: CapacitorConfig = {
   appName: 'Candle',
   // Next.js static export output — produced by `next build` with output: 'export'.
   webDir: 'out',
+  server: {
+    androidScheme: 'http',
+  },
 };
 
 export default config;
