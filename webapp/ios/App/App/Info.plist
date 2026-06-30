@@ -47,5 +47,17 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<!-- OAuth 딥링크 콜백 스킴: com.candle.app://auth/callback -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.candle.app.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.candle.app</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

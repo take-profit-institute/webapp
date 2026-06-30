@@ -73,11 +73,15 @@ export async function oauthExchange(
   provider: OAuthProvider,
   authorizationCode: string,
   state?: string,
+  redirectUri?: string,
 ): Promise<OAuthLoginResult> {
   // state는 CSRF 검증용으로 프론트가 생성한 값. naver는 토큰 교환에도 이 state가 필요하다.
+  // redirectUri: 네이티브는 딥링크 redirect_uri를 인가 단계에서 썼으므로 교환에도 같은 값을
+  //   넘겨야 한다(OAuth는 두 단계의 redirect_uri 일치 요구). auth-service가 이를 사용하도록
+  //   바뀌기 전까지는 무시되며, 웹은 undefined.
   const raw = await authApiClient.post<AuthServiceLoginResponse | OAuthLoginResult>(
     `/api/auth/oauth/${provider}`,
-    { authorizationCode, state },
+    { authorizationCode, state, redirectUri },
   );
 
   // BFF mock은 이미 OAuthLoginResult 형태 (tokens 필드 존재)

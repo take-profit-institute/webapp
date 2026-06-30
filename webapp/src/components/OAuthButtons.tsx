@@ -2,8 +2,10 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { getProviders, oauthLogin, useApi } from '@/apis';
+import { oauthExchange } from '@/apis/auth';
 import { useAuthStore } from '@/store/useStore';
-import { createOAuthState } from '@/lib/oauth-state';
+import { createOAuthState, consumeOAuthState } from '@/lib/oauth-state';
+import { isNativePlatform, runNativeOAuth, NATIVE_OAUTH_REDIRECT_URI } from '@/lib/native-oauth';
 import type { OAuthProvider, ProviderInfo } from '@/lib/api-types';
 
 /** Fallback if the providers fetch fails (offline BFF) — keeps the buttons usable. */
@@ -43,6 +45,39 @@ export default function OAuthButtons({ scenario = 'existing', redirectTo = '/das
       const state = createOAuthState(provider);
       const url = new URL(providerInfo.authorizationUrl);
       url.searchParams.set('state', state);
+
+      // 네이티브: 시스템 브라우저로 동의 → 딥링크 콜백 → 같은 WebView에서 코드 교환.
+      // (웹과 달리 페이지 이동이 없으므로 콜백 라우트를 거치지 않고 여기서 처리)
+      if (isNativePlatform()) {
+        setLoading(provider);
+        setError(null);
+        try {
+          const { code, state: returnedState, error: cbError } = await runNativeOAuth(url.toString());
+          if (cbError === 'cancelled') {
+            setLoading(null);
+            return;
+          }
+          if (cbError || !code) {
+            setError('로그인이 취소되었거나 실패했습니다');
+            setLoading(null);
+            return;
+          }
+          if (!consumeOAuthState(provider, returnedState)) {
+            setError('보안 검증에 실패했습니다. 다시 시도해주세요');
+            setLoading(null);
+            return;
+          }
+          const result = await oauthExchange(provider, code, returnedState ?? undefined, NATIVE_OAUTH_REDIRECT_URI);
+          setSession(result);
+          router.push(result.isNewUser ? '/signup' : redirectTo);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : '로그인에 실패했습니다');
+          setLoading(null);
+        }
+        return;
+      }
+
+      // 웹: 브라우저를 provider 동의 화면으로 이동 → /auth/{provider}/callback에서 교환
       window.location.assign(url.toString());
       return;
     }
