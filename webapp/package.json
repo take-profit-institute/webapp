@@ -5,6 +5,8 @@
   "scripts": {
     "predev": "tsc -p ../shared/tsconfig.json",
     "dev": "next dev",
+    "dev:web": "cp env/web.env .env.local && npm run dev",
+    "dev:android": "cp env/android.env .env.local && npm run dev",
     "prebuild": "tsc -p ../shared/tsconfig.json",
     "build": "next build",
     "start": "next start",

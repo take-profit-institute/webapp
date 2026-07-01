@@ -16,6 +16,8 @@
     "dev:shared": "npm run dev -w @candle/shared",
     "dev:bff": "npm run dev -w @candle/bff",
     "dev:webapp": "npm run dev -w @candle/webapp",
+    "dev:webapp:web": "npm run dev:web -w @candle/webapp",
+    "dev:webapp:android": "npm run dev:android -w @candle/webapp",
     "dev:admin": "npm run dev -w @candle/admin",
     "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
