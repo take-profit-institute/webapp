@@ -22,8 +22,7 @@ jobs:
             webapp: ['webapp/**', 'shared/**']
             admin:  ['admin/**', 'shared/**']
 
-  # 배포 타깃(EKS t3.large)·백엔드 CI 모두 amd64 → amd64 단일 아치만 빌드.
-  # (멀티아치 QEMU 에뮬레이션은 빌드가 느리고 Docker Hub 풀이 2배라 레지스트리 타임아웃을 유발했음)
+  # dev 태그는 로컬/CI/배포 환경에서 함께 쓰므로 amd64 + arm64 manifest를 같이 푸시한다.
   push-bff:
     needs: changes
     if: needs.changes.outputs.bff == 'true'
@@ -40,7 +39,7 @@ jobs:
           context: .
           file: bff/Dockerfile
           push: true
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           tags: |
             yyubin/candle-bff:dev
             yyubin/candle-bff:${{ github.sha }}
@@ -63,7 +62,7 @@ jobs:
           context: .
           file: webapp/Dockerfile
           push: true
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           tags: |
             yyubin/candle-webapp:dev
             yyubin/candle-webapp:${{ github.sha }}
@@ -86,7 +85,7 @@ jobs:
           context: .
           file: admin/Dockerfile
           push: true
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           tags: |
             yyubin/candle-admin:dev
             yyubin/candle-admin:${{ github.sha }}
