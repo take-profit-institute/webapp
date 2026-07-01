@@ -36,7 +36,7 @@ export const env = {
     const pattern = wildcardOriginToRegExp(origin);
     return pattern ? [pattern] : [];
   }),
-  dataSource: str('DATA_SOURCE', 'mock') as DataSource,
+  dataSource: str('DATA_SOURCE', 'grpc') as DataSource,
   redisUrl: process.env['REDIS_URL'] || '',
   kis: {
     baseUrl: str('KIS_BASE_URL', 'https://openapi.koreainvestment.com:9443'),
@@ -44,16 +44,16 @@ export const env = {
     appSecret: str('KIS_APP_SECRET', ''),
   },
   grpc: {
-    authAddr:         str('GRPC_AUTH_ADDR',         'localhost:50051'),
-    userAddr:         str('GRPC_USER_ADDR',          'localhost:50052'),
-    marketAddr:       str('GRPC_MARKET_ADDR',        'localhost:50053'),
-    accountAddr:      str('GRPC_ACCOUNT_ADDR',       'localhost:50054'),
-    portfolioAddr:    str('GRPC_PORTFOLIO_ADDR',     'localhost:50055'),
-    rankingAddr:      str('GRPC_RANKING_ADDR',       'localhost:50056'),
-    notificationAddr: str('GRPC_NOTIFICATION_ADDR',  'localhost:50057'),
-    missionAddr:      str('GRPC_MISSION_ADDR',       'localhost:50058'),
-    learnAddr:        str('GRPC_LEARN_ADDR',         'localhost:50059'),
-    stockAddr:        str('GRPC_STOCK_ADDR',         'localhost:50055'),
-    deadlineMs:       Number(str('GRPC_DEADLINE_MS', '5000')),
+    authAddr: str('GRPC_AUTH_ADDR', 'localhost:50051'),
+    userAddr: str('GRPC_USER_ADDR', 'localhost:50052'),
+    marketAddr: str('GRPC_MARKET_ADDR', 'localhost:50053'),
+    accountAddr: str('GRPC_ACCOUNT_ADDR', 'localhost:50054'),
+    portfolioAddr: str('GRPC_PORTFOLIO_ADDR', 'localhost:50055'),
+    rankingAddr: str('GRPC_RANKING_ADDR', 'localhost:50056'),
+    notificationAddr: str('GRPC_NOTIFICATION_ADDR', 'localhost:50057'),
+    missionAddr: str('GRPC_MISSION_ADDR', 'localhost:50058'),
+    learnAddr: str('GRPC_LEARN_ADDR', 'localhost:50059'),
+    stockAddr: str('GRPC_STOCK_ADDR', 'localhost:50060'),
+    deadlineMs: Number(str('GRPC_DEADLINE_MS', '5000')),
   },
 } as const;
