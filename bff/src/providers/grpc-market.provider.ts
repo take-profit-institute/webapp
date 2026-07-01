@@ -10,6 +10,7 @@ import type { MarketProvider, StockListFilter } from './market.provider';
 import type { MarketServiceClient } from '../grpc/clients/market.client';
 import { ClientError } from 'nice-grpc';
 import { GrpcStatus } from '../grpc/types';
+import { grpcGetCandles } from '../grpc/stock-chart.grpc-client';
 
 export class GrpcMarketProvider implements MarketProvider {
   constructor(private readonly client: MarketServiceClient) {}
@@ -28,7 +29,7 @@ export class GrpcMarketProvider implements MarketProvider {
   }
 
   getCandles(symbol: string, interval: '1d' | '1w' | '1M', limit: number): Promise<Candle[]> {
-    return this.client.getCandles({ symbol, interval, limit });
+    return grpcGetCandles(symbol, interval, limit);
   }
 
   getNews(symbol: string): Promise<NewsItem[]> {

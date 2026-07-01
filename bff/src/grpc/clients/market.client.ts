@@ -1,6 +1,7 @@
 /**
  * MarketService gRPC client stub.
- * Owns: stock quotes, candles, news, movers, sparklines.
+ * Owns: stock quotes, news, movers, sparklines.
+ * Candles are served by stock-service ChartService through stock-chart.grpc-client.
  * NOT_FOUND from getStock → BFF converts to undefined (see GrpcMarketProvider).
  */
 import type { Candle, MarketMovers, NewsItem, Quote, StockDetail } from '@candle/shared';
