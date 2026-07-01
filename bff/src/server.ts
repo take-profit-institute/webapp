@@ -1,5 +1,4 @@
 import dns from 'dns';
-// Docker Desktop에서 host.docker.internal이 IPv6로 resolve되어 gRPC 연결 실패하는 것 방지
 dns.setDefaultResultOrder('ipv4first');
 
 import { buildApp } from './app';
