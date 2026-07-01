@@ -7,46 +7,316 @@
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 import type { CallContext, CallOptions } from "nice-grpc-common";
-import { CommandMetadata } from "../../common/v1/common";
+import { Timestamp } from "../../../google/protobuf/timestamp";
+import { CommandMetadata, PageRequest, PageResponse } from "../../common/v1/common";
 
 export const protobufPackage = "candle.notification.v1";
 
-export interface RegisterPushTokenRequest {
+export enum NotificationType {
+  NOTIFICATION_TYPE_UNSPECIFIED = 0,
+  NOTIFICATION_TYPE_PRICE_RISE = 1,
+  NOTIFICATION_TYPE_PRICE_FALL = 2,
+  NOTIFICATION_TYPE_BUY_FILLED = 3,
+  NOTIFICATION_TYPE_SELL_FILLED = 4,
+  NOTIFICATION_TYPE_MARKET_OPEN = 5,
+  NOTIFICATION_TYPE_MARKET_CLOSE = 6,
+  UNRECOGNIZED = -1,
+}
+
+export function notificationTypeFromJSON(object: any): NotificationType {
+  switch (object) {
+    case 0:
+    case "NOTIFICATION_TYPE_UNSPECIFIED":
+      return NotificationType.NOTIFICATION_TYPE_UNSPECIFIED;
+    case 1:
+    case "NOTIFICATION_TYPE_PRICE_RISE":
+      return NotificationType.NOTIFICATION_TYPE_PRICE_RISE;
+    case 2:
+    case "NOTIFICATION_TYPE_PRICE_FALL":
+      return NotificationType.NOTIFICATION_TYPE_PRICE_FALL;
+    case 3:
+    case "NOTIFICATION_TYPE_BUY_FILLED":
+      return NotificationType.NOTIFICATION_TYPE_BUY_FILLED;
+    case 4:
+    case "NOTIFICATION_TYPE_SELL_FILLED":
+      return NotificationType.NOTIFICATION_TYPE_SELL_FILLED;
+    case 5:
+    case "NOTIFICATION_TYPE_MARKET_OPEN":
+      return NotificationType.NOTIFICATION_TYPE_MARKET_OPEN;
+    case 6:
+    case "NOTIFICATION_TYPE_MARKET_CLOSE":
+      return NotificationType.NOTIFICATION_TYPE_MARKET_CLOSE;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return NotificationType.UNRECOGNIZED;
+  }
+}
+
+export function notificationTypeToJSON(object: NotificationType): string {
+  switch (object) {
+    case NotificationType.NOTIFICATION_TYPE_UNSPECIFIED:
+      return "NOTIFICATION_TYPE_UNSPECIFIED";
+    case NotificationType.NOTIFICATION_TYPE_PRICE_RISE:
+      return "NOTIFICATION_TYPE_PRICE_RISE";
+    case NotificationType.NOTIFICATION_TYPE_PRICE_FALL:
+      return "NOTIFICATION_TYPE_PRICE_FALL";
+    case NotificationType.NOTIFICATION_TYPE_BUY_FILLED:
+      return "NOTIFICATION_TYPE_BUY_FILLED";
+    case NotificationType.NOTIFICATION_TYPE_SELL_FILLED:
+      return "NOTIFICATION_TYPE_SELL_FILLED";
+    case NotificationType.NOTIFICATION_TYPE_MARKET_OPEN:
+      return "NOTIFICATION_TYPE_MARKET_OPEN";
+    case NotificationType.NOTIFICATION_TYPE_MARKET_CLOSE:
+      return "NOTIFICATION_TYPE_MARKET_CLOSE";
+    case NotificationType.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
+export enum NotificationStatus {
+  NOTIFICATION_STATUS_UNSPECIFIED = 0,
+  NOTIFICATION_STATUS_UNREAD = 1,
+  NOTIFICATION_STATUS_READ = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function notificationStatusFromJSON(object: any): NotificationStatus {
+  switch (object) {
+    case 0:
+    case "NOTIFICATION_STATUS_UNSPECIFIED":
+      return NotificationStatus.NOTIFICATION_STATUS_UNSPECIFIED;
+    case 1:
+    case "NOTIFICATION_STATUS_UNREAD":
+      return NotificationStatus.NOTIFICATION_STATUS_UNREAD;
+    case 2:
+    case "NOTIFICATION_STATUS_READ":
+      return NotificationStatus.NOTIFICATION_STATUS_READ;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return NotificationStatus.UNRECOGNIZED;
+  }
+}
+
+export function notificationStatusToJSON(object: NotificationStatus): string {
+  switch (object) {
+    case NotificationStatus.NOTIFICATION_STATUS_UNSPECIFIED:
+      return "NOTIFICATION_STATUS_UNSPECIFIED";
+    case NotificationStatus.NOTIFICATION_STATUS_UNREAD:
+      return "NOTIFICATION_STATUS_UNREAD";
+    case NotificationStatus.NOTIFICATION_STATUS_READ:
+      return "NOTIFICATION_STATUS_READ";
+    case NotificationStatus.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
+export enum DevicePlatform {
+  DEVICE_PLATFORM_UNSPECIFIED = 0,
+  DEVICE_PLATFORM_WEB = 1,
+  DEVICE_PLATFORM_ANDROID = 2,
+  DEVICE_PLATFORM_IOS = 3,
+  UNRECOGNIZED = -1,
+}
+
+export function devicePlatformFromJSON(object: any): DevicePlatform {
+  switch (object) {
+    case 0:
+    case "DEVICE_PLATFORM_UNSPECIFIED":
+      return DevicePlatform.DEVICE_PLATFORM_UNSPECIFIED;
+    case 1:
+    case "DEVICE_PLATFORM_WEB":
+      return DevicePlatform.DEVICE_PLATFORM_WEB;
+    case 2:
+    case "DEVICE_PLATFORM_ANDROID":
+      return DevicePlatform.DEVICE_PLATFORM_ANDROID;
+    case 3:
+    case "DEVICE_PLATFORM_IOS":
+      return DevicePlatform.DEVICE_PLATFORM_IOS;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return DevicePlatform.UNRECOGNIZED;
+  }
+}
+
+export function devicePlatformToJSON(object: DevicePlatform): string {
+  switch (object) {
+    case DevicePlatform.DEVICE_PLATFORM_UNSPECIFIED:
+      return "DEVICE_PLATFORM_UNSPECIFIED";
+    case DevicePlatform.DEVICE_PLATFORM_WEB:
+      return "DEVICE_PLATFORM_WEB";
+    case DevicePlatform.DEVICE_PLATFORM_ANDROID:
+      return "DEVICE_PLATFORM_ANDROID";
+    case DevicePlatform.DEVICE_PLATFORM_IOS:
+      return "DEVICE_PLATFORM_IOS";
+    case DevicePlatform.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
+export enum DeliveryStatus {
+  DELIVERY_STATUS_UNSPECIFIED = 0,
+  DELIVERY_STATUS_PENDING = 1,
+  DELIVERY_STATUS_SENT = 2,
+  DELIVERY_STATUS_FAILED = 3,
+  UNRECOGNIZED = -1,
+}
+
+export function deliveryStatusFromJSON(object: any): DeliveryStatus {
+  switch (object) {
+    case 0:
+    case "DELIVERY_STATUS_UNSPECIFIED":
+      return DeliveryStatus.DELIVERY_STATUS_UNSPECIFIED;
+    case 1:
+    case "DELIVERY_STATUS_PENDING":
+      return DeliveryStatus.DELIVERY_STATUS_PENDING;
+    case 2:
+    case "DELIVERY_STATUS_SENT":
+      return DeliveryStatus.DELIVERY_STATUS_SENT;
+    case 3:
+    case "DELIVERY_STATUS_FAILED":
+      return DeliveryStatus.DELIVERY_STATUS_FAILED;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return DeliveryStatus.UNRECOGNIZED;
+  }
+}
+
+export function deliveryStatusToJSON(object: DeliveryStatus): string {
+  switch (object) {
+    case DeliveryStatus.DELIVERY_STATUS_UNSPECIFIED:
+      return "DELIVERY_STATUS_UNSPECIFIED";
+    case DeliveryStatus.DELIVERY_STATUS_PENDING:
+      return "DELIVERY_STATUS_PENDING";
+    case DeliveryStatus.DELIVERY_STATUS_SENT:
+      return "DELIVERY_STATUS_SENT";
+    case DeliveryStatus.DELIVERY_STATUS_FAILED:
+      return "DELIVERY_STATUS_FAILED";
+    case DeliveryStatus.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
+export interface RegisterDeviceTokenRequest {
   userId: string;
-  token: string;
-  platform: string;
+  fcmToken: string;
+  platform: DevicePlatform;
+  deviceId: string;
   commandMetadata?: CommandMetadata | undefined;
 }
 
-export interface RegisterPushTokenResponse {
-  tokenId: string;
+export interface RegisterDeviceTokenResponse {
+  deviceTokenId: string;
 }
 
-function createBaseRegisterPushTokenRequest(): RegisterPushTokenRequest {
-  return { userId: "", token: "", platform: "", commandMetadata: undefined };
+export interface CreateNotificationRequest {
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  metaJson: string;
+  commandMetadata?: CommandMetadata | undefined;
 }
 
-export const RegisterPushTokenRequest: MessageFns<RegisterPushTokenRequest> = {
-  encode(message: RegisterPushTokenRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export interface CreateNotificationResponse {
+  notification?: Notification | undefined;
+}
+
+export interface ListNotificationsRequest {
+  userId: string;
+  pageRequest?: PageRequest | undefined;
+}
+
+export interface ListNotificationsResponse {
+  notifications: Notification[];
+  pageResponse?: PageResponse | undefined;
+}
+
+export interface MarkAsReadRequest {
+  userId: string;
+  notificationId: string;
+  commandMetadata?: CommandMetadata | undefined;
+}
+
+export interface MarkAsReadResponse {
+  notification?: Notification | undefined;
+}
+
+export interface CountUnreadRequest {
+  userId: string;
+}
+
+export interface CountUnreadResponse {
+  unreadCount: string;
+}
+
+export interface GetDeliveryStatusRequest {
+  notificationId: string;
+}
+
+export interface GetDeliveryStatusResponse {
+  deliveries: NotificationDelivery[];
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  status: NotificationStatus;
+  metaJson: string;
+  triggeredAt?: Date | undefined;
+  readAt?: Date | undefined;
+  createdAt?: Date | undefined;
+}
+
+export interface NotificationDelivery {
+  id: string;
+  notificationId: string;
+  deviceTokenId: string;
+  status: DeliveryStatus;
+  fcmMessageId: string;
+  errorMessage: string;
+  sentAt?: Date | undefined;
+  createdAt?: Date | undefined;
+}
+
+function createBaseRegisterDeviceTokenRequest(): RegisterDeviceTokenRequest {
+  return { userId: "", fcmToken: "", platform: 0, deviceId: "", commandMetadata: undefined };
+}
+
+export const RegisterDeviceTokenRequest: MessageFns<RegisterDeviceTokenRequest> = {
+  encode(message: RegisterDeviceTokenRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.userId !== "") {
       writer.uint32(10).string(message.userId);
     }
-    if (message.token !== "") {
-      writer.uint32(18).string(message.token);
+    if (message.fcmToken !== "") {
+      writer.uint32(18).string(message.fcmToken);
     }
-    if (message.platform !== "") {
-      writer.uint32(26).string(message.platform);
+    if (message.platform !== 0) {
+      writer.uint32(24).int32(message.platform);
+    }
+    if (message.deviceId !== "") {
+      writer.uint32(34).string(message.deviceId);
     }
     if (message.commandMetadata !== undefined) {
-      CommandMetadata.encode(message.commandMetadata, writer.uint32(34).fork()).join();
+      CommandMetadata.encode(message.commandMetadata, writer.uint32(42).fork()).join();
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): RegisterPushTokenRequest {
+  decode(input: BinaryReader | Uint8Array, length?: number): RegisterDeviceTokenRequest {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseRegisterPushTokenRequest();
+    const message = createBaseRegisterDeviceTokenRequest();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -63,19 +333,27 @@ export const RegisterPushTokenRequest: MessageFns<RegisterPushTokenRequest> = {
             break;
           }
 
-          message.token = reader.string();
+          message.fcmToken = reader.string();
           continue;
         }
         case 3: {
-          if (tag !== 26) {
+          if (tag !== 24) {
             break;
           }
 
-          message.platform = reader.string();
+          message.platform = reader.int32() as any;
           continue;
         }
         case 4: {
           if (tag !== 34) {
+            break;
+          }
+
+          message.deviceId = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
             break;
           }
 
@@ -91,15 +369,24 @@ export const RegisterPushTokenRequest: MessageFns<RegisterPushTokenRequest> = {
     return message;
   },
 
-  fromJSON(object: any): RegisterPushTokenRequest {
+  fromJSON(object: any): RegisterDeviceTokenRequest {
     return {
       userId: isSet(object.userId)
         ? globalThis.String(object.userId)
         : isSet(object.user_id)
         ? globalThis.String(object.user_id)
         : "",
-      token: isSet(object.token) ? globalThis.String(object.token) : "",
-      platform: isSet(object.platform) ? globalThis.String(object.platform) : "",
+      fcmToken: isSet(object.fcmToken)
+        ? globalThis.String(object.fcmToken)
+        : isSet(object.fcm_token)
+        ? globalThis.String(object.fcm_token)
+        : "",
+      platform: isSet(object.platform) ? devicePlatformFromJSON(object.platform) : 0,
+      deviceId: isSet(object.deviceId)
+        ? globalThis.String(object.deviceId)
+        : isSet(object.device_id)
+        ? globalThis.String(object.device_id)
+        : "",
       commandMetadata: isSet(object.commandMetadata)
         ? CommandMetadata.fromJSON(object.commandMetadata)
         : isSet(object.command_metadata)
@@ -108,16 +395,19 @@ export const RegisterPushTokenRequest: MessageFns<RegisterPushTokenRequest> = {
     };
   },
 
-  toJSON(message: RegisterPushTokenRequest): unknown {
+  toJSON(message: RegisterDeviceTokenRequest): unknown {
     const obj: any = {};
     if (message.userId !== "") {
       obj.userId = message.userId;
     }
-    if (message.token !== "") {
-      obj.token = message.token;
+    if (message.fcmToken !== "") {
+      obj.fcmToken = message.fcmToken;
     }
-    if (message.platform !== "") {
-      obj.platform = message.platform;
+    if (message.platform !== 0) {
+      obj.platform = devicePlatformToJSON(message.platform);
+    }
+    if (message.deviceId !== "") {
+      obj.deviceId = message.deviceId;
     }
     if (message.commandMetadata !== undefined) {
       obj.commandMetadata = CommandMetadata.toJSON(message.commandMetadata);
@@ -125,14 +415,15 @@ export const RegisterPushTokenRequest: MessageFns<RegisterPushTokenRequest> = {
     return obj;
   },
 
-  create(base?: DeepPartial<RegisterPushTokenRequest>): RegisterPushTokenRequest {
-    return RegisterPushTokenRequest.fromPartial(base ?? {});
+  create(base?: DeepPartial<RegisterDeviceTokenRequest>): RegisterDeviceTokenRequest {
+    return RegisterDeviceTokenRequest.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<RegisterPushTokenRequest>): RegisterPushTokenRequest {
-    const message = createBaseRegisterPushTokenRequest();
+  fromPartial(object: DeepPartial<RegisterDeviceTokenRequest>): RegisterDeviceTokenRequest {
+    const message = createBaseRegisterDeviceTokenRequest();
     message.userId = object.userId ?? "";
-    message.token = object.token ?? "";
-    message.platform = object.platform ?? "";
+    message.fcmToken = object.fcmToken ?? "";
+    message.platform = object.platform ?? 0;
+    message.deviceId = object.deviceId ?? "";
     message.commandMetadata = (object.commandMetadata !== undefined && object.commandMetadata !== null)
       ? CommandMetadata.fromPartial(object.commandMetadata)
       : undefined;
@@ -140,22 +431,22 @@ export const RegisterPushTokenRequest: MessageFns<RegisterPushTokenRequest> = {
   },
 };
 
-function createBaseRegisterPushTokenResponse(): RegisterPushTokenResponse {
-  return { tokenId: "" };
+function createBaseRegisterDeviceTokenResponse(): RegisterDeviceTokenResponse {
+  return { deviceTokenId: "" };
 }
 
-export const RegisterPushTokenResponse: MessageFns<RegisterPushTokenResponse> = {
-  encode(message: RegisterPushTokenResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.tokenId !== "") {
-      writer.uint32(10).string(message.tokenId);
+export const RegisterDeviceTokenResponse: MessageFns<RegisterDeviceTokenResponse> = {
+  encode(message: RegisterDeviceTokenResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.deviceTokenId !== "") {
+      writer.uint32(10).string(message.deviceTokenId);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): RegisterPushTokenResponse {
+  decode(input: BinaryReader | Uint8Array, length?: number): RegisterDeviceTokenResponse {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseRegisterPushTokenResponse();
+    const message = createBaseRegisterDeviceTokenResponse();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -164,7 +455,7 @@ export const RegisterPushTokenResponse: MessageFns<RegisterPushTokenResponse> = 
             break;
           }
 
-          message.tokenId = reader.string();
+          message.deviceTokenId = reader.string();
           continue;
         }
       }
@@ -176,30 +467,1274 @@ export const RegisterPushTokenResponse: MessageFns<RegisterPushTokenResponse> = 
     return message;
   },
 
-  fromJSON(object: any): RegisterPushTokenResponse {
+  fromJSON(object: any): RegisterDeviceTokenResponse {
     return {
-      tokenId: isSet(object.tokenId)
-        ? globalThis.String(object.tokenId)
-        : isSet(object.token_id)
-        ? globalThis.String(object.token_id)
+      deviceTokenId: isSet(object.deviceTokenId)
+        ? globalThis.String(object.deviceTokenId)
+        : isSet(object.device_token_id)
+        ? globalThis.String(object.device_token_id)
         : "",
     };
   },
 
-  toJSON(message: RegisterPushTokenResponse): unknown {
+  toJSON(message: RegisterDeviceTokenResponse): unknown {
     const obj: any = {};
-    if (message.tokenId !== "") {
-      obj.tokenId = message.tokenId;
+    if (message.deviceTokenId !== "") {
+      obj.deviceTokenId = message.deviceTokenId;
     }
     return obj;
   },
 
-  create(base?: DeepPartial<RegisterPushTokenResponse>): RegisterPushTokenResponse {
-    return RegisterPushTokenResponse.fromPartial(base ?? {});
+  create(base?: DeepPartial<RegisterDeviceTokenResponse>): RegisterDeviceTokenResponse {
+    return RegisterDeviceTokenResponse.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<RegisterPushTokenResponse>): RegisterPushTokenResponse {
-    const message = createBaseRegisterPushTokenResponse();
-    message.tokenId = object.tokenId ?? "";
+  fromPartial(object: DeepPartial<RegisterDeviceTokenResponse>): RegisterDeviceTokenResponse {
+    const message = createBaseRegisterDeviceTokenResponse();
+    message.deviceTokenId = object.deviceTokenId ?? "";
+    return message;
+  },
+};
+
+function createBaseCreateNotificationRequest(): CreateNotificationRequest {
+  return { userId: "", type: 0, title: "", body: "", metaJson: "", commandMetadata: undefined };
+}
+
+export const CreateNotificationRequest: MessageFns<CreateNotificationRequest> = {
+  encode(message: CreateNotificationRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.type !== 0) {
+      writer.uint32(16).int32(message.type);
+    }
+    if (message.title !== "") {
+      writer.uint32(26).string(message.title);
+    }
+    if (message.body !== "") {
+      writer.uint32(34).string(message.body);
+    }
+    if (message.metaJson !== "") {
+      writer.uint32(42).string(message.metaJson);
+    }
+    if (message.commandMetadata !== undefined) {
+      CommandMetadata.encode(message.commandMetadata, writer.uint32(58).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateNotificationRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateNotificationRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.type = reader.int32() as any;
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.title = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.body = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.metaJson = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.commandMetadata = CommandMetadata.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CreateNotificationRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      type: isSet(object.type) ? notificationTypeFromJSON(object.type) : 0,
+      title: isSet(object.title) ? globalThis.String(object.title) : "",
+      body: isSet(object.body) ? globalThis.String(object.body) : "",
+      metaJson: isSet(object.metaJson)
+        ? globalThis.String(object.metaJson)
+        : isSet(object.meta_json)
+        ? globalThis.String(object.meta_json)
+        : "",
+      commandMetadata: isSet(object.commandMetadata)
+        ? CommandMetadata.fromJSON(object.commandMetadata)
+        : isSet(object.command_metadata)
+        ? CommandMetadata.fromJSON(object.command_metadata)
+        : undefined,
+    };
+  },
+
+  toJSON(message: CreateNotificationRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.type !== 0) {
+      obj.type = notificationTypeToJSON(message.type);
+    }
+    if (message.title !== "") {
+      obj.title = message.title;
+    }
+    if (message.body !== "") {
+      obj.body = message.body;
+    }
+    if (message.metaJson !== "") {
+      obj.metaJson = message.metaJson;
+    }
+    if (message.commandMetadata !== undefined) {
+      obj.commandMetadata = CommandMetadata.toJSON(message.commandMetadata);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<CreateNotificationRequest>): CreateNotificationRequest {
+    return CreateNotificationRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<CreateNotificationRequest>): CreateNotificationRequest {
+    const message = createBaseCreateNotificationRequest();
+    message.userId = object.userId ?? "";
+    message.type = object.type ?? 0;
+    message.title = object.title ?? "";
+    message.body = object.body ?? "";
+    message.metaJson = object.metaJson ?? "";
+    message.commandMetadata = (object.commandMetadata !== undefined && object.commandMetadata !== null)
+      ? CommandMetadata.fromPartial(object.commandMetadata)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseCreateNotificationResponse(): CreateNotificationResponse {
+  return { notification: undefined };
+}
+
+export const CreateNotificationResponse: MessageFns<CreateNotificationResponse> = {
+  encode(message: CreateNotificationResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.notification !== undefined) {
+      Notification.encode(message.notification, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateNotificationResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateNotificationResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.notification = Notification.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CreateNotificationResponse {
+    return { notification: isSet(object.notification) ? Notification.fromJSON(object.notification) : undefined };
+  },
+
+  toJSON(message: CreateNotificationResponse): unknown {
+    const obj: any = {};
+    if (message.notification !== undefined) {
+      obj.notification = Notification.toJSON(message.notification);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<CreateNotificationResponse>): CreateNotificationResponse {
+    return CreateNotificationResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<CreateNotificationResponse>): CreateNotificationResponse {
+    const message = createBaseCreateNotificationResponse();
+    message.notification = (object.notification !== undefined && object.notification !== null)
+      ? Notification.fromPartial(object.notification)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseListNotificationsRequest(): ListNotificationsRequest {
+  return { userId: "", pageRequest: undefined };
+}
+
+export const ListNotificationsRequest: MessageFns<ListNotificationsRequest> = {
+  encode(message: ListNotificationsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.pageRequest !== undefined) {
+      PageRequest.encode(message.pageRequest, writer.uint32(34).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListNotificationsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListNotificationsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.pageRequest = PageRequest.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListNotificationsRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      pageRequest: isSet(object.pageRequest)
+        ? PageRequest.fromJSON(object.pageRequest)
+        : isSet(object.page_request)
+        ? PageRequest.fromJSON(object.page_request)
+        : undefined,
+    };
+  },
+
+  toJSON(message: ListNotificationsRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.pageRequest !== undefined) {
+      obj.pageRequest = PageRequest.toJSON(message.pageRequest);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListNotificationsRequest>): ListNotificationsRequest {
+    return ListNotificationsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListNotificationsRequest>): ListNotificationsRequest {
+    const message = createBaseListNotificationsRequest();
+    message.userId = object.userId ?? "";
+    message.pageRequest = (object.pageRequest !== undefined && object.pageRequest !== null)
+      ? PageRequest.fromPartial(object.pageRequest)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseListNotificationsResponse(): ListNotificationsResponse {
+  return { notifications: [], pageResponse: undefined };
+}
+
+export const ListNotificationsResponse: MessageFns<ListNotificationsResponse> = {
+  encode(message: ListNotificationsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.notifications) {
+      Notification.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.pageResponse !== undefined) {
+      PageResponse.encode(message.pageResponse, writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListNotificationsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListNotificationsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.notifications.push(Notification.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.pageResponse = PageResponse.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListNotificationsResponse {
+    return {
+      notifications: globalThis.Array.isArray(object?.notifications)
+        ? object.notifications.map((e: any) => Notification.fromJSON(e))
+        : [],
+      pageResponse: isSet(object.pageResponse)
+        ? PageResponse.fromJSON(object.pageResponse)
+        : isSet(object.page_response)
+        ? PageResponse.fromJSON(object.page_response)
+        : undefined,
+    };
+  },
+
+  toJSON(message: ListNotificationsResponse): unknown {
+    const obj: any = {};
+    if (message.notifications?.length) {
+      obj.notifications = message.notifications.map((e) => Notification.toJSON(e));
+    }
+    if (message.pageResponse !== undefined) {
+      obj.pageResponse = PageResponse.toJSON(message.pageResponse);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListNotificationsResponse>): ListNotificationsResponse {
+    return ListNotificationsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListNotificationsResponse>): ListNotificationsResponse {
+    const message = createBaseListNotificationsResponse();
+    message.notifications = object.notifications?.map((e) => Notification.fromPartial(e)) || [];
+    message.pageResponse = (object.pageResponse !== undefined && object.pageResponse !== null)
+      ? PageResponse.fromPartial(object.pageResponse)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseMarkAsReadRequest(): MarkAsReadRequest {
+  return { userId: "", notificationId: "", commandMetadata: undefined };
+}
+
+export const MarkAsReadRequest: MessageFns<MarkAsReadRequest> = {
+  encode(message: MarkAsReadRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.notificationId !== "") {
+      writer.uint32(18).string(message.notificationId);
+    }
+    if (message.commandMetadata !== undefined) {
+      CommandMetadata.encode(message.commandMetadata, writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MarkAsReadRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMarkAsReadRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.notificationId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.commandMetadata = CommandMetadata.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MarkAsReadRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      notificationId: isSet(object.notificationId)
+        ? globalThis.String(object.notificationId)
+        : isSet(object.notification_id)
+        ? globalThis.String(object.notification_id)
+        : "",
+      commandMetadata: isSet(object.commandMetadata)
+        ? CommandMetadata.fromJSON(object.commandMetadata)
+        : isSet(object.command_metadata)
+        ? CommandMetadata.fromJSON(object.command_metadata)
+        : undefined,
+    };
+  },
+
+  toJSON(message: MarkAsReadRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.notificationId !== "") {
+      obj.notificationId = message.notificationId;
+    }
+    if (message.commandMetadata !== undefined) {
+      obj.commandMetadata = CommandMetadata.toJSON(message.commandMetadata);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<MarkAsReadRequest>): MarkAsReadRequest {
+    return MarkAsReadRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<MarkAsReadRequest>): MarkAsReadRequest {
+    const message = createBaseMarkAsReadRequest();
+    message.userId = object.userId ?? "";
+    message.notificationId = object.notificationId ?? "";
+    message.commandMetadata = (object.commandMetadata !== undefined && object.commandMetadata !== null)
+      ? CommandMetadata.fromPartial(object.commandMetadata)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseMarkAsReadResponse(): MarkAsReadResponse {
+  return { notification: undefined };
+}
+
+export const MarkAsReadResponse: MessageFns<MarkAsReadResponse> = {
+  encode(message: MarkAsReadResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.notification !== undefined) {
+      Notification.encode(message.notification, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MarkAsReadResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMarkAsReadResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.notification = Notification.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MarkAsReadResponse {
+    return { notification: isSet(object.notification) ? Notification.fromJSON(object.notification) : undefined };
+  },
+
+  toJSON(message: MarkAsReadResponse): unknown {
+    const obj: any = {};
+    if (message.notification !== undefined) {
+      obj.notification = Notification.toJSON(message.notification);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<MarkAsReadResponse>): MarkAsReadResponse {
+    return MarkAsReadResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<MarkAsReadResponse>): MarkAsReadResponse {
+    const message = createBaseMarkAsReadResponse();
+    message.notification = (object.notification !== undefined && object.notification !== null)
+      ? Notification.fromPartial(object.notification)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseCountUnreadRequest(): CountUnreadRequest {
+  return { userId: "" };
+}
+
+export const CountUnreadRequest: MessageFns<CountUnreadRequest> = {
+  encode(message: CountUnreadRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CountUnreadRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCountUnreadRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CountUnreadRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+    };
+  },
+
+  toJSON(message: CountUnreadRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<CountUnreadRequest>): CountUnreadRequest {
+    return CountUnreadRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<CountUnreadRequest>): CountUnreadRequest {
+    const message = createBaseCountUnreadRequest();
+    message.userId = object.userId ?? "";
+    return message;
+  },
+};
+
+function createBaseCountUnreadResponse(): CountUnreadResponse {
+  return { unreadCount: "0" };
+}
+
+export const CountUnreadResponse: MessageFns<CountUnreadResponse> = {
+  encode(message: CountUnreadResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.unreadCount !== "0") {
+      writer.uint32(8).int64(message.unreadCount);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CountUnreadResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCountUnreadResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.unreadCount = reader.int64().toString();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CountUnreadResponse {
+    return {
+      unreadCount: isSet(object.unreadCount)
+        ? globalThis.String(object.unreadCount)
+        : isSet(object.unread_count)
+        ? globalThis.String(object.unread_count)
+        : "0",
+    };
+  },
+
+  toJSON(message: CountUnreadResponse): unknown {
+    const obj: any = {};
+    if (message.unreadCount !== "0") {
+      obj.unreadCount = message.unreadCount;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<CountUnreadResponse>): CountUnreadResponse {
+    return CountUnreadResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<CountUnreadResponse>): CountUnreadResponse {
+    const message = createBaseCountUnreadResponse();
+    message.unreadCount = object.unreadCount ?? "0";
+    return message;
+  },
+};
+
+function createBaseGetDeliveryStatusRequest(): GetDeliveryStatusRequest {
+  return { notificationId: "" };
+}
+
+export const GetDeliveryStatusRequest: MessageFns<GetDeliveryStatusRequest> = {
+  encode(message: GetDeliveryStatusRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.notificationId !== "") {
+      writer.uint32(10).string(message.notificationId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetDeliveryStatusRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetDeliveryStatusRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.notificationId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetDeliveryStatusRequest {
+    return {
+      notificationId: isSet(object.notificationId)
+        ? globalThis.String(object.notificationId)
+        : isSet(object.notification_id)
+        ? globalThis.String(object.notification_id)
+        : "",
+    };
+  },
+
+  toJSON(message: GetDeliveryStatusRequest): unknown {
+    const obj: any = {};
+    if (message.notificationId !== "") {
+      obj.notificationId = message.notificationId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetDeliveryStatusRequest>): GetDeliveryStatusRequest {
+    return GetDeliveryStatusRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetDeliveryStatusRequest>): GetDeliveryStatusRequest {
+    const message = createBaseGetDeliveryStatusRequest();
+    message.notificationId = object.notificationId ?? "";
+    return message;
+  },
+};
+
+function createBaseGetDeliveryStatusResponse(): GetDeliveryStatusResponse {
+  return { deliveries: [] };
+}
+
+export const GetDeliveryStatusResponse: MessageFns<GetDeliveryStatusResponse> = {
+  encode(message: GetDeliveryStatusResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.deliveries) {
+      NotificationDelivery.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetDeliveryStatusResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetDeliveryStatusResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.deliveries.push(NotificationDelivery.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetDeliveryStatusResponse {
+    return {
+      deliveries: globalThis.Array.isArray(object?.deliveries)
+        ? object.deliveries.map((e: any) => NotificationDelivery.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: GetDeliveryStatusResponse): unknown {
+    const obj: any = {};
+    if (message.deliveries?.length) {
+      obj.deliveries = message.deliveries.map((e) => NotificationDelivery.toJSON(e));
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetDeliveryStatusResponse>): GetDeliveryStatusResponse {
+    return GetDeliveryStatusResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetDeliveryStatusResponse>): GetDeliveryStatusResponse {
+    const message = createBaseGetDeliveryStatusResponse();
+    message.deliveries = object.deliveries?.map((e) => NotificationDelivery.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseNotification(): Notification {
+  return {
+    id: "",
+    userId: "",
+    type: 0,
+    title: "",
+    body: "",
+    status: 0,
+    metaJson: "",
+    triggeredAt: undefined,
+    readAt: undefined,
+    createdAt: undefined,
+  };
+}
+
+export const Notification: MessageFns<Notification> = {
+  encode(message: Notification, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.userId !== "") {
+      writer.uint32(18).string(message.userId);
+    }
+    if (message.type !== 0) {
+      writer.uint32(24).int32(message.type);
+    }
+    if (message.title !== "") {
+      writer.uint32(34).string(message.title);
+    }
+    if (message.body !== "") {
+      writer.uint32(42).string(message.body);
+    }
+    if (message.status !== 0) {
+      writer.uint32(48).int32(message.status);
+    }
+    if (message.metaJson !== "") {
+      writer.uint32(58).string(message.metaJson);
+    }
+    if (message.triggeredAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.triggeredAt), writer.uint32(66).fork()).join();
+    }
+    if (message.readAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.readAt), writer.uint32(74).fork()).join();
+    }
+    if (message.createdAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.createdAt), writer.uint32(82).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Notification {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseNotification();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.type = reader.int32() as any;
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.title = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.body = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.status = reader.int32() as any;
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.metaJson = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.triggeredAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.readAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.createdAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): Notification {
+    return {
+      id: isSet(object.id) ? globalThis.String(object.id) : "",
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      type: isSet(object.type) ? notificationTypeFromJSON(object.type) : 0,
+      title: isSet(object.title) ? globalThis.String(object.title) : "",
+      body: isSet(object.body) ? globalThis.String(object.body) : "",
+      status: isSet(object.status) ? notificationStatusFromJSON(object.status) : 0,
+      metaJson: isSet(object.metaJson)
+        ? globalThis.String(object.metaJson)
+        : isSet(object.meta_json)
+        ? globalThis.String(object.meta_json)
+        : "",
+      triggeredAt: isSet(object.triggeredAt)
+        ? fromJsonTimestamp(object.triggeredAt)
+        : isSet(object.triggered_at)
+        ? fromJsonTimestamp(object.triggered_at)
+        : undefined,
+      readAt: isSet(object.readAt)
+        ? fromJsonTimestamp(object.readAt)
+        : isSet(object.read_at)
+        ? fromJsonTimestamp(object.read_at)
+        : undefined,
+      createdAt: isSet(object.createdAt)
+        ? fromJsonTimestamp(object.createdAt)
+        : isSet(object.created_at)
+        ? fromJsonTimestamp(object.created_at)
+        : undefined,
+    };
+  },
+
+  toJSON(message: Notification): unknown {
+    const obj: any = {};
+    if (message.id !== "") {
+      obj.id = message.id;
+    }
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.type !== 0) {
+      obj.type = notificationTypeToJSON(message.type);
+    }
+    if (message.title !== "") {
+      obj.title = message.title;
+    }
+    if (message.body !== "") {
+      obj.body = message.body;
+    }
+    if (message.status !== 0) {
+      obj.status = notificationStatusToJSON(message.status);
+    }
+    if (message.metaJson !== "") {
+      obj.metaJson = message.metaJson;
+    }
+    if (message.triggeredAt !== undefined) {
+      obj.triggeredAt = message.triggeredAt.toISOString();
+    }
+    if (message.readAt !== undefined) {
+      obj.readAt = message.readAt.toISOString();
+    }
+    if (message.createdAt !== undefined) {
+      obj.createdAt = message.createdAt.toISOString();
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<Notification>): Notification {
+    return Notification.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<Notification>): Notification {
+    const message = createBaseNotification();
+    message.id = object.id ?? "";
+    message.userId = object.userId ?? "";
+    message.type = object.type ?? 0;
+    message.title = object.title ?? "";
+    message.body = object.body ?? "";
+    message.status = object.status ?? 0;
+    message.metaJson = object.metaJson ?? "";
+    message.triggeredAt = object.triggeredAt ?? undefined;
+    message.readAt = object.readAt ?? undefined;
+    message.createdAt = object.createdAt ?? undefined;
+    return message;
+  },
+};
+
+function createBaseNotificationDelivery(): NotificationDelivery {
+  return {
+    id: "",
+    notificationId: "",
+    deviceTokenId: "",
+    status: 0,
+    fcmMessageId: "",
+    errorMessage: "",
+    sentAt: undefined,
+    createdAt: undefined,
+  };
+}
+
+export const NotificationDelivery: MessageFns<NotificationDelivery> = {
+  encode(message: NotificationDelivery, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.notificationId !== "") {
+      writer.uint32(18).string(message.notificationId);
+    }
+    if (message.deviceTokenId !== "") {
+      writer.uint32(26).string(message.deviceTokenId);
+    }
+    if (message.status !== 0) {
+      writer.uint32(32).int32(message.status);
+    }
+    if (message.fcmMessageId !== "") {
+      writer.uint32(42).string(message.fcmMessageId);
+    }
+    if (message.errorMessage !== "") {
+      writer.uint32(50).string(message.errorMessage);
+    }
+    if (message.sentAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.sentAt), writer.uint32(58).fork()).join();
+    }
+    if (message.createdAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.createdAt), writer.uint32(66).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): NotificationDelivery {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseNotificationDelivery();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.notificationId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.deviceTokenId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.status = reader.int32() as any;
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.fcmMessageId = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.errorMessage = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.sentAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.createdAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): NotificationDelivery {
+    return {
+      id: isSet(object.id) ? globalThis.String(object.id) : "",
+      notificationId: isSet(object.notificationId)
+        ? globalThis.String(object.notificationId)
+        : isSet(object.notification_id)
+        ? globalThis.String(object.notification_id)
+        : "",
+      deviceTokenId: isSet(object.deviceTokenId)
+        ? globalThis.String(object.deviceTokenId)
+        : isSet(object.device_token_id)
+        ? globalThis.String(object.device_token_id)
+        : "",
+      status: isSet(object.status) ? deliveryStatusFromJSON(object.status) : 0,
+      fcmMessageId: isSet(object.fcmMessageId)
+        ? globalThis.String(object.fcmMessageId)
+        : isSet(object.fcm_message_id)
+        ? globalThis.String(object.fcm_message_id)
+        : "",
+      errorMessage: isSet(object.errorMessage)
+        ? globalThis.String(object.errorMessage)
+        : isSet(object.error_message)
+        ? globalThis.String(object.error_message)
+        : "",
+      sentAt: isSet(object.sentAt)
+        ? fromJsonTimestamp(object.sentAt)
+        : isSet(object.sent_at)
+        ? fromJsonTimestamp(object.sent_at)
+        : undefined,
+      createdAt: isSet(object.createdAt)
+        ? fromJsonTimestamp(object.createdAt)
+        : isSet(object.created_at)
+        ? fromJsonTimestamp(object.created_at)
+        : undefined,
+    };
+  },
+
+  toJSON(message: NotificationDelivery): unknown {
+    const obj: any = {};
+    if (message.id !== "") {
+      obj.id = message.id;
+    }
+    if (message.notificationId !== "") {
+      obj.notificationId = message.notificationId;
+    }
+    if (message.deviceTokenId !== "") {
+      obj.deviceTokenId = message.deviceTokenId;
+    }
+    if (message.status !== 0) {
+      obj.status = deliveryStatusToJSON(message.status);
+    }
+    if (message.fcmMessageId !== "") {
+      obj.fcmMessageId = message.fcmMessageId;
+    }
+    if (message.errorMessage !== "") {
+      obj.errorMessage = message.errorMessage;
+    }
+    if (message.sentAt !== undefined) {
+      obj.sentAt = message.sentAt.toISOString();
+    }
+    if (message.createdAt !== undefined) {
+      obj.createdAt = message.createdAt.toISOString();
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<NotificationDelivery>): NotificationDelivery {
+    return NotificationDelivery.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<NotificationDelivery>): NotificationDelivery {
+    const message = createBaseNotificationDelivery();
+    message.id = object.id ?? "";
+    message.notificationId = object.notificationId ?? "";
+    message.deviceTokenId = object.deviceTokenId ?? "";
+    message.status = object.status ?? 0;
+    message.fcmMessageId = object.fcmMessageId ?? "";
+    message.errorMessage = object.errorMessage ?? "";
+    message.sentAt = object.sentAt ?? undefined;
+    message.createdAt = object.createdAt ?? undefined;
     return message;
   },
 };
@@ -209,11 +1744,51 @@ export const NotificationServiceDefinition = {
   name: "NotificationService",
   fullName: "candle.notification.v1.NotificationService",
   methods: {
-    registerPushToken: {
-      name: "RegisterPushToken",
-      requestType: RegisterPushTokenRequest as typeof RegisterPushTokenRequest,
+    registerDeviceToken: {
+      name: "RegisterDeviceToken",
+      requestType: RegisterDeviceTokenRequest as typeof RegisterDeviceTokenRequest,
       requestStream: false,
-      responseType: RegisterPushTokenResponse as typeof RegisterPushTokenResponse,
+      responseType: RegisterDeviceTokenResponse as typeof RegisterDeviceTokenResponse,
+      responseStream: false,
+      options: {},
+    },
+    createNotification: {
+      name: "CreateNotification",
+      requestType: CreateNotificationRequest as typeof CreateNotificationRequest,
+      requestStream: false,
+      responseType: CreateNotificationResponse as typeof CreateNotificationResponse,
+      responseStream: false,
+      options: {},
+    },
+    listNotifications: {
+      name: "ListNotifications",
+      requestType: ListNotificationsRequest as typeof ListNotificationsRequest,
+      requestStream: false,
+      responseType: ListNotificationsResponse as typeof ListNotificationsResponse,
+      responseStream: false,
+      options: {},
+    },
+    markAsRead: {
+      name: "MarkAsRead",
+      requestType: MarkAsReadRequest as typeof MarkAsReadRequest,
+      requestStream: false,
+      responseType: MarkAsReadResponse as typeof MarkAsReadResponse,
+      responseStream: false,
+      options: {},
+    },
+    countUnread: {
+      name: "CountUnread",
+      requestType: CountUnreadRequest as typeof CountUnreadRequest,
+      requestStream: false,
+      responseType: CountUnreadResponse as typeof CountUnreadResponse,
+      responseStream: false,
+      options: {},
+    },
+    getDeliveryStatus: {
+      name: "GetDeliveryStatus",
+      requestType: GetDeliveryStatusRequest as typeof GetDeliveryStatusRequest,
+      requestStream: false,
+      responseType: GetDeliveryStatusResponse as typeof GetDeliveryStatusResponse,
       responseStream: false,
       options: {},
     },
@@ -221,17 +1796,57 @@ export const NotificationServiceDefinition = {
 } as const;
 
 export interface NotificationServiceImplementation<CallContextExt = {}> {
-  registerPushToken(
-    request: RegisterPushTokenRequest,
+  registerDeviceToken(
+    request: RegisterDeviceTokenRequest,
     context: CallContext & CallContextExt,
-  ): Promise<DeepPartial<RegisterPushTokenResponse>>;
+  ): Promise<DeepPartial<RegisterDeviceTokenResponse>>;
+  createNotification(
+    request: CreateNotificationRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<CreateNotificationResponse>>;
+  listNotifications(
+    request: ListNotificationsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ListNotificationsResponse>>;
+  markAsRead(
+    request: MarkAsReadRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<MarkAsReadResponse>>;
+  countUnread(
+    request: CountUnreadRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<CountUnreadResponse>>;
+  getDeliveryStatus(
+    request: GetDeliveryStatusRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<GetDeliveryStatusResponse>>;
 }
 
 export interface NotificationServiceClient<CallOptionsExt = {}> {
-  registerPushToken(
-    request: DeepPartial<RegisterPushTokenRequest>,
+  registerDeviceToken(
+    request: DeepPartial<RegisterDeviceTokenRequest>,
     options?: CallOptions & CallOptionsExt,
-  ): Promise<RegisterPushTokenResponse>;
+  ): Promise<RegisterDeviceTokenResponse>;
+  createNotification(
+    request: DeepPartial<CreateNotificationRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<CreateNotificationResponse>;
+  listNotifications(
+    request: DeepPartial<ListNotificationsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ListNotificationsResponse>;
+  markAsRead(
+    request: DeepPartial<MarkAsReadRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<MarkAsReadResponse>;
+  countUnread(
+    request: DeepPartial<CountUnreadRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<CountUnreadResponse>;
+  getDeliveryStatus(
+    request: DeepPartial<GetDeliveryStatusRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<GetDeliveryStatusResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
@@ -241,6 +1856,28 @@ export type DeepPartial<T> = T extends Builtin ? T
   : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
   : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
   : Partial<T>;
+
+function toTimestamp(date: Date): Timestamp {
+  const seconds = Math.trunc(date.getTime() / 1_000).toString();
+  const nanos = (date.getTime() % 1_000) * 1_000_000;
+  return { seconds, nanos };
+}
+
+function fromTimestamp(t: Timestamp): Date {
+  let millis = (globalThis.Number(t.seconds) || 0) * 1_000;
+  millis += (t.nanos || 0) / 1_000_000;
+  return new globalThis.Date(millis);
+}
+
+function fromJsonTimestamp(o: any): Date {
+  if (o instanceof globalThis.Date) {
+    return o;
+  } else if (typeof o === "string") {
+    return new globalThis.Date(o);
+  } else {
+    return fromTimestamp(Timestamp.fromJSON(o));
+  }
+}
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

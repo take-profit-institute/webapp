@@ -8,6 +8,7 @@
  */
 export * from './common';
 export * from './market';
+export * from './stock';
 export * from './account';
 export * from './social';
 export * from './user';

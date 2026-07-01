@@ -3,6 +3,7 @@ import accountRoutes from './account.routes';
 import authRoutes from './auth.routes';
 import healthRoutes from './health.routes';
 import marketRoutes from './market.routes';
+import stockRoutes from './stock.routes';
 import { learnRoutes, missionRoutes, rankingRoutes } from './social.routes';
 import userRoutes from './user.routes';
 import notificationRoutes from './notifications.routes';
@@ -17,6 +18,7 @@ const routes: FastifyPluginAsyncTypebox = async (app) => {
       await api.register(authRoutes, { prefix: '/auth' });
       await api.register(userRoutes, { prefix: '/users' });
       await api.register(marketRoutes, { prefix: '/market' });
+      await api.register(stockRoutes, { prefix: '/stocks' });
       await api.register(accountRoutes, { prefix: '/account' });
       await api.register(rankingRoutes, { prefix: '/rankings' });
       await api.register(missionRoutes, { prefix: '/missions' });

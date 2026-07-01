@@ -7,14 +7,72 @@
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 import type { CallContext, CallOptions } from "nice-grpc-common";
+import { PageRequest, PageResponse } from "../../common/v1/common";
 
 export const protobufPackage = "candle.portfolio.v1";
 
+export interface Holding {
+  symbol: string;
+  /** 종목명 (market data로 채움) */
+  name: string;
+  /** 보유 수량 */
+  quantity: string;
+  /** 평균 매입단가 (원) */
+  averagePrice: string;
+  /** quantity × average_price */
+  bookValue: string;
+  /** 누적 실현손익 */
+  realizedProfit: string;
+  /** 수량 > 0 이면 true */
+  active: boolean;
+  /** 업종 (e.g. "반도체") */
+  sector: string;
+  /** KOSPI / KOSDAQ */
+  market: string;
+}
+
+export interface ListHoldingsRequest {
+  userId: string;
+  includeInactive: boolean;
+  page?: PageRequest | undefined;
+}
+
+export interface ListHoldingsResponse {
+  holdings: Holding[];
+  /** 총 매입금액 */
+  totalBookValue: string;
+  /** 누적 실현손익 합계 */
+  totalRealizedProfit: string;
+  page?: PageResponse | undefined;
+}
+
+export interface GetHoldingRequest {
+  userId: string;
+  symbol: string;
+}
+
+export interface GetHoldingResponse {
+  holding?: Holding | undefined;
+}
+
 export interface PortfolioSummary {
   userId: string;
-  totalAsset: string;
-  totalProfit: string;
+  /** 총 매입금액 */
+  totalBookValue: string;
+  /** 총 주식 평가금액 (캐시 시세 기준) */
+  totalStockValue: string;
+  /** total_stock_value − total_book_value */
+  totalUnrealizedProfit: string;
+  /** 누적 실현손익 */
+  totalRealizedProfit: string;
+  /** 총 수익률 "12.34" (%) */
   totalReturnRate: string;
+  /** 당일 수익률 */
+  dayReturnRate: string;
+  /** 당일 손익 */
+  dayProfit: string;
+  /** 활성 보유 종목 수 */
+  holdingCount: number;
 }
 
 export interface GetPortfolioSummaryRequest {
@@ -25,8 +83,696 @@ export interface GetPortfolioSummaryResponse {
   summary?: PortfolioSummary | undefined;
 }
 
+export interface PortfolioSnapshot {
+  /** "2026-06-26" (YYYY-MM-DD) */
+  date: string;
+  /** 현금 + 주식 평가금액 */
+  totalAsset: string;
+  /** 주식 평가금액 */
+  stockValue: string;
+  /** 당일 손익 */
+  dailyProfit: string;
+  /** 기간 시작일 대비 누적 수익률 "3.21" (%) */
+  cumulativeReturnRate: string;
+}
+
+export interface GetPortfolioHistoryRequest {
+  userId: string;
+  /** 7 / 30 / 90 / 365 */
+  days: number;
+}
+
+export interface GetPortfolioHistoryResponse {
+  snapshots: PortfolioSnapshot[];
+  /** 기간 전체 수익률 */
+  periodReturnRate: string;
+  /** 기간 전체 손익 */
+  periodProfit: string;
+}
+
+export interface SectorWeight {
+  sector: string;
+  /** total_book_value 대비 비중 "34.5" (%) */
+  weight: string;
+  bookValue: string;
+  /** 해당 섹터 종목 수 */
+  count: number;
+}
+
+export interface GetSectorBreakdownRequest {
+  userId: string;
+}
+
+export interface GetSectorBreakdownResponse {
+  sectors: SectorWeight[];
+}
+
+export interface TradingStats {
+  userId: string;
+  /** 청산된 거래 총 건수 */
+  tradeCount: number;
+  /** 실현손익 > 0 */
+  winCount: number;
+  /** 실현손익 < 0 */
+  lossCount: number;
+  /** "62.50" (%) */
+  winRate: string;
+  /** 평균 보유기간(일) "5.30" */
+  avgHoldingDays: string;
+  /** 최대 수익 종목 */
+  bestSymbol: string;
+  bestProfit: string;
+  /** 최대 손실 종목 */
+  worstSymbol: string;
+  worstProfit: string;
+}
+
+export interface GetTradingStatsRequest {
+  userId: string;
+}
+
+export interface GetTradingStatsResponse {
+  stats?: TradingStats | undefined;
+}
+
+export interface MonthlyReturn {
+  /** "2026-06" (YYYY-MM) */
+  month: string;
+  /** 해당 월 수익률 "3.21" (%) */
+  returnRate: string;
+  /** 월말 총자산 − 월초 총자산 */
+  profit: string;
+}
+
+export interface GetMonthlyReturnsRequest {
+  userId: string;
+  /** 조회할 개월 수 (e.g. 6 / 12) */
+  months: number;
+}
+
+export interface GetMonthlyReturnsResponse {
+  returns: MonthlyReturn[];
+}
+
+export interface RecordDailySnapshotRequest {
+  userId: string;
+  /** "2026-06-29" (YYYY-MM-DD) */
+  snapshotDate: string;
+  /** 현금 + 주식 평가금액 */
+  totalAsset: string;
+  /** 주식 평가금액 */
+  stockValue: string;
+  /** 누적 수익률 기준 원금 */
+  seedCapital: string;
+  idempotencyKey: string;
+}
+
+export interface RecordDailySnapshotResponse {
+  snapshot?: PortfolioSnapshot | undefined;
+}
+
+function createBaseHolding(): Holding {
+  return {
+    symbol: "",
+    name: "",
+    quantity: "0",
+    averagePrice: "0",
+    bookValue: "0",
+    realizedProfit: "0",
+    active: false,
+    sector: "",
+    market: "",
+  };
+}
+
+export const Holding: MessageFns<Holding> = {
+  encode(message: Holding, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.symbol !== "") {
+      writer.uint32(10).string(message.symbol);
+    }
+    if (message.name !== "") {
+      writer.uint32(18).string(message.name);
+    }
+    if (message.quantity !== "0") {
+      writer.uint32(24).int64(message.quantity);
+    }
+    if (message.averagePrice !== "0") {
+      writer.uint32(32).int64(message.averagePrice);
+    }
+    if (message.bookValue !== "0") {
+      writer.uint32(40).int64(message.bookValue);
+    }
+    if (message.realizedProfit !== "0") {
+      writer.uint32(48).int64(message.realizedProfit);
+    }
+    if (message.active !== false) {
+      writer.uint32(56).bool(message.active);
+    }
+    if (message.sector !== "") {
+      writer.uint32(66).string(message.sector);
+    }
+    if (message.market !== "") {
+      writer.uint32(74).string(message.market);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Holding {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseHolding();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.symbol = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.quantity = reader.int64().toString();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.averagePrice = reader.int64().toString();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.bookValue = reader.int64().toString();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.realizedProfit = reader.int64().toString();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.active = reader.bool();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.sector = reader.string();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.market = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): Holding {
+    return {
+      symbol: isSet(object.symbol) ? globalThis.String(object.symbol) : "",
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      quantity: isSet(object.quantity) ? globalThis.String(object.quantity) : "0",
+      averagePrice: isSet(object.averagePrice)
+        ? globalThis.String(object.averagePrice)
+        : isSet(object.average_price)
+        ? globalThis.String(object.average_price)
+        : "0",
+      bookValue: isSet(object.bookValue)
+        ? globalThis.String(object.bookValue)
+        : isSet(object.book_value)
+        ? globalThis.String(object.book_value)
+        : "0",
+      realizedProfit: isSet(object.realizedProfit)
+        ? globalThis.String(object.realizedProfit)
+        : isSet(object.realized_profit)
+        ? globalThis.String(object.realized_profit)
+        : "0",
+      active: isSet(object.active) ? globalThis.Boolean(object.active) : false,
+      sector: isSet(object.sector) ? globalThis.String(object.sector) : "",
+      market: isSet(object.market) ? globalThis.String(object.market) : "",
+    };
+  },
+
+  toJSON(message: Holding): unknown {
+    const obj: any = {};
+    if (message.symbol !== "") {
+      obj.symbol = message.symbol;
+    }
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.quantity !== "0") {
+      obj.quantity = message.quantity;
+    }
+    if (message.averagePrice !== "0") {
+      obj.averagePrice = message.averagePrice;
+    }
+    if (message.bookValue !== "0") {
+      obj.bookValue = message.bookValue;
+    }
+    if (message.realizedProfit !== "0") {
+      obj.realizedProfit = message.realizedProfit;
+    }
+    if (message.active !== false) {
+      obj.active = message.active;
+    }
+    if (message.sector !== "") {
+      obj.sector = message.sector;
+    }
+    if (message.market !== "") {
+      obj.market = message.market;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<Holding>): Holding {
+    return Holding.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<Holding>): Holding {
+    const message = createBaseHolding();
+    message.symbol = object.symbol ?? "";
+    message.name = object.name ?? "";
+    message.quantity = object.quantity ?? "0";
+    message.averagePrice = object.averagePrice ?? "0";
+    message.bookValue = object.bookValue ?? "0";
+    message.realizedProfit = object.realizedProfit ?? "0";
+    message.active = object.active ?? false;
+    message.sector = object.sector ?? "";
+    message.market = object.market ?? "";
+    return message;
+  },
+};
+
+function createBaseListHoldingsRequest(): ListHoldingsRequest {
+  return { userId: "", includeInactive: false, page: undefined };
+}
+
+export const ListHoldingsRequest: MessageFns<ListHoldingsRequest> = {
+  encode(message: ListHoldingsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.includeInactive !== false) {
+      writer.uint32(16).bool(message.includeInactive);
+    }
+    if (message.page !== undefined) {
+      PageRequest.encode(message.page, writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListHoldingsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListHoldingsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.includeInactive = reader.bool();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.page = PageRequest.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListHoldingsRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      includeInactive: isSet(object.includeInactive)
+        ? globalThis.Boolean(object.includeInactive)
+        : isSet(object.include_inactive)
+        ? globalThis.Boolean(object.include_inactive)
+        : false,
+      page: isSet(object.page) ? PageRequest.fromJSON(object.page) : undefined,
+    };
+  },
+
+  toJSON(message: ListHoldingsRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.includeInactive !== false) {
+      obj.includeInactive = message.includeInactive;
+    }
+    if (message.page !== undefined) {
+      obj.page = PageRequest.toJSON(message.page);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListHoldingsRequest>): ListHoldingsRequest {
+    return ListHoldingsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListHoldingsRequest>): ListHoldingsRequest {
+    const message = createBaseListHoldingsRequest();
+    message.userId = object.userId ?? "";
+    message.includeInactive = object.includeInactive ?? false;
+    message.page = (object.page !== undefined && object.page !== null)
+      ? PageRequest.fromPartial(object.page)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseListHoldingsResponse(): ListHoldingsResponse {
+  return { holdings: [], totalBookValue: "0", totalRealizedProfit: "0", page: undefined };
+}
+
+export const ListHoldingsResponse: MessageFns<ListHoldingsResponse> = {
+  encode(message: ListHoldingsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.holdings) {
+      Holding.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.totalBookValue !== "0") {
+      writer.uint32(16).int64(message.totalBookValue);
+    }
+    if (message.totalRealizedProfit !== "0") {
+      writer.uint32(24).int64(message.totalRealizedProfit);
+    }
+    if (message.page !== undefined) {
+      PageResponse.encode(message.page, writer.uint32(34).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListHoldingsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListHoldingsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.holdings.push(Holding.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.totalBookValue = reader.int64().toString();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.totalRealizedProfit = reader.int64().toString();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.page = PageResponse.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListHoldingsResponse {
+    return {
+      holdings: globalThis.Array.isArray(object?.holdings) ? object.holdings.map((e: any) => Holding.fromJSON(e)) : [],
+      totalBookValue: isSet(object.totalBookValue)
+        ? globalThis.String(object.totalBookValue)
+        : isSet(object.total_book_value)
+        ? globalThis.String(object.total_book_value)
+        : "0",
+      totalRealizedProfit: isSet(object.totalRealizedProfit)
+        ? globalThis.String(object.totalRealizedProfit)
+        : isSet(object.total_realized_profit)
+        ? globalThis.String(object.total_realized_profit)
+        : "0",
+      page: isSet(object.page) ? PageResponse.fromJSON(object.page) : undefined,
+    };
+  },
+
+  toJSON(message: ListHoldingsResponse): unknown {
+    const obj: any = {};
+    if (message.holdings?.length) {
+      obj.holdings = message.holdings.map((e) => Holding.toJSON(e));
+    }
+    if (message.totalBookValue !== "0") {
+      obj.totalBookValue = message.totalBookValue;
+    }
+    if (message.totalRealizedProfit !== "0") {
+      obj.totalRealizedProfit = message.totalRealizedProfit;
+    }
+    if (message.page !== undefined) {
+      obj.page = PageResponse.toJSON(message.page);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListHoldingsResponse>): ListHoldingsResponse {
+    return ListHoldingsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListHoldingsResponse>): ListHoldingsResponse {
+    const message = createBaseListHoldingsResponse();
+    message.holdings = object.holdings?.map((e) => Holding.fromPartial(e)) || [];
+    message.totalBookValue = object.totalBookValue ?? "0";
+    message.totalRealizedProfit = object.totalRealizedProfit ?? "0";
+    message.page = (object.page !== undefined && object.page !== null)
+      ? PageResponse.fromPartial(object.page)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseGetHoldingRequest(): GetHoldingRequest {
+  return { userId: "", symbol: "" };
+}
+
+export const GetHoldingRequest: MessageFns<GetHoldingRequest> = {
+  encode(message: GetHoldingRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.symbol !== "") {
+      writer.uint32(18).string(message.symbol);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetHoldingRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetHoldingRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.symbol = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetHoldingRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      symbol: isSet(object.symbol) ? globalThis.String(object.symbol) : "",
+    };
+  },
+
+  toJSON(message: GetHoldingRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.symbol !== "") {
+      obj.symbol = message.symbol;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetHoldingRequest>): GetHoldingRequest {
+    return GetHoldingRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetHoldingRequest>): GetHoldingRequest {
+    const message = createBaseGetHoldingRequest();
+    message.userId = object.userId ?? "";
+    message.symbol = object.symbol ?? "";
+    return message;
+  },
+};
+
+function createBaseGetHoldingResponse(): GetHoldingResponse {
+  return { holding: undefined };
+}
+
+export const GetHoldingResponse: MessageFns<GetHoldingResponse> = {
+  encode(message: GetHoldingResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.holding !== undefined) {
+      Holding.encode(message.holding, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetHoldingResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetHoldingResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.holding = Holding.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetHoldingResponse {
+    return { holding: isSet(object.holding) ? Holding.fromJSON(object.holding) : undefined };
+  },
+
+  toJSON(message: GetHoldingResponse): unknown {
+    const obj: any = {};
+    if (message.holding !== undefined) {
+      obj.holding = Holding.toJSON(message.holding);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetHoldingResponse>): GetHoldingResponse {
+    return GetHoldingResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetHoldingResponse>): GetHoldingResponse {
+    const message = createBaseGetHoldingResponse();
+    message.holding = (object.holding !== undefined && object.holding !== null)
+      ? Holding.fromPartial(object.holding)
+      : undefined;
+    return message;
+  },
+};
+
 function createBasePortfolioSummary(): PortfolioSummary {
-  return { userId: "", totalAsset: "0", totalProfit: "0", totalReturnRate: "" };
+  return {
+    userId: "",
+    totalBookValue: "0",
+    totalStockValue: "0",
+    totalUnrealizedProfit: "0",
+    totalRealizedProfit: "0",
+    totalReturnRate: "",
+    dayReturnRate: "",
+    dayProfit: "0",
+    holdingCount: 0,
+  };
 }
 
 export const PortfolioSummary: MessageFns<PortfolioSummary> = {
@@ -34,14 +780,29 @@ export const PortfolioSummary: MessageFns<PortfolioSummary> = {
     if (message.userId !== "") {
       writer.uint32(10).string(message.userId);
     }
-    if (message.totalAsset !== "0") {
-      writer.uint32(16).int64(message.totalAsset);
+    if (message.totalBookValue !== "0") {
+      writer.uint32(16).int64(message.totalBookValue);
     }
-    if (message.totalProfit !== "0") {
-      writer.uint32(24).int64(message.totalProfit);
+    if (message.totalStockValue !== "0") {
+      writer.uint32(24).int64(message.totalStockValue);
+    }
+    if (message.totalUnrealizedProfit !== "0") {
+      writer.uint32(32).int64(message.totalUnrealizedProfit);
+    }
+    if (message.totalRealizedProfit !== "0") {
+      writer.uint32(40).int64(message.totalRealizedProfit);
     }
     if (message.totalReturnRate !== "") {
-      writer.uint32(34).string(message.totalReturnRate);
+      writer.uint32(50).string(message.totalReturnRate);
+    }
+    if (message.dayReturnRate !== "") {
+      writer.uint32(58).string(message.dayReturnRate);
+    }
+    if (message.dayProfit !== "0") {
+      writer.uint32(64).int64(message.dayProfit);
+    }
+    if (message.holdingCount !== 0) {
+      writer.uint32(72).int32(message.holdingCount);
     }
     return writer;
   },
@@ -66,7 +827,7 @@ export const PortfolioSummary: MessageFns<PortfolioSummary> = {
             break;
           }
 
-          message.totalAsset = reader.int64().toString();
+          message.totalBookValue = reader.int64().toString();
           continue;
         }
         case 3: {
@@ -74,15 +835,55 @@ export const PortfolioSummary: MessageFns<PortfolioSummary> = {
             break;
           }
 
-          message.totalProfit = reader.int64().toString();
+          message.totalStockValue = reader.int64().toString();
           continue;
         }
         case 4: {
-          if (tag !== 34) {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.totalUnrealizedProfit = reader.int64().toString();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.totalRealizedProfit = reader.int64().toString();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
             break;
           }
 
           message.totalReturnRate = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.dayReturnRate = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.dayProfit = reader.int64().toString();
+          continue;
+        }
+        case 9: {
+          if (tag !== 72) {
+            break;
+          }
+
+          message.holdingCount = reader.int32();
           continue;
         }
       }
@@ -101,21 +902,46 @@ export const PortfolioSummary: MessageFns<PortfolioSummary> = {
         : isSet(object.user_id)
         ? globalThis.String(object.user_id)
         : "",
-      totalAsset: isSet(object.totalAsset)
-        ? globalThis.String(object.totalAsset)
-        : isSet(object.total_asset)
-        ? globalThis.String(object.total_asset)
+      totalBookValue: isSet(object.totalBookValue)
+        ? globalThis.String(object.totalBookValue)
+        : isSet(object.total_book_value)
+        ? globalThis.String(object.total_book_value)
         : "0",
-      totalProfit: isSet(object.totalProfit)
-        ? globalThis.String(object.totalProfit)
-        : isSet(object.total_profit)
-        ? globalThis.String(object.total_profit)
+      totalStockValue: isSet(object.totalStockValue)
+        ? globalThis.String(object.totalStockValue)
+        : isSet(object.total_stock_value)
+        ? globalThis.String(object.total_stock_value)
+        : "0",
+      totalUnrealizedProfit: isSet(object.totalUnrealizedProfit)
+        ? globalThis.String(object.totalUnrealizedProfit)
+        : isSet(object.total_unrealized_profit)
+        ? globalThis.String(object.total_unrealized_profit)
+        : "0",
+      totalRealizedProfit: isSet(object.totalRealizedProfit)
+        ? globalThis.String(object.totalRealizedProfit)
+        : isSet(object.total_realized_profit)
+        ? globalThis.String(object.total_realized_profit)
         : "0",
       totalReturnRate: isSet(object.totalReturnRate)
         ? globalThis.String(object.totalReturnRate)
         : isSet(object.total_return_rate)
         ? globalThis.String(object.total_return_rate)
         : "",
+      dayReturnRate: isSet(object.dayReturnRate)
+        ? globalThis.String(object.dayReturnRate)
+        : isSet(object.day_return_rate)
+        ? globalThis.String(object.day_return_rate)
+        : "",
+      dayProfit: isSet(object.dayProfit)
+        ? globalThis.String(object.dayProfit)
+        : isSet(object.day_profit)
+        ? globalThis.String(object.day_profit)
+        : "0",
+      holdingCount: isSet(object.holdingCount)
+        ? globalThis.Number(object.holdingCount)
+        : isSet(object.holding_count)
+        ? globalThis.Number(object.holding_count)
+        : 0,
     };
   },
 
@@ -124,14 +950,29 @@ export const PortfolioSummary: MessageFns<PortfolioSummary> = {
     if (message.userId !== "") {
       obj.userId = message.userId;
     }
-    if (message.totalAsset !== "0") {
-      obj.totalAsset = message.totalAsset;
+    if (message.totalBookValue !== "0") {
+      obj.totalBookValue = message.totalBookValue;
     }
-    if (message.totalProfit !== "0") {
-      obj.totalProfit = message.totalProfit;
+    if (message.totalStockValue !== "0") {
+      obj.totalStockValue = message.totalStockValue;
+    }
+    if (message.totalUnrealizedProfit !== "0") {
+      obj.totalUnrealizedProfit = message.totalUnrealizedProfit;
+    }
+    if (message.totalRealizedProfit !== "0") {
+      obj.totalRealizedProfit = message.totalRealizedProfit;
     }
     if (message.totalReturnRate !== "") {
       obj.totalReturnRate = message.totalReturnRate;
+    }
+    if (message.dayReturnRate !== "") {
+      obj.dayReturnRate = message.dayReturnRate;
+    }
+    if (message.dayProfit !== "0") {
+      obj.dayProfit = message.dayProfit;
+    }
+    if (message.holdingCount !== 0) {
+      obj.holdingCount = Math.round(message.holdingCount);
     }
     return obj;
   },
@@ -142,9 +983,14 @@ export const PortfolioSummary: MessageFns<PortfolioSummary> = {
   fromPartial(object: DeepPartial<PortfolioSummary>): PortfolioSummary {
     const message = createBasePortfolioSummary();
     message.userId = object.userId ?? "";
-    message.totalAsset = object.totalAsset ?? "0";
-    message.totalProfit = object.totalProfit ?? "0";
+    message.totalBookValue = object.totalBookValue ?? "0";
+    message.totalStockValue = object.totalStockValue ?? "0";
+    message.totalUnrealizedProfit = object.totalUnrealizedProfit ?? "0";
+    message.totalRealizedProfit = object.totalRealizedProfit ?? "0";
     message.totalReturnRate = object.totalReturnRate ?? "";
+    message.dayReturnRate = object.dayReturnRate ?? "";
+    message.dayProfit = object.dayProfit ?? "0";
+    message.holdingCount = object.holdingCount ?? 0;
     return message;
   },
 };
@@ -273,6 +1119,1455 @@ export const GetPortfolioSummaryResponse: MessageFns<GetPortfolioSummaryResponse
   },
 };
 
+function createBasePortfolioSnapshot(): PortfolioSnapshot {
+  return { date: "", totalAsset: "0", stockValue: "0", dailyProfit: "0", cumulativeReturnRate: "" };
+}
+
+export const PortfolioSnapshot: MessageFns<PortfolioSnapshot> = {
+  encode(message: PortfolioSnapshot, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.date !== "") {
+      writer.uint32(10).string(message.date);
+    }
+    if (message.totalAsset !== "0") {
+      writer.uint32(16).int64(message.totalAsset);
+    }
+    if (message.stockValue !== "0") {
+      writer.uint32(24).int64(message.stockValue);
+    }
+    if (message.dailyProfit !== "0") {
+      writer.uint32(32).int64(message.dailyProfit);
+    }
+    if (message.cumulativeReturnRate !== "") {
+      writer.uint32(42).string(message.cumulativeReturnRate);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PortfolioSnapshot {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePortfolioSnapshot();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.date = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.totalAsset = reader.int64().toString();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.stockValue = reader.int64().toString();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.dailyProfit = reader.int64().toString();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.cumulativeReturnRate = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): PortfolioSnapshot {
+    return {
+      date: isSet(object.date) ? globalThis.String(object.date) : "",
+      totalAsset: isSet(object.totalAsset)
+        ? globalThis.String(object.totalAsset)
+        : isSet(object.total_asset)
+        ? globalThis.String(object.total_asset)
+        : "0",
+      stockValue: isSet(object.stockValue)
+        ? globalThis.String(object.stockValue)
+        : isSet(object.stock_value)
+        ? globalThis.String(object.stock_value)
+        : "0",
+      dailyProfit: isSet(object.dailyProfit)
+        ? globalThis.String(object.dailyProfit)
+        : isSet(object.daily_profit)
+        ? globalThis.String(object.daily_profit)
+        : "0",
+      cumulativeReturnRate: isSet(object.cumulativeReturnRate)
+        ? globalThis.String(object.cumulativeReturnRate)
+        : isSet(object.cumulative_return_rate)
+        ? globalThis.String(object.cumulative_return_rate)
+        : "",
+    };
+  },
+
+  toJSON(message: PortfolioSnapshot): unknown {
+    const obj: any = {};
+    if (message.date !== "") {
+      obj.date = message.date;
+    }
+    if (message.totalAsset !== "0") {
+      obj.totalAsset = message.totalAsset;
+    }
+    if (message.stockValue !== "0") {
+      obj.stockValue = message.stockValue;
+    }
+    if (message.dailyProfit !== "0") {
+      obj.dailyProfit = message.dailyProfit;
+    }
+    if (message.cumulativeReturnRate !== "") {
+      obj.cumulativeReturnRate = message.cumulativeReturnRate;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<PortfolioSnapshot>): PortfolioSnapshot {
+    return PortfolioSnapshot.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<PortfolioSnapshot>): PortfolioSnapshot {
+    const message = createBasePortfolioSnapshot();
+    message.date = object.date ?? "";
+    message.totalAsset = object.totalAsset ?? "0";
+    message.stockValue = object.stockValue ?? "0";
+    message.dailyProfit = object.dailyProfit ?? "0";
+    message.cumulativeReturnRate = object.cumulativeReturnRate ?? "";
+    return message;
+  },
+};
+
+function createBaseGetPortfolioHistoryRequest(): GetPortfolioHistoryRequest {
+  return { userId: "", days: 0 };
+}
+
+export const GetPortfolioHistoryRequest: MessageFns<GetPortfolioHistoryRequest> = {
+  encode(message: GetPortfolioHistoryRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.days !== 0) {
+      writer.uint32(16).int32(message.days);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetPortfolioHistoryRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetPortfolioHistoryRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.days = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetPortfolioHistoryRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      days: isSet(object.days) ? globalThis.Number(object.days) : 0,
+    };
+  },
+
+  toJSON(message: GetPortfolioHistoryRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.days !== 0) {
+      obj.days = Math.round(message.days);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetPortfolioHistoryRequest>): GetPortfolioHistoryRequest {
+    return GetPortfolioHistoryRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetPortfolioHistoryRequest>): GetPortfolioHistoryRequest {
+    const message = createBaseGetPortfolioHistoryRequest();
+    message.userId = object.userId ?? "";
+    message.days = object.days ?? 0;
+    return message;
+  },
+};
+
+function createBaseGetPortfolioHistoryResponse(): GetPortfolioHistoryResponse {
+  return { snapshots: [], periodReturnRate: "", periodProfit: "0" };
+}
+
+export const GetPortfolioHistoryResponse: MessageFns<GetPortfolioHistoryResponse> = {
+  encode(message: GetPortfolioHistoryResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.snapshots) {
+      PortfolioSnapshot.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.periodReturnRate !== "") {
+      writer.uint32(18).string(message.periodReturnRate);
+    }
+    if (message.periodProfit !== "0") {
+      writer.uint32(24).int64(message.periodProfit);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetPortfolioHistoryResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetPortfolioHistoryResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.snapshots.push(PortfolioSnapshot.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.periodReturnRate = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.periodProfit = reader.int64().toString();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetPortfolioHistoryResponse {
+    return {
+      snapshots: globalThis.Array.isArray(object?.snapshots)
+        ? object.snapshots.map((e: any) => PortfolioSnapshot.fromJSON(e))
+        : [],
+      periodReturnRate: isSet(object.periodReturnRate)
+        ? globalThis.String(object.periodReturnRate)
+        : isSet(object.period_return_rate)
+        ? globalThis.String(object.period_return_rate)
+        : "",
+      periodProfit: isSet(object.periodProfit)
+        ? globalThis.String(object.periodProfit)
+        : isSet(object.period_profit)
+        ? globalThis.String(object.period_profit)
+        : "0",
+    };
+  },
+
+  toJSON(message: GetPortfolioHistoryResponse): unknown {
+    const obj: any = {};
+    if (message.snapshots?.length) {
+      obj.snapshots = message.snapshots.map((e) => PortfolioSnapshot.toJSON(e));
+    }
+    if (message.periodReturnRate !== "") {
+      obj.periodReturnRate = message.periodReturnRate;
+    }
+    if (message.periodProfit !== "0") {
+      obj.periodProfit = message.periodProfit;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetPortfolioHistoryResponse>): GetPortfolioHistoryResponse {
+    return GetPortfolioHistoryResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetPortfolioHistoryResponse>): GetPortfolioHistoryResponse {
+    const message = createBaseGetPortfolioHistoryResponse();
+    message.snapshots = object.snapshots?.map((e) => PortfolioSnapshot.fromPartial(e)) || [];
+    message.periodReturnRate = object.periodReturnRate ?? "";
+    message.periodProfit = object.periodProfit ?? "0";
+    return message;
+  },
+};
+
+function createBaseSectorWeight(): SectorWeight {
+  return { sector: "", weight: "", bookValue: "0", count: 0 };
+}
+
+export const SectorWeight: MessageFns<SectorWeight> = {
+  encode(message: SectorWeight, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.sector !== "") {
+      writer.uint32(10).string(message.sector);
+    }
+    if (message.weight !== "") {
+      writer.uint32(18).string(message.weight);
+    }
+    if (message.bookValue !== "0") {
+      writer.uint32(24).int64(message.bookValue);
+    }
+    if (message.count !== 0) {
+      writer.uint32(32).int32(message.count);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SectorWeight {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSectorWeight();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.sector = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.weight = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.bookValue = reader.int64().toString();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.count = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SectorWeight {
+    return {
+      sector: isSet(object.sector) ? globalThis.String(object.sector) : "",
+      weight: isSet(object.weight) ? globalThis.String(object.weight) : "",
+      bookValue: isSet(object.bookValue)
+        ? globalThis.String(object.bookValue)
+        : isSet(object.book_value)
+        ? globalThis.String(object.book_value)
+        : "0",
+      count: isSet(object.count) ? globalThis.Number(object.count) : 0,
+    };
+  },
+
+  toJSON(message: SectorWeight): unknown {
+    const obj: any = {};
+    if (message.sector !== "") {
+      obj.sector = message.sector;
+    }
+    if (message.weight !== "") {
+      obj.weight = message.weight;
+    }
+    if (message.bookValue !== "0") {
+      obj.bookValue = message.bookValue;
+    }
+    if (message.count !== 0) {
+      obj.count = Math.round(message.count);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<SectorWeight>): SectorWeight {
+    return SectorWeight.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SectorWeight>): SectorWeight {
+    const message = createBaseSectorWeight();
+    message.sector = object.sector ?? "";
+    message.weight = object.weight ?? "";
+    message.bookValue = object.bookValue ?? "0";
+    message.count = object.count ?? 0;
+    return message;
+  },
+};
+
+function createBaseGetSectorBreakdownRequest(): GetSectorBreakdownRequest {
+  return { userId: "" };
+}
+
+export const GetSectorBreakdownRequest: MessageFns<GetSectorBreakdownRequest> = {
+  encode(message: GetSectorBreakdownRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetSectorBreakdownRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetSectorBreakdownRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetSectorBreakdownRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+    };
+  },
+
+  toJSON(message: GetSectorBreakdownRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetSectorBreakdownRequest>): GetSectorBreakdownRequest {
+    return GetSectorBreakdownRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetSectorBreakdownRequest>): GetSectorBreakdownRequest {
+    const message = createBaseGetSectorBreakdownRequest();
+    message.userId = object.userId ?? "";
+    return message;
+  },
+};
+
+function createBaseGetSectorBreakdownResponse(): GetSectorBreakdownResponse {
+  return { sectors: [] };
+}
+
+export const GetSectorBreakdownResponse: MessageFns<GetSectorBreakdownResponse> = {
+  encode(message: GetSectorBreakdownResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.sectors) {
+      SectorWeight.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetSectorBreakdownResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetSectorBreakdownResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.sectors.push(SectorWeight.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetSectorBreakdownResponse {
+    return {
+      sectors: globalThis.Array.isArray(object?.sectors)
+        ? object.sectors.map((e: any) => SectorWeight.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: GetSectorBreakdownResponse): unknown {
+    const obj: any = {};
+    if (message.sectors?.length) {
+      obj.sectors = message.sectors.map((e) => SectorWeight.toJSON(e));
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetSectorBreakdownResponse>): GetSectorBreakdownResponse {
+    return GetSectorBreakdownResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetSectorBreakdownResponse>): GetSectorBreakdownResponse {
+    const message = createBaseGetSectorBreakdownResponse();
+    message.sectors = object.sectors?.map((e) => SectorWeight.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseTradingStats(): TradingStats {
+  return {
+    userId: "",
+    tradeCount: 0,
+    winCount: 0,
+    lossCount: 0,
+    winRate: "",
+    avgHoldingDays: "",
+    bestSymbol: "",
+    bestProfit: "0",
+    worstSymbol: "",
+    worstProfit: "0",
+  };
+}
+
+export const TradingStats: MessageFns<TradingStats> = {
+  encode(message: TradingStats, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.tradeCount !== 0) {
+      writer.uint32(16).int32(message.tradeCount);
+    }
+    if (message.winCount !== 0) {
+      writer.uint32(24).int32(message.winCount);
+    }
+    if (message.lossCount !== 0) {
+      writer.uint32(32).int32(message.lossCount);
+    }
+    if (message.winRate !== "") {
+      writer.uint32(42).string(message.winRate);
+    }
+    if (message.avgHoldingDays !== "") {
+      writer.uint32(50).string(message.avgHoldingDays);
+    }
+    if (message.bestSymbol !== "") {
+      writer.uint32(58).string(message.bestSymbol);
+    }
+    if (message.bestProfit !== "0") {
+      writer.uint32(64).int64(message.bestProfit);
+    }
+    if (message.worstSymbol !== "") {
+      writer.uint32(74).string(message.worstSymbol);
+    }
+    if (message.worstProfit !== "0") {
+      writer.uint32(80).int64(message.worstProfit);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): TradingStats {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTradingStats();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.tradeCount = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.winCount = reader.int32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.lossCount = reader.int32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.winRate = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.avgHoldingDays = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.bestSymbol = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.bestProfit = reader.int64().toString();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.worstSymbol = reader.string();
+          continue;
+        }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
+
+          message.worstProfit = reader.int64().toString();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): TradingStats {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      tradeCount: isSet(object.tradeCount)
+        ? globalThis.Number(object.tradeCount)
+        : isSet(object.trade_count)
+        ? globalThis.Number(object.trade_count)
+        : 0,
+      winCount: isSet(object.winCount)
+        ? globalThis.Number(object.winCount)
+        : isSet(object.win_count)
+        ? globalThis.Number(object.win_count)
+        : 0,
+      lossCount: isSet(object.lossCount)
+        ? globalThis.Number(object.lossCount)
+        : isSet(object.loss_count)
+        ? globalThis.Number(object.loss_count)
+        : 0,
+      winRate: isSet(object.winRate)
+        ? globalThis.String(object.winRate)
+        : isSet(object.win_rate)
+        ? globalThis.String(object.win_rate)
+        : "",
+      avgHoldingDays: isSet(object.avgHoldingDays)
+        ? globalThis.String(object.avgHoldingDays)
+        : isSet(object.avg_holding_days)
+        ? globalThis.String(object.avg_holding_days)
+        : "",
+      bestSymbol: isSet(object.bestSymbol)
+        ? globalThis.String(object.bestSymbol)
+        : isSet(object.best_symbol)
+        ? globalThis.String(object.best_symbol)
+        : "",
+      bestProfit: isSet(object.bestProfit)
+        ? globalThis.String(object.bestProfit)
+        : isSet(object.best_profit)
+        ? globalThis.String(object.best_profit)
+        : "0",
+      worstSymbol: isSet(object.worstSymbol)
+        ? globalThis.String(object.worstSymbol)
+        : isSet(object.worst_symbol)
+        ? globalThis.String(object.worst_symbol)
+        : "",
+      worstProfit: isSet(object.worstProfit)
+        ? globalThis.String(object.worstProfit)
+        : isSet(object.worst_profit)
+        ? globalThis.String(object.worst_profit)
+        : "0",
+    };
+  },
+
+  toJSON(message: TradingStats): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.tradeCount !== 0) {
+      obj.tradeCount = Math.round(message.tradeCount);
+    }
+    if (message.winCount !== 0) {
+      obj.winCount = Math.round(message.winCount);
+    }
+    if (message.lossCount !== 0) {
+      obj.lossCount = Math.round(message.lossCount);
+    }
+    if (message.winRate !== "") {
+      obj.winRate = message.winRate;
+    }
+    if (message.avgHoldingDays !== "") {
+      obj.avgHoldingDays = message.avgHoldingDays;
+    }
+    if (message.bestSymbol !== "") {
+      obj.bestSymbol = message.bestSymbol;
+    }
+    if (message.bestProfit !== "0") {
+      obj.bestProfit = message.bestProfit;
+    }
+    if (message.worstSymbol !== "") {
+      obj.worstSymbol = message.worstSymbol;
+    }
+    if (message.worstProfit !== "0") {
+      obj.worstProfit = message.worstProfit;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<TradingStats>): TradingStats {
+    return TradingStats.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<TradingStats>): TradingStats {
+    const message = createBaseTradingStats();
+    message.userId = object.userId ?? "";
+    message.tradeCount = object.tradeCount ?? 0;
+    message.winCount = object.winCount ?? 0;
+    message.lossCount = object.lossCount ?? 0;
+    message.winRate = object.winRate ?? "";
+    message.avgHoldingDays = object.avgHoldingDays ?? "";
+    message.bestSymbol = object.bestSymbol ?? "";
+    message.bestProfit = object.bestProfit ?? "0";
+    message.worstSymbol = object.worstSymbol ?? "";
+    message.worstProfit = object.worstProfit ?? "0";
+    return message;
+  },
+};
+
+function createBaseGetTradingStatsRequest(): GetTradingStatsRequest {
+  return { userId: "" };
+}
+
+export const GetTradingStatsRequest: MessageFns<GetTradingStatsRequest> = {
+  encode(message: GetTradingStatsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetTradingStatsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetTradingStatsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetTradingStatsRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+    };
+  },
+
+  toJSON(message: GetTradingStatsRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetTradingStatsRequest>): GetTradingStatsRequest {
+    return GetTradingStatsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetTradingStatsRequest>): GetTradingStatsRequest {
+    const message = createBaseGetTradingStatsRequest();
+    message.userId = object.userId ?? "";
+    return message;
+  },
+};
+
+function createBaseGetTradingStatsResponse(): GetTradingStatsResponse {
+  return { stats: undefined };
+}
+
+export const GetTradingStatsResponse: MessageFns<GetTradingStatsResponse> = {
+  encode(message: GetTradingStatsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.stats !== undefined) {
+      TradingStats.encode(message.stats, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetTradingStatsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetTradingStatsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.stats = TradingStats.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetTradingStatsResponse {
+    return { stats: isSet(object.stats) ? TradingStats.fromJSON(object.stats) : undefined };
+  },
+
+  toJSON(message: GetTradingStatsResponse): unknown {
+    const obj: any = {};
+    if (message.stats !== undefined) {
+      obj.stats = TradingStats.toJSON(message.stats);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetTradingStatsResponse>): GetTradingStatsResponse {
+    return GetTradingStatsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetTradingStatsResponse>): GetTradingStatsResponse {
+    const message = createBaseGetTradingStatsResponse();
+    message.stats = (object.stats !== undefined && object.stats !== null)
+      ? TradingStats.fromPartial(object.stats)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseMonthlyReturn(): MonthlyReturn {
+  return { month: "", returnRate: "", profit: "0" };
+}
+
+export const MonthlyReturn: MessageFns<MonthlyReturn> = {
+  encode(message: MonthlyReturn, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.month !== "") {
+      writer.uint32(10).string(message.month);
+    }
+    if (message.returnRate !== "") {
+      writer.uint32(18).string(message.returnRate);
+    }
+    if (message.profit !== "0") {
+      writer.uint32(24).int64(message.profit);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MonthlyReturn {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMonthlyReturn();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.month = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.returnRate = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.profit = reader.int64().toString();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MonthlyReturn {
+    return {
+      month: isSet(object.month) ? globalThis.String(object.month) : "",
+      returnRate: isSet(object.returnRate)
+        ? globalThis.String(object.returnRate)
+        : isSet(object.return_rate)
+        ? globalThis.String(object.return_rate)
+        : "",
+      profit: isSet(object.profit) ? globalThis.String(object.profit) : "0",
+    };
+  },
+
+  toJSON(message: MonthlyReturn): unknown {
+    const obj: any = {};
+    if (message.month !== "") {
+      obj.month = message.month;
+    }
+    if (message.returnRate !== "") {
+      obj.returnRate = message.returnRate;
+    }
+    if (message.profit !== "0") {
+      obj.profit = message.profit;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<MonthlyReturn>): MonthlyReturn {
+    return MonthlyReturn.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<MonthlyReturn>): MonthlyReturn {
+    const message = createBaseMonthlyReturn();
+    message.month = object.month ?? "";
+    message.returnRate = object.returnRate ?? "";
+    message.profit = object.profit ?? "0";
+    return message;
+  },
+};
+
+function createBaseGetMonthlyReturnsRequest(): GetMonthlyReturnsRequest {
+  return { userId: "", months: 0 };
+}
+
+export const GetMonthlyReturnsRequest: MessageFns<GetMonthlyReturnsRequest> = {
+  encode(message: GetMonthlyReturnsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.months !== 0) {
+      writer.uint32(16).int32(message.months);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetMonthlyReturnsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetMonthlyReturnsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.months = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetMonthlyReturnsRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      months: isSet(object.months) ? globalThis.Number(object.months) : 0,
+    };
+  },
+
+  toJSON(message: GetMonthlyReturnsRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.months !== 0) {
+      obj.months = Math.round(message.months);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetMonthlyReturnsRequest>): GetMonthlyReturnsRequest {
+    return GetMonthlyReturnsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetMonthlyReturnsRequest>): GetMonthlyReturnsRequest {
+    const message = createBaseGetMonthlyReturnsRequest();
+    message.userId = object.userId ?? "";
+    message.months = object.months ?? 0;
+    return message;
+  },
+};
+
+function createBaseGetMonthlyReturnsResponse(): GetMonthlyReturnsResponse {
+  return { returns: [] };
+}
+
+export const GetMonthlyReturnsResponse: MessageFns<GetMonthlyReturnsResponse> = {
+  encode(message: GetMonthlyReturnsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.returns) {
+      MonthlyReturn.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetMonthlyReturnsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetMonthlyReturnsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.returns.push(MonthlyReturn.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetMonthlyReturnsResponse {
+    return {
+      returns: globalThis.Array.isArray(object?.returns)
+        ? object.returns.map((e: any) => MonthlyReturn.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: GetMonthlyReturnsResponse): unknown {
+    const obj: any = {};
+    if (message.returns?.length) {
+      obj.returns = message.returns.map((e) => MonthlyReturn.toJSON(e));
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetMonthlyReturnsResponse>): GetMonthlyReturnsResponse {
+    return GetMonthlyReturnsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetMonthlyReturnsResponse>): GetMonthlyReturnsResponse {
+    const message = createBaseGetMonthlyReturnsResponse();
+    message.returns = object.returns?.map((e) => MonthlyReturn.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseRecordDailySnapshotRequest(): RecordDailySnapshotRequest {
+  return { userId: "", snapshotDate: "", totalAsset: "0", stockValue: "0", seedCapital: "0", idempotencyKey: "" };
+}
+
+export const RecordDailySnapshotRequest: MessageFns<RecordDailySnapshotRequest> = {
+  encode(message: RecordDailySnapshotRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.snapshotDate !== "") {
+      writer.uint32(18).string(message.snapshotDate);
+    }
+    if (message.totalAsset !== "0") {
+      writer.uint32(24).int64(message.totalAsset);
+    }
+    if (message.stockValue !== "0") {
+      writer.uint32(32).int64(message.stockValue);
+    }
+    if (message.seedCapital !== "0") {
+      writer.uint32(40).int64(message.seedCapital);
+    }
+    if (message.idempotencyKey !== "") {
+      writer.uint32(50).string(message.idempotencyKey);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RecordDailySnapshotRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRecordDailySnapshotRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.snapshotDate = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.totalAsset = reader.int64().toString();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.stockValue = reader.int64().toString();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.seedCapital = reader.int64().toString();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.idempotencyKey = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RecordDailySnapshotRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      snapshotDate: isSet(object.snapshotDate)
+        ? globalThis.String(object.snapshotDate)
+        : isSet(object.snapshot_date)
+        ? globalThis.String(object.snapshot_date)
+        : "",
+      totalAsset: isSet(object.totalAsset)
+        ? globalThis.String(object.totalAsset)
+        : isSet(object.total_asset)
+        ? globalThis.String(object.total_asset)
+        : "0",
+      stockValue: isSet(object.stockValue)
+        ? globalThis.String(object.stockValue)
+        : isSet(object.stock_value)
+        ? globalThis.String(object.stock_value)
+        : "0",
+      seedCapital: isSet(object.seedCapital)
+        ? globalThis.String(object.seedCapital)
+        : isSet(object.seed_capital)
+        ? globalThis.String(object.seed_capital)
+        : "0",
+      idempotencyKey: isSet(object.idempotencyKey)
+        ? globalThis.String(object.idempotencyKey)
+        : isSet(object.idempotency_key)
+        ? globalThis.String(object.idempotency_key)
+        : "",
+    };
+  },
+
+  toJSON(message: RecordDailySnapshotRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.snapshotDate !== "") {
+      obj.snapshotDate = message.snapshotDate;
+    }
+    if (message.totalAsset !== "0") {
+      obj.totalAsset = message.totalAsset;
+    }
+    if (message.stockValue !== "0") {
+      obj.stockValue = message.stockValue;
+    }
+    if (message.seedCapital !== "0") {
+      obj.seedCapital = message.seedCapital;
+    }
+    if (message.idempotencyKey !== "") {
+      obj.idempotencyKey = message.idempotencyKey;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<RecordDailySnapshotRequest>): RecordDailySnapshotRequest {
+    return RecordDailySnapshotRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<RecordDailySnapshotRequest>): RecordDailySnapshotRequest {
+    const message = createBaseRecordDailySnapshotRequest();
+    message.userId = object.userId ?? "";
+    message.snapshotDate = object.snapshotDate ?? "";
+    message.totalAsset = object.totalAsset ?? "0";
+    message.stockValue = object.stockValue ?? "0";
+    message.seedCapital = object.seedCapital ?? "0";
+    message.idempotencyKey = object.idempotencyKey ?? "";
+    return message;
+  },
+};
+
+function createBaseRecordDailySnapshotResponse(): RecordDailySnapshotResponse {
+  return { snapshot: undefined };
+}
+
+export const RecordDailySnapshotResponse: MessageFns<RecordDailySnapshotResponse> = {
+  encode(message: RecordDailySnapshotResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.snapshot !== undefined) {
+      PortfolioSnapshot.encode(message.snapshot, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RecordDailySnapshotResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRecordDailySnapshotResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.snapshot = PortfolioSnapshot.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RecordDailySnapshotResponse {
+    return { snapshot: isSet(object.snapshot) ? PortfolioSnapshot.fromJSON(object.snapshot) : undefined };
+  },
+
+  toJSON(message: RecordDailySnapshotResponse): unknown {
+    const obj: any = {};
+    if (message.snapshot !== undefined) {
+      obj.snapshot = PortfolioSnapshot.toJSON(message.snapshot);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<RecordDailySnapshotResponse>): RecordDailySnapshotResponse {
+    return RecordDailySnapshotResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<RecordDailySnapshotResponse>): RecordDailySnapshotResponse {
+    const message = createBaseRecordDailySnapshotResponse();
+    message.snapshot = (object.snapshot !== undefined && object.snapshot !== null)
+      ? PortfolioSnapshot.fromPartial(object.snapshot)
+      : undefined;
+    return message;
+  },
+};
+
+/** BFF 테이블의 HoldingService → portfolio-service 가 구현 */
+export type HoldingServiceDefinition = typeof HoldingServiceDefinition;
+export const HoldingServiceDefinition = {
+  name: "HoldingService",
+  fullName: "candle.portfolio.v1.HoldingService",
+  methods: {
+    listHoldings: {
+      name: "ListHoldings",
+      requestType: ListHoldingsRequest as typeof ListHoldingsRequest,
+      requestStream: false,
+      responseType: ListHoldingsResponse as typeof ListHoldingsResponse,
+      responseStream: false,
+      options: {},
+    },
+    getHolding: {
+      name: "GetHolding",
+      requestType: GetHoldingRequest as typeof GetHoldingRequest,
+      requestStream: false,
+      responseType: GetHoldingResponse as typeof GetHoldingResponse,
+      responseStream: false,
+      options: {},
+    },
+  },
+} as const;
+
+export interface HoldingServiceImplementation<CallContextExt = {}> {
+  listHoldings(
+    request: ListHoldingsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ListHoldingsResponse>>;
+  getHolding(
+    request: GetHoldingRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<GetHoldingResponse>>;
+}
+
+export interface HoldingServiceClient<CallOptionsExt = {}> {
+  listHoldings(
+    request: DeepPartial<ListHoldingsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ListHoldingsResponse>;
+  getHolding(
+    request: DeepPartial<GetHoldingRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<GetHoldingResponse>;
+}
+
+/** BFF 테이블의 PortfolioService → portfolio-service 가 구현 */
 export type PortfolioServiceDefinition = typeof PortfolioServiceDefinition;
 export const PortfolioServiceDefinition = {
   name: "PortfolioService",
@@ -286,6 +2581,46 @@ export const PortfolioServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    getPortfolioHistory: {
+      name: "GetPortfolioHistory",
+      requestType: GetPortfolioHistoryRequest as typeof GetPortfolioHistoryRequest,
+      requestStream: false,
+      responseType: GetPortfolioHistoryResponse as typeof GetPortfolioHistoryResponse,
+      responseStream: false,
+      options: {},
+    },
+    getSectorBreakdown: {
+      name: "GetSectorBreakdown",
+      requestType: GetSectorBreakdownRequest as typeof GetSectorBreakdownRequest,
+      requestStream: false,
+      responseType: GetSectorBreakdownResponse as typeof GetSectorBreakdownResponse,
+      responseStream: false,
+      options: {},
+    },
+    getTradingStats: {
+      name: "GetTradingStats",
+      requestType: GetTradingStatsRequest as typeof GetTradingStatsRequest,
+      requestStream: false,
+      responseType: GetTradingStatsResponse as typeof GetTradingStatsResponse,
+      responseStream: false,
+      options: {},
+    },
+    getMonthlyReturns: {
+      name: "GetMonthlyReturns",
+      requestType: GetMonthlyReturnsRequest as typeof GetMonthlyReturnsRequest,
+      requestStream: false,
+      responseType: GetMonthlyReturnsResponse as typeof GetMonthlyReturnsResponse,
+      responseStream: false,
+      options: {},
+    },
+    recordDailySnapshot: {
+      name: "RecordDailySnapshot",
+      requestType: RecordDailySnapshotRequest as typeof RecordDailySnapshotRequest,
+      requestStream: false,
+      responseType: RecordDailySnapshotResponse as typeof RecordDailySnapshotResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -294,6 +2629,26 @@ export interface PortfolioServiceImplementation<CallContextExt = {}> {
     request: GetPortfolioSummaryRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<GetPortfolioSummaryResponse>>;
+  getPortfolioHistory(
+    request: GetPortfolioHistoryRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<GetPortfolioHistoryResponse>>;
+  getSectorBreakdown(
+    request: GetSectorBreakdownRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<GetSectorBreakdownResponse>>;
+  getTradingStats(
+    request: GetTradingStatsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<GetTradingStatsResponse>>;
+  getMonthlyReturns(
+    request: GetMonthlyReturnsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<GetMonthlyReturnsResponse>>;
+  recordDailySnapshot(
+    request: RecordDailySnapshotRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<RecordDailySnapshotResponse>>;
 }
 
 export interface PortfolioServiceClient<CallOptionsExt = {}> {
@@ -301,6 +2656,26 @@ export interface PortfolioServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<GetPortfolioSummaryRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<GetPortfolioSummaryResponse>;
+  getPortfolioHistory(
+    request: DeepPartial<GetPortfolioHistoryRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<GetPortfolioHistoryResponse>;
+  getSectorBreakdown(
+    request: DeepPartial<GetSectorBreakdownRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<GetSectorBreakdownResponse>;
+  getTradingStats(
+    request: DeepPartial<GetTradingStatsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<GetTradingStatsResponse>;
+  getMonthlyReturns(
+    request: DeepPartial<GetMonthlyReturnsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<GetMonthlyReturnsResponse>;
+  recordDailySnapshot(
+    request: DeepPartial<RecordDailySnapshotRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<RecordDailySnapshotResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
