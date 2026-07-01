@@ -115,6 +115,9 @@ export const RefreshTokenResult = Type.Object(
     accessToken: Type.String(),
     tokenType: Type.Literal('Bearer'),
     expiresIn: Type.Number(),
+    // auth-service 는 refresh 회전(rotate) 시 새 refresh_token 을 함께 내려준다.
+    // (BFF mock 은 생략 가능) 클라이언트는 있으면 보안 저장소에 재저장한다.
+    refreshToken: Type.Optional(Type.String()),
   },
 );
 export type RefreshTokenResult = Static<typeof RefreshTokenResult>;

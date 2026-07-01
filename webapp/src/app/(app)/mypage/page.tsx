@@ -5,6 +5,7 @@ import { Camera, Bell, Shield, HelpCircle, ChevronRight, TrendingUp, Award, Zap,
 import Link from 'next/link';
 import { checkNickname, getAccount, getMyPageSummary, logout, resetAccount, updateMyProfile, withdraw, useApi } from '@/apis';
 import { useAuthStore, useUIStore } from '@/store/useStore';
+import { secureTokenStore } from '@/lib/secure-token-store';
 import type { InvestStyle } from '@/lib/api-types';
 
 const AVATAR_OPTIONS = ['🐯', '🦊', '🐻', '🐼', '🦁', '🐲', '🚀', '💎', '📈', '👑'];
@@ -124,7 +125,7 @@ export default function MyPage() {
   };
 
   const handleLogout = async () => {
-    const rt = useAuthStore.getState().refreshToken;
+    const rt = await secureTokenStore.getRefreshToken();
     try {
       await logout(rt ?? undefined); // AUTH-010: refresh token 폐기 요청
     } finally {

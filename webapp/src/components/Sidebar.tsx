@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { logout } from '@/apis';
 import { useUIStore, useAuthStore } from '@/store/useStore';
+import { secureTokenStore } from '@/lib/secure-token-store';
 import ThemeToggle from './ThemeToggle';
 
 const navItems = [
@@ -27,11 +28,11 @@ export default function Sidebar() {
   const { username, avatar, cash, rank } = useAuthStore();
 
   const handleLogout = async () => {
-    const { refreshToken, clearSession } = useAuthStore.getState();
+    const rt = await secureTokenStore.getRefreshToken();
     try {
-      await logout(refreshToken ?? undefined); // AUTH-010
+      await logout(rt ?? undefined); // AUTH-010
     } finally {
-      clearSession();
+      useAuthStore.getState().clearSession();
       router.push('/login');
     }
   };

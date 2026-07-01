@@ -4,6 +4,7 @@ export { useWatchlistStore } from './useWatchlistStore';
 export { useNotificationStore } from './useNotificationStore';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { refreshToken as apiRefreshToken, setAuthTokenGetter, setTokenRefresher } from '@/apis';
+import { secureTokenStore } from '@/lib/secure-token-store';
 import type { OAuthLoginResult, UserProfile, UserRole } from '@/lib/api-types';
 
 interface AuthState {
@@ -42,7 +43,9 @@ export const useAuthStore = create<AuthState>()(
       cash: 2125780,
       rank: 4,
 
-      setSession: (result) =>
+      setSession: (result) => {
+        // refresh_token 은 네이티브 보안 저장소(Keystore/Keychain)에만 보관한다.
+        void secureTokenStore.setRefreshToken(result.tokens.refreshToken);
         set({
           accessToken: result.tokens.accessToken,
           refreshToken: result.tokens.refreshToken,
@@ -52,23 +55,26 @@ export const useAuthStore = create<AuthState>()(
           isNewUser: result.isNewUser,
           username: result.user.username,
           avatar: result.user.avatar,
-        }),
+        });
+      },
 
       setAccessToken: (token, expiresInSec) =>
         set({ accessToken: token, expiresAt: Date.now() + expiresInSec * 1000 }),
 
-      clearSession: () =>
-        set({ accessToken: null, refreshToken: null, expiresAt: null, user: null, isLoggedIn: false, isNewUser: false }),
+      clearSession: () => {
+        void secureTokenStore.clear();
+        set({ accessToken: null, refreshToken: null, expiresAt: null, user: null, isLoggedIn: false, isNewUser: false });
+      },
 
       hasRole: (role) => get().user?.role === role,
     }),
     {
       name: 'candle-auth',
       storage: createJSONStorage(() => localStorage),
-      // Persist only the session; actions/display defaults are recreated.
+      // refresh_token 은 localStorage 에 남기지 않는다 — 보안 저장소로만 관리.
+      // access_token/user 는 즉시 부팅을 위해 그대로 persist (만료 시 401 재시도가 갱신).
       partialize: (s) => ({
         accessToken: s.accessToken,
-        refreshToken: s.refreshToken,
         expiresAt: s.expiresAt,
         user: s.user,
         isLoggedIn: s.isLoggedIn,
@@ -76,6 +82,14 @@ export const useAuthStore = create<AuthState>()(
         username: s.username,
         avatar: s.avatar,
       }),
+      // 구버전: refresh_token 이 localStorage(candle-auth)에 있던 사용자 → 보안 저장소로 1회 이관.
+      onRehydrateStorage: () => (state) => {
+        const legacy = state?.refreshToken;
+        if (legacy) {
+          void secureTokenStore.setRefreshToken(legacy);
+          state!.refreshToken = null;
+        }
+      },
     },
   ),
 );
@@ -83,11 +97,14 @@ export const useAuthStore = create<AuthState>()(
 // ── Wire the token into the API client (Authorization header + 401 refresh) ──
 setAuthTokenGetter(() => useAuthStore.getState().accessToken);
 setTokenRefresher(async () => {
-  const rt = useAuthStore.getState().refreshToken;
+  // refresh_token 의 단일 소스는 보안 저장소다.
+  const rt = await secureTokenStore.getRefreshToken();
   if (!rt) return null;
   try {
     const res = await apiRefreshToken(rt);
     useAuthStore.getState().setAccessToken(res.accessToken, res.expiresIn);
+    // 서버가 refresh 를 회전(rotate)시키므로 새 refresh 를 다시 저장한다.
+    if (res.refreshToken) await secureTokenStore.setRefreshToken(res.refreshToken);
     return res.accessToken;
   } catch {
     useAuthStore.getState().clearSession();
