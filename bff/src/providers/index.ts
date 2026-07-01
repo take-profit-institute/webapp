@@ -2,8 +2,6 @@ import { env } from '../config/env';
 import type { MarketProvider } from './market.provider';
 import { MockMarketProvider } from './mock-market.provider';
 import { GrpcMarketProvider } from './grpc-market.provider';
-import { createMarketServiceClient } from '../grpc/clients/market.client';
-import { getChannel } from '../grpc/channel';
 
 let marketProvider: MarketProvider | null = null;
 
@@ -13,9 +11,7 @@ export function getMarketProvider(): MarketProvider {
 
   switch (env.dataSource) {
     case 'grpc':
-      marketProvider = new GrpcMarketProvider(
-        createMarketServiceClient(getChannel(env.grpc.marketAddr)),
-      );
+      marketProvider = new GrpcMarketProvider();
       return marketProvider;
 
     case 'kis':
