@@ -16,6 +16,15 @@ export type {
   NewsItem,
   MarketMovers,
   MarketStatus,
+  // stock catalog (stock-service)
+  StockSummary,
+  StockCatalogDetail,
+  StockFinancialsInfo,
+  StockPage,
+  StockSearchQuery,
+  StockMarket,
+  ListingStatus,
+  StockSort,
   // account
   Account,
   AccountStatus,

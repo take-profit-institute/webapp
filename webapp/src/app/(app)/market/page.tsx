@@ -55,9 +55,17 @@ export default function MarketPage() {
 
   return (
     <div className="p-3 md:p-6 max-w-[1200px]">
-      <div className="mb-4 md:mb-6">
-        <h1 className="text-xl md:text-2xl font-black mb-1" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-primary)' }}>시장</h1>
-        <p className="text-xs md:text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>실시간 주가 현황</p>
+      <div className="mb-4 md:mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl md:text-2xl font-black mb-1" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-primary)' }}>시장</h1>
+          <p className="text-xs md:text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>실시간 주가 현황</p>
+        </div>
+        <Link href="/market/search"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium shrink-0"
+          style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', textDecoration: 'none' }}>
+          <Search size={13} />
+          <span>전체 종목 검색</span>
+        </Link>
       </div>
 
       {/* Index cards */}

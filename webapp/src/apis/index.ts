@@ -7,6 +7,7 @@
  * symbol-ish helpers), and the most-used functions are also re-exported flat.
  */
 export * as marketApi from './market';
+export * as stockApi from './stocks';
 export * as notificationApi from './notifications';
 export * as accountApi from './account';
 export * as authApi from './auth';
@@ -31,6 +32,7 @@ export {
   getIntradayHistory,
   getSparklines,
 } from './market';
+export { searchStocks, getStockCatalog } from './stocks';
 export {
   getNotifications,
   getUnreadCount,
