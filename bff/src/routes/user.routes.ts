@@ -55,8 +55,8 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
           ...(authMe.user?.email ? { email: authMe.user.email } : {}),
         };
       } catch (err) {
-        const { statusCode, message } = mapGrpcError(err);
-        return reply.code(statusCode).send({ statusCode, error: 'gRPC Error', message });
+        const mapped = mapGrpcError(err, req.id);
+        return reply.code(mapped.statusCode).send(mapped);
       }
     },
   );
@@ -84,8 +84,8 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
         const profile = toSharedProfile(res.profile);
         return req.body.investStyle ? { ...profile, investStyle: req.body.investStyle } : profile;
       } catch (err) {
-        const { statusCode, message } = mapGrpcError(err);
-        return reply.code(statusCode).send({ statusCode, error: 'gRPC Error', message });
+        const mapped = mapGrpcError(err, req.id);
+        return reply.code(mapped.statusCode).send(mapped);
       }
     },
   );
@@ -130,8 +130,8 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
           },
         };
       } catch (err) {
-        const { statusCode, message } = mapGrpcError(err);
-        return reply.code(statusCode).send({ statusCode, error: 'gRPC Error', message });
+        const mapped = mapGrpcError(err, req.id);
+        return reply.code(mapped.statusCode).send(mapped);
       }
     },
   );

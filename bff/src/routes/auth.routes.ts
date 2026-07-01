@@ -95,9 +95,9 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
           ...(PROVIDER_META[p.name] ?? { name: p.name, color: '#888888' }),
         }));
       } catch (err) {
-        const { statusCode, message } = mapGrpcError(err);
-        const httpStatus = (statusCode === 500 ? 500 : 503) as 500 | 503;
-        return reply.code(httpStatus).send({ statusCode: httpStatus, error: 'gRPC Error', message });
+        const mapped = mapGrpcError(err, req.id);
+        const httpStatus = (mapped.statusCode === 500 ? 500 : 503) as 500 | 503;
+        return reply.code(httpStatus).send({ ...mapped, statusCode: httpStatus });
       }
     },
   );
@@ -195,9 +195,9 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
           provider: res.user.provider as UserProfileType['provider'],
         };
       } catch (err) {
-        const { statusCode, message } = mapGrpcError(err);
-        const httpStatus = (statusCode >= 500 ? 503 : statusCode) as 401 | 503;
-        return reply.code(httpStatus).send({ statusCode, error: 'gRPC Error', message });
+        const mapped = mapGrpcError(err, req.id);
+        const httpStatus = (mapped.statusCode >= 500 ? 503 : mapped.statusCode) as 401 | 503;
+        return reply.code(httpStatus).send({ ...mapped, statusCode: httpStatus });
       }
     },
   );

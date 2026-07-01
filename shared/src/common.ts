@@ -4,7 +4,9 @@ import { Type, type Static, type TSchema } from '@sinclair/typebox';
 export const ErrorResponse = Type.Object({
   statusCode: Type.Number(),
   error: Type.String(),
+  code: Type.Optional(Type.String()),
   message: Type.String(),
+  traceId: Type.Optional(Type.String()),
 });
 export type ErrorResponse = Static<typeof ErrorResponse>;
 

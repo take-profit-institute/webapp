@@ -161,7 +161,16 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
         tags: ['account'],
         summary: '매수/매도 주문 (시장가/지정가)',
         body: PlaceOrderBody,
-        response: { 201: Transaction, 400: ErrorResponse, 404: ErrorResponse, 409: ErrorResponse, 422: ErrorResponse },
+        response: {
+          201: Transaction,
+          400: ErrorResponse,
+          404: ErrorResponse,
+          409: ErrorResponse,
+          422: ErrorResponse,
+          500: ErrorResponse,
+          503: ErrorResponse,
+          504: ErrorResponse,
+        },
       },
     },
     // NOTE: 주문은 영속화되지 않음 — 검증 후 체결/예약 결과를 합성해 반환.
@@ -186,8 +195,8 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
           });
           return reply.status(201).send(tx);
         } catch (e) {
-          const { statusCode, message } = mapGrpcError(e);
-          throw Object.assign(new Error(message), { statusCode });
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 400 | 404 | 409 | 422 | 500 | 503 | 504).send(mapped);
         }
       }
 
@@ -257,7 +266,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.delete(
     '/orders/:id',
-    { schema: { tags: ['account'], summary: '주문 취소 (CAN-001~004)', params: OrderIdParams, response: { 200: OrderCancelResult, 404: ErrorResponse, 409: ErrorResponse } } },
+    { schema: { tags: ['account'], summary: '주문 취소 (CAN-001~004)', params: OrderIdParams, response: { 200: OrderCancelResult, 404: ErrorResponse, 409: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
     async (req, reply) => {
       const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
 
@@ -271,8 +280,8 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
           });
           return reply.send({ id: req.params.id, status: 'cancelled' as const, releasedAmount, cancelledAt: new Date().toISOString() });
         } catch (e) {
-          const { statusCode, message } = mapGrpcError(e);
-          throw Object.assign(new Error(message), { statusCode });
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 404 | 409 | 500 | 503 | 504).send(mapped);
         }
       }
 
