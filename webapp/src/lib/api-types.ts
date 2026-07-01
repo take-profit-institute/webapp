@@ -85,6 +85,9 @@ export type {
   Notification,
   NotificationType,
   NotificationStatus,
+  DevicePlatform,
+  RegisterDeviceTokenBody,
+  RegisterDeviceTokenResult,
   UnreadCountResult,
   // common
   Exchange,

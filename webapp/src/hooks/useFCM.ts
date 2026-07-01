@@ -1,10 +1,39 @@
 'use client';
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { registerNotificationDevice } from '@/apis/notifications';
+import type { DevicePlatform } from '@/lib/api-types';
 import { useNotificationStore } from '@/store/useNotificationStore';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
 const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+const DEVICE_ID_KEY = 'candle:fcm:device-id';
+
+function createDeviceId(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function getDeviceId(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const saved = window.localStorage.getItem(DEVICE_ID_KEY);
+    if (saved) return saved;
+
+    const next = createDeviceId();
+    window.localStorage.setItem(DEVICE_ID_KEY, next);
+    return next;
+  } catch {
+    return undefined;
+  }
+}
+
+function getDevicePlatform(): DevicePlatform {
+  const platform = Capacitor.getPlatform();
+  if (platform === 'ios' || platform === 'android') return platform;
+  return 'web';
+}
 
 async function registerWebFCM() {
   const permission = await Notification.requestPermission();
@@ -54,11 +83,10 @@ async function registerNativeFCM() {
 }
 
 async function sendTokenToBFF(token: string) {
-  await fetch(`${API_BASE}/api/notifications/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ token, platform: Capacitor.getPlatform() }),
+  await registerNotificationDevice({
+    token,
+    platform: getDevicePlatform(),
+    deviceId: getDeviceId(),
   });
 }
 

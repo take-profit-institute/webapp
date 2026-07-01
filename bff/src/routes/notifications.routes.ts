@@ -6,6 +6,8 @@ import {
   NotificationListQuery,
   NotificationType,
   NotificationStatus,
+  RegisterDeviceTokenBody,
+  RegisterDeviceTokenResult,
   UnreadCountResult,
   ErrorResponse,
 } from '@candle/shared';
@@ -16,10 +18,20 @@ import {
   markAllRead,
   removeNotification,
 } from '../data/notifications';
-import { requireIdempotencyKey } from '../grpc';
+import { mapGrpcError, requireIdempotencyKey } from '../grpc';
+import { env } from '../config/env';
 
 // In-memory token store (replace with DB in production)
-const fcmTokens = new Map<string, { token: string; platform: string; updatedAt: string }>();
+const fcmTokens = new Map<string, { token: string; platform: string; deviceId?: string; updatedAt: string }>();
+
+function extractUserId(req: { headers: Record<string, string | string[] | undefined> }): string | undefined {
+  const v = req.headers['x-account-id'];
+  return Array.isArray(v) ? v[0] : v;
+}
+
+function mockDeviceTokenId(token: string): string {
+  return `mock-${Buffer.from(token).toString('base64url').slice(0, 24)}`;
+}
 
 const notificationRoutes: FastifyPluginAsyncTypebox = async (app) => {
   app.post(
@@ -28,17 +40,39 @@ const notificationRoutes: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ['notification'],
         summary: 'FCM 토큰 등록',
-        body: Type.Object({
-          token: Type.String(),
-          platform: Type.Union([Type.Literal('web'), Type.Literal('ios'), Type.Literal('android')]),
-        }),
-        response: { 204: Type.Null() },
+        body: RegisterDeviceTokenBody,
+        response: {
+          200: RegisterDeviceTokenResult,
+          400: ErrorResponse,
+          401: ErrorResponse,
+          404: ErrorResponse,
+          409: ErrorResponse,
+          500: ErrorResponse,
+          503: ErrorResponse,
+        },
       },
     },
     async (req, reply) => {
-      const { token, platform } = req.body;
-      fcmTokens.set(token, { token, platform, updatedAt: new Date().toISOString() });
-      return reply.status(204).send(null);
+      const userId = extractUserId(req);
+      if (!userId) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
+
+      const idempotencyKey = requireIdempotencyKey(req);
+      const { token, platform, deviceId } = req.body;
+
+      if (env.dataSource !== 'grpc') {
+        fcmTokens.set(token, { token, platform, deviceId, updatedAt: new Date().toISOString() });
+        return { deviceTokenId: mockDeviceTokenId(token) };
+      }
+
+      try {
+        return await req.server.grpc.notification.registerDeviceToken(
+          { userId, token, platform, deviceId },
+          { userId, idempotencyKey },
+        );
+      } catch (err) {
+        const mapped = mapGrpcError(err, req.id);
+        return reply.code(mapped.statusCode as 400 | 401 | 404 | 409 | 500 | 503).send(mapped);
+      }
     },
   );
 

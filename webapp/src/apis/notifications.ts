@@ -1,5 +1,11 @@
 /** Notification endpoints (`/api/notifications/*`). */
-import type { Notification, NotificationStatus, UnreadCountResult } from '@/lib/api-types';
+import type {
+  Notification,
+  NotificationStatus,
+  RegisterDeviceTokenBody,
+  RegisterDeviceTokenResult,
+  UnreadCountResult,
+} from '@/lib/api-types';
 import { apiClient } from './client';
 
 export interface NotificationListParams {
@@ -14,6 +20,10 @@ export function getNotifications(params: NotificationListParams = {}): Promise<N
 
 export function getUnreadCount(): Promise<UnreadCountResult> {
   return apiClient.get<UnreadCountResult>('/api/notifications/unread-count');
+}
+
+export function registerNotificationDevice(body: RegisterDeviceTokenBody): Promise<RegisterDeviceTokenResult> {
+  return apiClient.post<RegisterDeviceTokenResult>('/api/notifications/token', body);
 }
 
 export function markNotificationRead(id: string): Promise<void> {

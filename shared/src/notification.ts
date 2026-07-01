@@ -21,6 +21,25 @@ export const NotificationStatus = Type.Union([
 ]);
 export type NotificationStatus = Static<typeof NotificationStatus>;
 
+export const DevicePlatform = Type.Union([
+  Type.Literal('web'),
+  Type.Literal('ios'),
+  Type.Literal('android'),
+]);
+export type DevicePlatform = Static<typeof DevicePlatform>;
+
+export const RegisterDeviceTokenBody = Type.Object({
+  token: Type.String({ minLength: 1 }),
+  platform: DevicePlatform,
+  deviceId: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })),
+});
+export type RegisterDeviceTokenBody = Static<typeof RegisterDeviceTokenBody>;
+
+export const RegisterDeviceTokenResult = Type.Object({
+  deviceTokenId: Type.String(),
+});
+export type RegisterDeviceTokenResult = Static<typeof RegisterDeviceTokenResult>;
+
 export const Notification = Type.Object({
   id: Type.String(),
   symbol: Type.String(),
