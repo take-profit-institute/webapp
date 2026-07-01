@@ -1,7 +1,16 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Search, ArrowUpRight, ArrowDownRight, SlidersHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Search,
+  ArrowUpRight,
+  ArrowDownRight,
+  SlidersHorizontal,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from 'lucide-react';
 import MiniSparkline from '@/components/MiniSparkline';
 import { getStocks, getSparklines, useApi } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
@@ -12,6 +21,7 @@ const exchanges = ['전체', 'KOSPI', 'KOSDAQ'];
 const sectors = ['전체', '반도체', 'IT', '배터리', '자동차', '바이오'];
 
 const PAGE_SIZE = 6;
+const PAGE_WINDOW_SIZE = 5;
 
 export default function MarketPage() {
   const [activeExchange, setActiveExchange] = useState('전체');
@@ -39,6 +49,14 @@ export default function MarketPage() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageWindowStart = Math.floor((page - 1) / PAGE_WINDOW_SIZE) * PAGE_WINDOW_SIZE + 1;
+  const pageWindowEnd = Math.min(totalPages, pageWindowStart + PAGE_WINDOW_SIZE - 1);
+  const visiblePages = Array.from(
+    { length: pageWindowEnd - pageWindowStart + 1 },
+    (_, i) => pageWindowStart + i,
+  );
+  const canMovePrevWindow = pageWindowStart > 1;
+  const canMoveNextWindow = pageWindowEnd < totalPages;
 
   /** 종목별 2주 데이터 계산 */
   function getStockSparkData(symbol: string, fallbackPrice: number) {
@@ -249,17 +267,28 @@ export default function MarketPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-4">
+          <div className="flex flex-wrap items-center justify-center gap-1.5 mt-4">
+            <button
+              onClick={() => setPage(Math.max(1, pageWindowStart - PAGE_WINDOW_SIZE))}
+              disabled={!canMovePrevWindow}
+              aria-label="이전 페이지 묶음"
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-30"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
+            >
+              <ChevronsLeft size={14} />
+            </button>
+
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
+              aria-label="이전 페이지"
               className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-30"
               style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
             >
               <ChevronLeft size={14} />
             </button>
 
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+            {visiblePages.map(p => (
               <button key={p} onClick={() => setPage(p)}
                 className="w-8 h-8 rounded-lg text-xs font-bold transition-all"
                 style={{
@@ -275,13 +304,24 @@ export default function MarketPage() {
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
+              aria-label="다음 페이지"
               className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-30"
               style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
             >
               <ChevronRight size={14} />
             </button>
 
-            <span className="text-xs ml-1" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>
+            <button
+              onClick={() => setPage(Math.min(totalPages, pageWindowStart + PAGE_WINDOW_SIZE))}
+              disabled={!canMoveNextWindow}
+              aria-label="다음 페이지 묶음"
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-30"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
+            >
+              <ChevronsRight size={14} />
+            </button>
+
+            <span className="basis-full sm:basis-auto text-center text-xs sm:ml-1" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>
               {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} / {filtered.length}
             </span>
           </div>
