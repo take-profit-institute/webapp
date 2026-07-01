@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "712132485233",
+    "project_id": "candle-bfce9",
+    "storage_bucket": "candle-bfce9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:712132485233:android:aae9b787d87e46fa103bd0",
+        "android_client_info": {
+          "package_name": "com.candle.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBS3qT2RiBWfy2iw_TAA5DBBOPH7Wjd0TI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
