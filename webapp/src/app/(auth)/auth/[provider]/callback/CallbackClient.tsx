@@ -3,6 +3,7 @@ import { Suspense, useEffect, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { oauthExchange } from '@/apis/auth';
 import { consumeOAuthState } from '@/lib/oauth-state';
+import { setSessionWithServerProfile } from '@/lib/session-profile';
 import { useAuthStore } from '@/store/useStore';
 import type { OAuthProvider } from '@/lib/api-types';
 
@@ -52,15 +53,15 @@ function CallbackContent() {
     }
 
     oauthExchange(provider, code, state ?? undefined)
-      .then((result) => {
-        setSession(result);
+      .then(async (result) => {
+        await setSessionWithServerProfile(result, setSession);
         router.push(result.isNewUser ? '/signup' : '/dashboard');
       })
       .catch((err: unknown) => {
         console.error('[OAuth] code exchange failed:', err);
         router.push('/login?error=auth_failed');
       });
-  }, []);
+  }, [params?.provider, router, searchParams, setSession]);
 
   return <Loading />;
 }

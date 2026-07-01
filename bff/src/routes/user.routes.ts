@@ -18,9 +18,9 @@ import { parallelFetch } from '../grpc/parallel';
 function toSharedProfile(grpc: GrpcUserProfile): SharedUserProfile {
   return {
     id: grpc.userId,
-    username: grpc.nickname,
+    username: grpc.nickname || `캔들${grpc.userId.replace(/-/g, '').slice(0, 8)}`,
     email: grpc.email,
-    avatar: grpc.profileImageUrl,
+    avatar: grpc.profileImageUrl || '🐯',
     role: 'USER',
     status: grpc.deleted ? 'withdrawn' : 'active',
     createdAt: grpc.audit?.createdAt?.toISOString() ?? new Date(0).toISOString(),
@@ -69,11 +69,13 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
       if (!userId) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
       const idempotencyKey = requireIdempotencyKey(req);
       try {
+        const current = await req.server.grpc.user.getMe({ userId }, { userId });
+        if (!current.profile) return reply.code(404).send({ statusCode: 404, error: 'Not Found', message: '사용자를 찾을 수 없습니다.' });
         const res = await req.server.grpc.user.updateProfile(
           {
             userId,
-            nickname: req.body.username ?? '',
-            profileImageUrl: req.body.avatar ?? '',
+            nickname: req.body.username ?? current.profile.nickname,
+            profileImageUrl: req.body.avatar ?? current.profile.profileImageUrl,
             commandMetadata: { idempotencyKey },
           },
           { userId, idempotencyKey },

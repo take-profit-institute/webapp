@@ -5,6 +5,7 @@ import { getProviders, oauthLogin, useApi } from '@/apis';
 import { oauthExchange } from '@/apis/auth';
 import { useAuthStore } from '@/store/useStore';
 import { createOAuthState, consumeOAuthState } from '@/lib/oauth-state';
+import { setSessionWithServerProfile } from '@/lib/session-profile';
 import { isNativePlatform, runNativeOAuth, OAUTH_BRIDGE_REDIRECT_URI } from '@/lib/native-oauth';
 import type { OAuthProvider, ProviderInfo } from '@/lib/api-types';
 
@@ -69,7 +70,7 @@ export default function OAuthButtons({ scenario = 'existing', redirectTo = '/das
           }
           // 교환 redirect_uri = 인가 때 쓴 브릿지 URL과 동일해야 함(OAuth 일치 요건)
           const result = await oauthExchange(provider, code, returnedState ?? undefined, OAUTH_BRIDGE_REDIRECT_URI);
-          setSession(result);
+          await setSessionWithServerProfile(result, setSession);
           router.push(result.isNewUser ? '/signup' : redirectTo);
         } catch (e) {
           setError(e instanceof Error ? e.message : '로그인에 실패했습니다');
@@ -88,7 +89,7 @@ export default function OAuthButtons({ scenario = 'existing', redirectTo = '/das
     setError(null);
     try {
       const result = await oauthLogin(provider, scenario);
-      setSession(result);
+      await setSessionWithServerProfile(result, setSession);
       router.push(redirectTo);
     } catch (e) {
       // AUTH-014: suspended accounts come back as 403 with a message.
