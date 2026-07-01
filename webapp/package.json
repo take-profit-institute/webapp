@@ -3,17 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "tsc -p ../shared/tsconfig.json",
+    "build:shared": "tsc -p ../shared/tsconfig.json",
+    "predev": "npm run build:shared",
     "dev": "next dev",
     "dev:web": "cp env/web.env .env.local && npm run dev",
-    "dev:android": "cp env/android.env .env.local && npm run dev",
-    "prebuild": "tsc -p ../shared/tsconfig.json",
+    "dev:android": "cp env/android.env .env.local && NEXT_PUBLIC_STATIC_EXPORT=true npm run dev",
+    "prebuild": "npm run build:shared",
     "build": "next build",
+    "prebuild:web": "npm run build:shared",
+    "build:web": "next build",
+    "prebuild:app": "npm run build:shared",
+    "build:app": "NEXT_OUTPUT=export NEXT_PUBLIC_STATIC_EXPORT=true next build",
     "start": "next start",
     "lint": "eslint",
-    "cap:sync": "npm run build && cap sync",
-    "cap:android": "npm run build && cap sync android && cap open android",
-    "cap:ios": "npm run build && cap sync ios && cap open ios"
+    "cap:sync": "npm run build:app && cap sync",
+    "cap:android": "npm run build:app && cap sync android && cap open android",
+    "cap:ios": "npm run build:app && cap sync ios && cap open ios"
   },
   "dependencies": {
     "@candle/shared": "*",

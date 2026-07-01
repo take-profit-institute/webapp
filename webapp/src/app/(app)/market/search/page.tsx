@@ -5,6 +5,7 @@ import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { searchStocks, useApi } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
 import { formatMarketCap } from '@/lib/format';
+import { marketDetailHref } from '@/lib/market-routes';
 import type { StockMarket, StockSort } from '@/lib/api-types';
 
 const MARKETS: Array<'전체' | StockMarket> = ['전체', 'KOSPI', 'KOSDAQ'];
@@ -104,7 +105,7 @@ export default function StockSearchPage() {
           ) : (
             <div className="card overflow-hidden">
               {items.map((s, i) => (
-                <Link key={s.code} href={`/market/${s.code}`}
+                <Link key={s.code} href={marketDetailHref(s.code)}
                   className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--bg-elevated)]"
                   style={{ borderBottom: i < items.length - 1 ? '1px solid var(--border-subtle)' : 'none', textDecoration: 'none' }}>
                   <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"

@@ -6,6 +6,7 @@ import { getChatRoom, getStock, useApi } from '@/apis';
 import { useChatSocket } from '@/hooks/useChatSocket';
 import { useAuthStore } from '@/store/useStore';
 import type { ChatBroadcast, ChatWireMessage } from '@/lib/api-types';
+import { marketDetailHref } from '@/lib/market-routes';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 실시간 채팅: 방 배정(REST /chat/rooms) → WS(/chat/ws) → Redis Pub/Sub 팬아웃.
@@ -103,7 +104,7 @@ export default function ChatRoomClient({ symbol }: { symbol: string }) {
         style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-subtle)' }}
       >
         <Link
-          href={`/market/${symbol}`}
+          href={marketDetailHref(symbol)}
           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
           style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
         >

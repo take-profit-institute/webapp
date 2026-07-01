@@ -27,6 +27,7 @@ import { useMarketSocket } from '@/hooks/useMarketSocket';
 import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
 import { Loader, ErrorState } from '@/components/AsyncState';
 import { formatMarketCap, formatVolume } from '@/lib/format';
+import { marketChatHref } from '@/lib/market-routes';
 
 export default function StockDetailClient({ symbol }: { symbol: string }) {
   const router = useRouter();
@@ -279,7 +280,7 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
             <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>{symbol}</p>
           </div>
         </div>
-        <Link href={`/market/${symbol}/chat`} title="종목 채팅방"
+        <Link href={marketChatHref(symbol)} title="종목 채팅방"
           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
           style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
           <MessageCircle size={14} />

@@ -7,6 +7,7 @@ import WatchlistButton from '@/components/WatchlistButton';
 import { getWatchlist, getSparklines, useApi } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
 import { generateSparkline, symbolSeed } from '@/lib/chart-utils';
+import { marketDetailHref } from '@/lib/market-routes';
 import { useWatchlistStore } from '@/store/useStore';
 
 export default function WatchlistPage() {
@@ -76,7 +77,7 @@ export default function WatchlistPage() {
                 </div>
 
                 {/* Name + symbol */}
-                <Link href={`/market/${s.symbol}`} className="flex-1 min-w-0" style={{ textDecoration: 'none' }}>
+                <Link href={marketDetailHref(s.symbol)} className="flex-1 min-w-0" style={{ textDecoration: 'none' }}>
                   <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{s.name}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>{s.symbol}</span>

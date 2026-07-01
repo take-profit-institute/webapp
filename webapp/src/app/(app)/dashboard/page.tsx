@@ -14,6 +14,7 @@ import {
   useApi,
 } from '@/apis';
 import { generateSparkline, symbolSeed } from '@/lib/chart-utils';
+import { marketDetailHref } from '@/lib/market-routes';
 import { sectorColor } from '@/lib/format';
 
 export default function DashboardPage() {
@@ -244,7 +245,7 @@ export default function DashboardPage() {
           </div>
           <div className="space-y-2">
             {(topStocks ?? []).map(s => (
-              <Link key={s.symbol} href={`/market/${s.symbol}`}
+              <Link key={s.symbol} href={marketDetailHref(s.symbol)}
                 className="flex items-center justify-between py-1 rounded-lg px-1.5 transition-colors hover:bg-[var(--bg-elevated)] active:bg-[var(--bg-elevated)]"
                 style={{ color: 'inherit' }}
               >
