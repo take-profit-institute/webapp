@@ -14,14 +14,22 @@ RUN npm ci
 COPY shared shared
 COPY bff bff
 RUN npm run build -w @candle/shared && npm run build -w @candle/bff
-RUN npm prune --omit=dev
+
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY shared/package.json shared/
+COPY bff/package.json bff/
+COPY webapp/package.json webapp/
+COPY admin/package.json admin/
+RUN npm ci --omit=dev --ignore-scripts --workspace @candle/shared --workspace @candle/bff
 
 FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=8080 \
     HOST=0.0.0.0
-COPY --from=build /app/node_modules ./node_modules
+COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/shared/dist ./shared/dist
 COPY --from=build /app/shared/package.json ./shared/
 COPY --from=build /app/bff/dist ./bff/dist
