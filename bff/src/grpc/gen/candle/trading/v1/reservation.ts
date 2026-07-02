@@ -38,7 +38,8 @@ export interface Reservation {
   scheduledDate: string;
   reservedAmount: string;
   status: ReservationStatus;
-  parentOrderId: string;
+  parentReservationId: string;
+  convertedOrderId: string;
   createdAt?: Date | undefined;
 }
 
@@ -80,7 +81,7 @@ export interface CancelReservationResponse {
   releasedAmount: string;
 }
 
-/** 정정 = 원예약 취소 후 parent_order_id를 가진 새 예약 생성(CAN-006~008). */
+/** 정정 = 원예약 취소 후 parent_reservation_id를 가진 새 예약 생성(CAN-006~008). */
 export interface AmendReservationRequest {
   userId: string;
   reservationId: string;
@@ -93,6 +94,55 @@ export interface AmendReservationRequest {
 }
 
 export interface AmendReservationResponse {
+  reservation?: Reservation | undefined;
+}
+
+/**
+ * 09:00 배치 트리거 — OPEN+LIMIT RESERVED 예약을 CONVERTING으로 전이하고
+ * ReservationDue 이벤트를 Outbox에 기록한다.
+ */
+export interface ProcessOpenLimitReservationsRequest {
+  /** YYYY-MM-DD */
+  scheduledDate: string;
+}
+
+export interface ProcessOpenLimitReservationsResponse {
+  processedCount: number;
+}
+
+/** 08:30 배치 트리거 — PREV_CLOSE 예약을 전일 종가로 즉시 체결 */
+export interface ProcessPrevCloseReservationsRequest {
+  /** YYYY-MM-DD (체결 대상 예약의 scheduled_date) */
+  scheduledDate: string;
+}
+
+export interface ProcessPrevCloseReservationsResponse {
+  processedCount: number;
+}
+
+/**
+ * 15:40 배치 트리거 — TODAY_CLOSE 예약을 당일 종가로 즉시 체결
+ * 반드시 ChartService.CloseDailyCandles 완료 후 호출해야 한다.
+ */
+export interface ProcessTodayCloseReservationsRequest {
+  /** YYYY-MM-DD (체결 대상 예약의 scheduled_date) */
+  scheduledDate: string;
+}
+
+export interface ProcessTodayCloseReservationsResponse {
+  processedCount: number;
+}
+
+/**
+ * order_svc가 ReservationDue를 수신해 Order를 생성한 뒤 호출한다.
+ * reservation을 CONVERTING → EXECUTED로 전이하고 converted_order_id를 기록한다.
+ */
+export interface MarkReservationConvertedRequest {
+  reservationId: string;
+  convertedOrderId: string;
+}
+
+export interface MarkReservationConvertedResponse {
   reservation?: Reservation | undefined;
 }
 
@@ -109,7 +159,8 @@ function createBaseReservation(): Reservation {
     scheduledDate: "",
     reservedAmount: "0",
     status: 0,
-    parentOrderId: "",
+    parentReservationId: "",
+    convertedOrderId: "",
     createdAt: undefined,
   };
 }
@@ -149,11 +200,14 @@ export const Reservation: MessageFns<Reservation> = {
     if (message.status !== 0) {
       writer.uint32(88).int32(message.status);
     }
-    if (message.parentOrderId !== "") {
-      writer.uint32(98).string(message.parentOrderId);
+    if (message.parentReservationId !== "") {
+      writer.uint32(98).string(message.parentReservationId);
+    }
+    if (message.convertedOrderId !== "") {
+      writer.uint32(106).string(message.convertedOrderId);
     }
     if (message.createdAt !== undefined) {
-      Timestamp.encode(toTimestamp(message.createdAt), writer.uint32(106).fork()).join();
+      Timestamp.encode(toTimestamp(message.createdAt), writer.uint32(114).fork()).join();
     }
     return writer;
   },
@@ -258,11 +312,19 @@ export const Reservation: MessageFns<Reservation> = {
             break;
           }
 
-          message.parentOrderId = reader.string();
+          message.parentReservationId = reader.string();
           continue;
         }
         case 13: {
           if (tag !== 106) {
+            break;
+          }
+
+          message.convertedOrderId = reader.string();
+          continue;
+        }
+        case 14: {
+          if (tag !== 114) {
             break;
           }
 
@@ -303,10 +365,15 @@ export const Reservation: MessageFns<Reservation> = {
         ? globalThis.String(object.reserved_amount)
         : "0",
       status: isSet(object.status) ? reservationStatusFromJSON(object.status) : 0,
-      parentOrderId: isSet(object.parentOrderId)
-        ? globalThis.String(object.parentOrderId)
-        : isSet(object.parent_order_id)
-        ? globalThis.String(object.parent_order_id)
+      parentReservationId: isSet(object.parentReservationId)
+        ? globalThis.String(object.parentReservationId)
+        : isSet(object.parent_reservation_id)
+        ? globalThis.String(object.parent_reservation_id)
+        : "",
+      convertedOrderId: isSet(object.convertedOrderId)
+        ? globalThis.String(object.convertedOrderId)
+        : isSet(object.converted_order_id)
+        ? globalThis.String(object.converted_order_id)
         : "",
       createdAt: isSet(object.createdAt)
         ? fromJsonTimestamp(object.createdAt)
@@ -351,8 +418,11 @@ export const Reservation: MessageFns<Reservation> = {
     if (message.status !== 0) {
       obj.status = reservationStatusToJSON(message.status);
     }
-    if (message.parentOrderId !== "") {
-      obj.parentOrderId = message.parentOrderId;
+    if (message.parentReservationId !== "") {
+      obj.parentReservationId = message.parentReservationId;
+    }
+    if (message.convertedOrderId !== "") {
+      obj.convertedOrderId = message.convertedOrderId;
     }
     if (message.createdAt !== undefined) {
       obj.createdAt = message.createdAt.toISOString();
@@ -376,7 +446,8 @@ export const Reservation: MessageFns<Reservation> = {
     message.scheduledDate = object.scheduledDate ?? "";
     message.reservedAmount = object.reservedAmount ?? "0";
     message.status = object.status ?? 0;
-    message.parentOrderId = object.parentOrderId ?? "";
+    message.parentReservationId = object.parentReservationId ?? "";
+    message.convertedOrderId = object.convertedOrderId ?? "";
     message.createdAt = object.createdAt ?? undefined;
     return message;
   },
@@ -1279,6 +1350,534 @@ export const AmendReservationResponse: MessageFns<AmendReservationResponse> = {
   },
 };
 
+function createBaseProcessOpenLimitReservationsRequest(): ProcessOpenLimitReservationsRequest {
+  return { scheduledDate: "" };
+}
+
+export const ProcessOpenLimitReservationsRequest: MessageFns<ProcessOpenLimitReservationsRequest> = {
+  encode(message: ProcessOpenLimitReservationsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.scheduledDate !== "") {
+      writer.uint32(10).string(message.scheduledDate);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ProcessOpenLimitReservationsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseProcessOpenLimitReservationsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.scheduledDate = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ProcessOpenLimitReservationsRequest {
+    return {
+      scheduledDate: isSet(object.scheduledDate)
+        ? globalThis.String(object.scheduledDate)
+        : isSet(object.scheduled_date)
+        ? globalThis.String(object.scheduled_date)
+        : "",
+    };
+  },
+
+  toJSON(message: ProcessOpenLimitReservationsRequest): unknown {
+    const obj: any = {};
+    if (message.scheduledDate !== "") {
+      obj.scheduledDate = message.scheduledDate;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ProcessOpenLimitReservationsRequest>): ProcessOpenLimitReservationsRequest {
+    return ProcessOpenLimitReservationsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ProcessOpenLimitReservationsRequest>): ProcessOpenLimitReservationsRequest {
+    const message = createBaseProcessOpenLimitReservationsRequest();
+    message.scheduledDate = object.scheduledDate ?? "";
+    return message;
+  },
+};
+
+function createBaseProcessOpenLimitReservationsResponse(): ProcessOpenLimitReservationsResponse {
+  return { processedCount: 0 };
+}
+
+export const ProcessOpenLimitReservationsResponse: MessageFns<ProcessOpenLimitReservationsResponse> = {
+  encode(message: ProcessOpenLimitReservationsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.processedCount !== 0) {
+      writer.uint32(8).int32(message.processedCount);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ProcessOpenLimitReservationsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseProcessOpenLimitReservationsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.processedCount = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ProcessOpenLimitReservationsResponse {
+    return {
+      processedCount: isSet(object.processedCount)
+        ? globalThis.Number(object.processedCount)
+        : isSet(object.processed_count)
+        ? globalThis.Number(object.processed_count)
+        : 0,
+    };
+  },
+
+  toJSON(message: ProcessOpenLimitReservationsResponse): unknown {
+    const obj: any = {};
+    if (message.processedCount !== 0) {
+      obj.processedCount = Math.round(message.processedCount);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ProcessOpenLimitReservationsResponse>): ProcessOpenLimitReservationsResponse {
+    return ProcessOpenLimitReservationsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ProcessOpenLimitReservationsResponse>): ProcessOpenLimitReservationsResponse {
+    const message = createBaseProcessOpenLimitReservationsResponse();
+    message.processedCount = object.processedCount ?? 0;
+    return message;
+  },
+};
+
+function createBaseProcessPrevCloseReservationsRequest(): ProcessPrevCloseReservationsRequest {
+  return { scheduledDate: "" };
+}
+
+export const ProcessPrevCloseReservationsRequest: MessageFns<ProcessPrevCloseReservationsRequest> = {
+  encode(message: ProcessPrevCloseReservationsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.scheduledDate !== "") {
+      writer.uint32(10).string(message.scheduledDate);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ProcessPrevCloseReservationsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseProcessPrevCloseReservationsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.scheduledDate = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ProcessPrevCloseReservationsRequest {
+    return {
+      scheduledDate: isSet(object.scheduledDate)
+        ? globalThis.String(object.scheduledDate)
+        : isSet(object.scheduled_date)
+        ? globalThis.String(object.scheduled_date)
+        : "",
+    };
+  },
+
+  toJSON(message: ProcessPrevCloseReservationsRequest): unknown {
+    const obj: any = {};
+    if (message.scheduledDate !== "") {
+      obj.scheduledDate = message.scheduledDate;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ProcessPrevCloseReservationsRequest>): ProcessPrevCloseReservationsRequest {
+    return ProcessPrevCloseReservationsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ProcessPrevCloseReservationsRequest>): ProcessPrevCloseReservationsRequest {
+    const message = createBaseProcessPrevCloseReservationsRequest();
+    message.scheduledDate = object.scheduledDate ?? "";
+    return message;
+  },
+};
+
+function createBaseProcessPrevCloseReservationsResponse(): ProcessPrevCloseReservationsResponse {
+  return { processedCount: 0 };
+}
+
+export const ProcessPrevCloseReservationsResponse: MessageFns<ProcessPrevCloseReservationsResponse> = {
+  encode(message: ProcessPrevCloseReservationsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.processedCount !== 0) {
+      writer.uint32(8).int32(message.processedCount);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ProcessPrevCloseReservationsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseProcessPrevCloseReservationsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.processedCount = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ProcessPrevCloseReservationsResponse {
+    return {
+      processedCount: isSet(object.processedCount)
+        ? globalThis.Number(object.processedCount)
+        : isSet(object.processed_count)
+        ? globalThis.Number(object.processed_count)
+        : 0,
+    };
+  },
+
+  toJSON(message: ProcessPrevCloseReservationsResponse): unknown {
+    const obj: any = {};
+    if (message.processedCount !== 0) {
+      obj.processedCount = Math.round(message.processedCount);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ProcessPrevCloseReservationsResponse>): ProcessPrevCloseReservationsResponse {
+    return ProcessPrevCloseReservationsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ProcessPrevCloseReservationsResponse>): ProcessPrevCloseReservationsResponse {
+    const message = createBaseProcessPrevCloseReservationsResponse();
+    message.processedCount = object.processedCount ?? 0;
+    return message;
+  },
+};
+
+function createBaseProcessTodayCloseReservationsRequest(): ProcessTodayCloseReservationsRequest {
+  return { scheduledDate: "" };
+}
+
+export const ProcessTodayCloseReservationsRequest: MessageFns<ProcessTodayCloseReservationsRequest> = {
+  encode(message: ProcessTodayCloseReservationsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.scheduledDate !== "") {
+      writer.uint32(10).string(message.scheduledDate);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ProcessTodayCloseReservationsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseProcessTodayCloseReservationsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.scheduledDate = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ProcessTodayCloseReservationsRequest {
+    return {
+      scheduledDate: isSet(object.scheduledDate)
+        ? globalThis.String(object.scheduledDate)
+        : isSet(object.scheduled_date)
+        ? globalThis.String(object.scheduled_date)
+        : "",
+    };
+  },
+
+  toJSON(message: ProcessTodayCloseReservationsRequest): unknown {
+    const obj: any = {};
+    if (message.scheduledDate !== "") {
+      obj.scheduledDate = message.scheduledDate;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ProcessTodayCloseReservationsRequest>): ProcessTodayCloseReservationsRequest {
+    return ProcessTodayCloseReservationsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ProcessTodayCloseReservationsRequest>): ProcessTodayCloseReservationsRequest {
+    const message = createBaseProcessTodayCloseReservationsRequest();
+    message.scheduledDate = object.scheduledDate ?? "";
+    return message;
+  },
+};
+
+function createBaseProcessTodayCloseReservationsResponse(): ProcessTodayCloseReservationsResponse {
+  return { processedCount: 0 };
+}
+
+export const ProcessTodayCloseReservationsResponse: MessageFns<ProcessTodayCloseReservationsResponse> = {
+  encode(message: ProcessTodayCloseReservationsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.processedCount !== 0) {
+      writer.uint32(8).int32(message.processedCount);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ProcessTodayCloseReservationsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseProcessTodayCloseReservationsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.processedCount = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ProcessTodayCloseReservationsResponse {
+    return {
+      processedCount: isSet(object.processedCount)
+        ? globalThis.Number(object.processedCount)
+        : isSet(object.processed_count)
+        ? globalThis.Number(object.processed_count)
+        : 0,
+    };
+  },
+
+  toJSON(message: ProcessTodayCloseReservationsResponse): unknown {
+    const obj: any = {};
+    if (message.processedCount !== 0) {
+      obj.processedCount = Math.round(message.processedCount);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ProcessTodayCloseReservationsResponse>): ProcessTodayCloseReservationsResponse {
+    return ProcessTodayCloseReservationsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ProcessTodayCloseReservationsResponse>): ProcessTodayCloseReservationsResponse {
+    const message = createBaseProcessTodayCloseReservationsResponse();
+    message.processedCount = object.processedCount ?? 0;
+    return message;
+  },
+};
+
+function createBaseMarkReservationConvertedRequest(): MarkReservationConvertedRequest {
+  return { reservationId: "", convertedOrderId: "" };
+}
+
+export const MarkReservationConvertedRequest: MessageFns<MarkReservationConvertedRequest> = {
+  encode(message: MarkReservationConvertedRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.reservationId !== "") {
+      writer.uint32(10).string(message.reservationId);
+    }
+    if (message.convertedOrderId !== "") {
+      writer.uint32(18).string(message.convertedOrderId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MarkReservationConvertedRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMarkReservationConvertedRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.reservationId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.convertedOrderId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MarkReservationConvertedRequest {
+    return {
+      reservationId: isSet(object.reservationId)
+        ? globalThis.String(object.reservationId)
+        : isSet(object.reservation_id)
+        ? globalThis.String(object.reservation_id)
+        : "",
+      convertedOrderId: isSet(object.convertedOrderId)
+        ? globalThis.String(object.convertedOrderId)
+        : isSet(object.converted_order_id)
+        ? globalThis.String(object.converted_order_id)
+        : "",
+    };
+  },
+
+  toJSON(message: MarkReservationConvertedRequest): unknown {
+    const obj: any = {};
+    if (message.reservationId !== "") {
+      obj.reservationId = message.reservationId;
+    }
+    if (message.convertedOrderId !== "") {
+      obj.convertedOrderId = message.convertedOrderId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<MarkReservationConvertedRequest>): MarkReservationConvertedRequest {
+    return MarkReservationConvertedRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<MarkReservationConvertedRequest>): MarkReservationConvertedRequest {
+    const message = createBaseMarkReservationConvertedRequest();
+    message.reservationId = object.reservationId ?? "";
+    message.convertedOrderId = object.convertedOrderId ?? "";
+    return message;
+  },
+};
+
+function createBaseMarkReservationConvertedResponse(): MarkReservationConvertedResponse {
+  return { reservation: undefined };
+}
+
+export const MarkReservationConvertedResponse: MessageFns<MarkReservationConvertedResponse> = {
+  encode(message: MarkReservationConvertedResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.reservation !== undefined) {
+      Reservation.encode(message.reservation, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MarkReservationConvertedResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMarkReservationConvertedResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.reservation = Reservation.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MarkReservationConvertedResponse {
+    return { reservation: isSet(object.reservation) ? Reservation.fromJSON(object.reservation) : undefined };
+  },
+
+  toJSON(message: MarkReservationConvertedResponse): unknown {
+    const obj: any = {};
+    if (message.reservation !== undefined) {
+      obj.reservation = Reservation.toJSON(message.reservation);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<MarkReservationConvertedResponse>): MarkReservationConvertedResponse {
+    return MarkReservationConvertedResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<MarkReservationConvertedResponse>): MarkReservationConvertedResponse {
+    const message = createBaseMarkReservationConvertedResponse();
+    message.reservation = (object.reservation !== undefined && object.reservation !== null)
+      ? Reservation.fromPartial(object.reservation)
+      : undefined;
+    return message;
+  },
+};
+
 export type ReservationServiceDefinition = typeof ReservationServiceDefinition;
 export const ReservationServiceDefinition = {
   name: "ReservationService",
@@ -1316,6 +1915,39 @@ export const ReservationServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    /** 배치 전용 */
+    processOpenLimitReservations: {
+      name: "ProcessOpenLimitReservations",
+      requestType: ProcessOpenLimitReservationsRequest as typeof ProcessOpenLimitReservationsRequest,
+      requestStream: false,
+      responseType: ProcessOpenLimitReservationsResponse as typeof ProcessOpenLimitReservationsResponse,
+      responseStream: false,
+      options: {},
+    },
+    processPrevCloseReservations: {
+      name: "ProcessPrevCloseReservations",
+      requestType: ProcessPrevCloseReservationsRequest as typeof ProcessPrevCloseReservationsRequest,
+      requestStream: false,
+      responseType: ProcessPrevCloseReservationsResponse as typeof ProcessPrevCloseReservationsResponse,
+      responseStream: false,
+      options: {},
+    },
+    processTodayCloseReservations: {
+      name: "ProcessTodayCloseReservations",
+      requestType: ProcessTodayCloseReservationsRequest as typeof ProcessTodayCloseReservationsRequest,
+      requestStream: false,
+      responseType: ProcessTodayCloseReservationsResponse as typeof ProcessTodayCloseReservationsResponse,
+      responseStream: false,
+      options: {},
+    },
+    markReservationConverted: {
+      name: "MarkReservationConverted",
+      requestType: MarkReservationConvertedRequest as typeof MarkReservationConvertedRequest,
+      requestStream: false,
+      responseType: MarkReservationConvertedResponse as typeof MarkReservationConvertedResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -1336,6 +1968,23 @@ export interface ReservationServiceImplementation<CallContextExt = {}> {
     request: AmendReservationRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<AmendReservationResponse>>;
+  /** 배치 전용 */
+  processOpenLimitReservations(
+    request: ProcessOpenLimitReservationsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ProcessOpenLimitReservationsResponse>>;
+  processPrevCloseReservations(
+    request: ProcessPrevCloseReservationsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ProcessPrevCloseReservationsResponse>>;
+  processTodayCloseReservations(
+    request: ProcessTodayCloseReservationsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ProcessTodayCloseReservationsResponse>>;
+  markReservationConverted(
+    request: MarkReservationConvertedRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<MarkReservationConvertedResponse>>;
 }
 
 export interface ReservationServiceClient<CallOptionsExt = {}> {
@@ -1355,6 +2004,23 @@ export interface ReservationServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<AmendReservationRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<AmendReservationResponse>;
+  /** 배치 전용 */
+  processOpenLimitReservations(
+    request: DeepPartial<ProcessOpenLimitReservationsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ProcessOpenLimitReservationsResponse>;
+  processPrevCloseReservations(
+    request: DeepPartial<ProcessPrevCloseReservationsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ProcessPrevCloseReservationsResponse>;
+  processTodayCloseReservations(
+    request: DeepPartial<ProcessTodayCloseReservationsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ProcessTodayCloseReservationsResponse>;
+  markReservationConverted(
+    request: DeepPartial<MarkReservationConvertedRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<MarkReservationConvertedResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

@@ -7,73 +7,1260 @@
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 import type { CallContext, CallOptions } from "nice-grpc-common";
-import { CommandMetadata, PageRequest, PageResponse } from "../../common/v1/common";
+import { Timestamp } from "../../../google/protobuf/timestamp";
 
 export const protobufPackage = "candle.learning.v1";
 
-export interface Content {
-  id: string;
+/** ─── Enums ─── */
+export enum ContentLevel {
+  CONTENT_LEVEL_UNSPECIFIED = 0,
+  CONTENT_LEVEL_BEGINNER = 1,
+  CONTENT_LEVEL_INTERMEDIATE = 2,
+  CONTENT_LEVEL_ADVANCED = 3,
+  UNRECOGNIZED = -1,
+}
+
+export function contentLevelFromJSON(object: any): ContentLevel {
+  switch (object) {
+    case 0:
+    case "CONTENT_LEVEL_UNSPECIFIED":
+      return ContentLevel.CONTENT_LEVEL_UNSPECIFIED;
+    case 1:
+    case "CONTENT_LEVEL_BEGINNER":
+      return ContentLevel.CONTENT_LEVEL_BEGINNER;
+    case 2:
+    case "CONTENT_LEVEL_INTERMEDIATE":
+      return ContentLevel.CONTENT_LEVEL_INTERMEDIATE;
+    case 3:
+    case "CONTENT_LEVEL_ADVANCED":
+      return ContentLevel.CONTENT_LEVEL_ADVANCED;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return ContentLevel.UNRECOGNIZED;
+  }
+}
+
+export function contentLevelToJSON(object: ContentLevel): string {
+  switch (object) {
+    case ContentLevel.CONTENT_LEVEL_UNSPECIFIED:
+      return "CONTENT_LEVEL_UNSPECIFIED";
+    case ContentLevel.CONTENT_LEVEL_BEGINNER:
+      return "CONTENT_LEVEL_BEGINNER";
+    case ContentLevel.CONTENT_LEVEL_INTERMEDIATE:
+      return "CONTENT_LEVEL_INTERMEDIATE";
+    case ContentLevel.CONTENT_LEVEL_ADVANCED:
+      return "CONTENT_LEVEL_ADVANCED";
+    case ContentLevel.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
+export enum ContentSortBy {
+  CONTENT_SORT_BY_UNSPECIFIED = 0,
+  CONTENT_SORT_BY_LATEST = 1,
+  /** CONTENT_SORT_BY_POPULAR - read_count 기준 */
+  CONTENT_SORT_BY_POPULAR = 2,
+  CONTENT_SORT_BY_READ_COUNT = 3,
+  UNRECOGNIZED = -1,
+}
+
+export function contentSortByFromJSON(object: any): ContentSortBy {
+  switch (object) {
+    case 0:
+    case "CONTENT_SORT_BY_UNSPECIFIED":
+      return ContentSortBy.CONTENT_SORT_BY_UNSPECIFIED;
+    case 1:
+    case "CONTENT_SORT_BY_LATEST":
+      return ContentSortBy.CONTENT_SORT_BY_LATEST;
+    case 2:
+    case "CONTENT_SORT_BY_POPULAR":
+      return ContentSortBy.CONTENT_SORT_BY_POPULAR;
+    case 3:
+    case "CONTENT_SORT_BY_READ_COUNT":
+      return ContentSortBy.CONTENT_SORT_BY_READ_COUNT;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return ContentSortBy.UNRECOGNIZED;
+  }
+}
+
+export function contentSortByToJSON(object: ContentSortBy): string {
+  switch (object) {
+    case ContentSortBy.CONTENT_SORT_BY_UNSPECIFIED:
+      return "CONTENT_SORT_BY_UNSPECIFIED";
+    case ContentSortBy.CONTENT_SORT_BY_LATEST:
+      return "CONTENT_SORT_BY_LATEST";
+    case ContentSortBy.CONTENT_SORT_BY_POPULAR:
+      return "CONTENT_SORT_BY_POPULAR";
+    case ContentSortBy.CONTENT_SORT_BY_READ_COUNT:
+      return "CONTENT_SORT_BY_READ_COUNT";
+    case ContentSortBy.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
+/** ─── 콘텐츠 Messages ─── */
+export interface CreateContentRequest {
   title: string;
+  description: string;
   category: string;
-  level: string;
+  level: ContentLevel;
   body: string;
+  durationMin: number;
+  xpReward: string;
+  keywords: string[];
+  isPublished: boolean;
+}
+
+export interface UpdateContentRequest {
+  contentId: string;
+  title?: string | undefined;
+  description?: string | undefined;
+  category?: string | undefined;
+  level?: ContentLevel | undefined;
+  body?: string | undefined;
+  durationMin?: number | undefined;
+  xpReward?: string | undefined;
+  keywords: string[];
+  isPublished?: boolean | undefined;
+}
+
+export interface DeleteContentRequest {
+  contentId: string;
+}
+
+export interface DeleteContentResponse {
+  success: boolean;
+}
+
+export interface GetContentRequest {
+  contentId: string;
 }
 
 export interface ListContentsRequest {
-  userId: string;
+  category?: string | undefined;
+  level?: ContentLevel | undefined;
+  sortBy: ContentSortBy;
+  page: number;
+  size: number;
+}
+
+export interface SearchContentsRequest {
+  /** 제목 + 키워드 검색 */
   query: string;
-  page?: PageRequest | undefined;
+  category?: string | undefined;
+  level?: ContentLevel | undefined;
+  page: number;
+  size: number;
+}
+
+export interface GetRecommendedContentsRequest {
+  limit: number;
+}
+
+/** ─── 콘텐츠 Response ─── */
+export interface ContentResponse {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  level: ContentLevel;
+  durationMin: number;
+  xpReward: string;
+  keywords: string[];
+  isPublished: boolean;
+  readCount: string;
+  createdAt?: Date | undefined;
+  updatedAt?: Date | undefined;
+}
+
+export interface ContentDetailResponse {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  level: ContentLevel;
+  body: string;
+  durationMin: number;
+  xpReward: string;
+  keywords: string[];
+  isPublished: boolean;
+  readCount: string;
+  createdAt?: Date | undefined;
+  updatedAt?:
+    | Date
+    | undefined;
+  /** 요청한 사용자의 학습 상태 (있으면) */
+  userState?: UserContentStateResponse | undefined;
 }
 
 export interface ListContentsResponse {
-  contents: Content[];
-  page?: PageResponse | undefined;
+  contents: ContentWithStateResponse[];
+  totalCount: number;
+  page: number;
+  size: number;
+}
+
+export interface ContentWithStateResponse {
+  content?: ContentResponse | undefined;
+  userState?: UserContentStateResponse | undefined;
+}
+
+/** ─── 사용자 학습 상태 Messages ─── */
+export interface UpdateProgressRequest {
+  contentId: string;
+  /** 0~100 */
+  progressPct: number;
 }
 
 export interface CompleteContentRequest {
-  userId: string;
   contentId: string;
-  commandMetadata?: CommandMetadata | undefined;
 }
 
-export interface UserContentState {
+export interface ToggleFavoriteRequest {
   contentId: string;
-  completed: boolean;
-  favorite: boolean;
 }
 
-export interface CompleteContentResponse {
-  state?: UserContentState | undefined;
+export interface UserContentStateResponse {
+  id: string;
+  contentId: string;
+  progressPct: number;
+  isCompleted: boolean;
+  isFavorite: boolean;
+  completedAt?: Date | undefined;
+  lastReadAt?: Date | undefined;
 }
 
-function createBaseContent(): Content {
-  return { id: "", title: "", category: "", level: "", body: "" };
+/** ─── 학습 현황 (대시보드) ─── */
+export interface GetUserLearningStatsRequest {
 }
 
-export const Content: MessageFns<Content> = {
-  encode(message: Content, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export interface UserLearningStatsResponse {
+  totalContents: number;
+  completedContents: number;
+  /** 전체 진도율 (UI: 22%) */
+  overallProgressPct: number;
+  categoryStats: CategoryProgress[];
+}
+
+export interface CategoryProgress {
+  category: string;
+  total: number;
+  completed: number;
+  /** UI: 기술적분석 1/3 · 33% */
+  progressPct: number;
+}
+
+export interface ListFavoritesRequest {
+  page: number;
+  size: number;
+}
+
+function createBaseCreateContentRequest(): CreateContentRequest {
+  return {
+    title: "",
+    description: "",
+    category: "",
+    level: 0,
+    body: "",
+    durationMin: 0,
+    xpReward: "0",
+    keywords: [],
+    isPublished: false,
+  };
+}
+
+export const CreateContentRequest: MessageFns<CreateContentRequest> = {
+  encode(message: CreateContentRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.title !== "") {
+      writer.uint32(10).string(message.title);
+    }
+    if (message.description !== "") {
+      writer.uint32(18).string(message.description);
+    }
+    if (message.category !== "") {
+      writer.uint32(26).string(message.category);
+    }
+    if (message.level !== 0) {
+      writer.uint32(32).int32(message.level);
+    }
+    if (message.body !== "") {
+      writer.uint32(42).string(message.body);
+    }
+    if (message.durationMin !== 0) {
+      writer.uint32(48).int32(message.durationMin);
+    }
+    if (message.xpReward !== "0") {
+      writer.uint32(56).int64(message.xpReward);
+    }
+    for (const v of message.keywords) {
+      writer.uint32(66).string(v!);
+    }
+    if (message.isPublished !== false) {
+      writer.uint32(72).bool(message.isPublished);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateContentRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateContentRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.title = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.description = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.category = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.level = reader.int32() as any;
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.body = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.durationMin = reader.int32();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.xpReward = reader.int64().toString();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.keywords.push(reader.string());
+          continue;
+        }
+        case 9: {
+          if (tag !== 72) {
+            break;
+          }
+
+          message.isPublished = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CreateContentRequest {
+    return {
+      title: isSet(object.title) ? globalThis.String(object.title) : "",
+      description: isSet(object.description) ? globalThis.String(object.description) : "",
+      category: isSet(object.category) ? globalThis.String(object.category) : "",
+      level: isSet(object.level) ? contentLevelFromJSON(object.level) : 0,
+      body: isSet(object.body) ? globalThis.String(object.body) : "",
+      durationMin: isSet(object.durationMin)
+        ? globalThis.Number(object.durationMin)
+        : isSet(object.duration_min)
+        ? globalThis.Number(object.duration_min)
+        : 0,
+      xpReward: isSet(object.xpReward)
+        ? globalThis.String(object.xpReward)
+        : isSet(object.xp_reward)
+        ? globalThis.String(object.xp_reward)
+        : "0",
+      keywords: globalThis.Array.isArray(object?.keywords) ? object.keywords.map((e: any) => globalThis.String(e)) : [],
+      isPublished: isSet(object.isPublished)
+        ? globalThis.Boolean(object.isPublished)
+        : isSet(object.is_published)
+        ? globalThis.Boolean(object.is_published)
+        : false,
+    };
+  },
+
+  toJSON(message: CreateContentRequest): unknown {
+    const obj: any = {};
+    if (message.title !== "") {
+      obj.title = message.title;
+    }
+    if (message.description !== "") {
+      obj.description = message.description;
+    }
+    if (message.category !== "") {
+      obj.category = message.category;
+    }
+    if (message.level !== 0) {
+      obj.level = contentLevelToJSON(message.level);
+    }
+    if (message.body !== "") {
+      obj.body = message.body;
+    }
+    if (message.durationMin !== 0) {
+      obj.durationMin = Math.round(message.durationMin);
+    }
+    if (message.xpReward !== "0") {
+      obj.xpReward = message.xpReward;
+    }
+    if (message.keywords?.length) {
+      obj.keywords = message.keywords;
+    }
+    if (message.isPublished !== false) {
+      obj.isPublished = message.isPublished;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<CreateContentRequest>): CreateContentRequest {
+    return CreateContentRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<CreateContentRequest>): CreateContentRequest {
+    const message = createBaseCreateContentRequest();
+    message.title = object.title ?? "";
+    message.description = object.description ?? "";
+    message.category = object.category ?? "";
+    message.level = object.level ?? 0;
+    message.body = object.body ?? "";
+    message.durationMin = object.durationMin ?? 0;
+    message.xpReward = object.xpReward ?? "0";
+    message.keywords = object.keywords?.map((e) => e) || [];
+    message.isPublished = object.isPublished ?? false;
+    return message;
+  },
+};
+
+function createBaseUpdateContentRequest(): UpdateContentRequest {
+  return {
+    contentId: "",
+    title: undefined,
+    description: undefined,
+    category: undefined,
+    level: undefined,
+    body: undefined,
+    durationMin: undefined,
+    xpReward: undefined,
+    keywords: [],
+    isPublished: undefined,
+  };
+}
+
+export const UpdateContentRequest: MessageFns<UpdateContentRequest> = {
+  encode(message: UpdateContentRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.contentId !== "") {
+      writer.uint32(10).string(message.contentId);
+    }
+    if (message.title !== undefined) {
+      writer.uint32(18).string(message.title);
+    }
+    if (message.description !== undefined) {
+      writer.uint32(26).string(message.description);
+    }
+    if (message.category !== undefined) {
+      writer.uint32(34).string(message.category);
+    }
+    if (message.level !== undefined) {
+      writer.uint32(40).int32(message.level);
+    }
+    if (message.body !== undefined) {
+      writer.uint32(50).string(message.body);
+    }
+    if (message.durationMin !== undefined) {
+      writer.uint32(56).int32(message.durationMin);
+    }
+    if (message.xpReward !== undefined) {
+      writer.uint32(64).int64(message.xpReward);
+    }
+    for (const v of message.keywords) {
+      writer.uint32(74).string(v!);
+    }
+    if (message.isPublished !== undefined) {
+      writer.uint32(80).bool(message.isPublished);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): UpdateContentRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseUpdateContentRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.contentId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.title = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.description = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.category = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.level = reader.int32() as any;
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.body = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.durationMin = reader.int32();
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.xpReward = reader.int64().toString();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.keywords.push(reader.string());
+          continue;
+        }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
+
+          message.isPublished = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): UpdateContentRequest {
+    return {
+      contentId: isSet(object.contentId)
+        ? globalThis.String(object.contentId)
+        : isSet(object.content_id)
+        ? globalThis.String(object.content_id)
+        : "",
+      title: isSet(object.title) ? globalThis.String(object.title) : undefined,
+      description: isSet(object.description) ? globalThis.String(object.description) : undefined,
+      category: isSet(object.category) ? globalThis.String(object.category) : undefined,
+      level: isSet(object.level) ? contentLevelFromJSON(object.level) : undefined,
+      body: isSet(object.body) ? globalThis.String(object.body) : undefined,
+      durationMin: isSet(object.durationMin)
+        ? globalThis.Number(object.durationMin)
+        : isSet(object.duration_min)
+        ? globalThis.Number(object.duration_min)
+        : undefined,
+      xpReward: isSet(object.xpReward)
+        ? globalThis.String(object.xpReward)
+        : isSet(object.xp_reward)
+        ? globalThis.String(object.xp_reward)
+        : undefined,
+      keywords: globalThis.Array.isArray(object?.keywords)
+        ? object.keywords.map((e: any) => globalThis.String(e))
+        : [],
+      isPublished: isSet(object.isPublished)
+        ? globalThis.Boolean(object.isPublished)
+        : isSet(object.is_published)
+        ? globalThis.Boolean(object.is_published)
+        : undefined,
+    };
+  },
+
+  toJSON(message: UpdateContentRequest): unknown {
+    const obj: any = {};
+    if (message.contentId !== "") {
+      obj.contentId = message.contentId;
+    }
+    if (message.title !== undefined) {
+      obj.title = message.title;
+    }
+    if (message.description !== undefined) {
+      obj.description = message.description;
+    }
+    if (message.category !== undefined) {
+      obj.category = message.category;
+    }
+    if (message.level !== undefined) {
+      obj.level = contentLevelToJSON(message.level);
+    }
+    if (message.body !== undefined) {
+      obj.body = message.body;
+    }
+    if (message.durationMin !== undefined) {
+      obj.durationMin = Math.round(message.durationMin);
+    }
+    if (message.xpReward !== undefined) {
+      obj.xpReward = message.xpReward;
+    }
+    if (message.keywords?.length) {
+      obj.keywords = message.keywords;
+    }
+    if (message.isPublished !== undefined) {
+      obj.isPublished = message.isPublished;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<UpdateContentRequest>): UpdateContentRequest {
+    return UpdateContentRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<UpdateContentRequest>): UpdateContentRequest {
+    const message = createBaseUpdateContentRequest();
+    message.contentId = object.contentId ?? "";
+    message.title = object.title ?? undefined;
+    message.description = object.description ?? undefined;
+    message.category = object.category ?? undefined;
+    message.level = object.level ?? undefined;
+    message.body = object.body ?? undefined;
+    message.durationMin = object.durationMin ?? undefined;
+    message.xpReward = object.xpReward ?? undefined;
+    message.keywords = object.keywords?.map((e) => e) || [];
+    message.isPublished = object.isPublished ?? undefined;
+    return message;
+  },
+};
+
+function createBaseDeleteContentRequest(): DeleteContentRequest {
+  return { contentId: "" };
+}
+
+export const DeleteContentRequest: MessageFns<DeleteContentRequest> = {
+  encode(message: DeleteContentRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.contentId !== "") {
+      writer.uint32(10).string(message.contentId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeleteContentRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeleteContentRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.contentId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DeleteContentRequest {
+    return {
+      contentId: isSet(object.contentId)
+        ? globalThis.String(object.contentId)
+        : isSet(object.content_id)
+        ? globalThis.String(object.content_id)
+        : "",
+    };
+  },
+
+  toJSON(message: DeleteContentRequest): unknown {
+    const obj: any = {};
+    if (message.contentId !== "") {
+      obj.contentId = message.contentId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DeleteContentRequest>): DeleteContentRequest {
+    return DeleteContentRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DeleteContentRequest>): DeleteContentRequest {
+    const message = createBaseDeleteContentRequest();
+    message.contentId = object.contentId ?? "";
+    return message;
+  },
+};
+
+function createBaseDeleteContentResponse(): DeleteContentResponse {
+  return { success: false };
+}
+
+export const DeleteContentResponse: MessageFns<DeleteContentResponse> = {
+  encode(message: DeleteContentResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.success !== false) {
+      writer.uint32(8).bool(message.success);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeleteContentResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeleteContentResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.success = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DeleteContentResponse {
+    return { success: isSet(object.success) ? globalThis.Boolean(object.success) : false };
+  },
+
+  toJSON(message: DeleteContentResponse): unknown {
+    const obj: any = {};
+    if (message.success !== false) {
+      obj.success = message.success;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DeleteContentResponse>): DeleteContentResponse {
+    return DeleteContentResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DeleteContentResponse>): DeleteContentResponse {
+    const message = createBaseDeleteContentResponse();
+    message.success = object.success ?? false;
+    return message;
+  },
+};
+
+function createBaseGetContentRequest(): GetContentRequest {
+  return { contentId: "" };
+}
+
+export const GetContentRequest: MessageFns<GetContentRequest> = {
+  encode(message: GetContentRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.contentId !== "") {
+      writer.uint32(10).string(message.contentId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetContentRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetContentRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.contentId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetContentRequest {
+    return {
+      contentId: isSet(object.contentId)
+        ? globalThis.String(object.contentId)
+        : isSet(object.content_id)
+        ? globalThis.String(object.content_id)
+        : "",
+    };
+  },
+
+  toJSON(message: GetContentRequest): unknown {
+    const obj: any = {};
+    if (message.contentId !== "") {
+      obj.contentId = message.contentId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetContentRequest>): GetContentRequest {
+    return GetContentRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetContentRequest>): GetContentRequest {
+    const message = createBaseGetContentRequest();
+    message.contentId = object.contentId ?? "";
+    return message;
+  },
+};
+
+function createBaseListContentsRequest(): ListContentsRequest {
+  return { category: undefined, level: undefined, sortBy: 0, page: 0, size: 0 };
+}
+
+export const ListContentsRequest: MessageFns<ListContentsRequest> = {
+  encode(message: ListContentsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.category !== undefined) {
+      writer.uint32(10).string(message.category);
+    }
+    if (message.level !== undefined) {
+      writer.uint32(16).int32(message.level);
+    }
+    if (message.sortBy !== 0) {
+      writer.uint32(24).int32(message.sortBy);
+    }
+    if (message.page !== 0) {
+      writer.uint32(32).int32(message.page);
+    }
+    if (message.size !== 0) {
+      writer.uint32(40).int32(message.size);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListContentsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListContentsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.category = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.level = reader.int32() as any;
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.sortBy = reader.int32() as any;
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.page = reader.int32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.size = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListContentsRequest {
+    return {
+      category: isSet(object.category) ? globalThis.String(object.category) : undefined,
+      level: isSet(object.level) ? contentLevelFromJSON(object.level) : undefined,
+      sortBy: isSet(object.sortBy)
+        ? contentSortByFromJSON(object.sortBy)
+        : isSet(object.sort_by)
+        ? contentSortByFromJSON(object.sort_by)
+        : 0,
+      page: isSet(object.page) ? globalThis.Number(object.page) : 0,
+      size: isSet(object.size) ? globalThis.Number(object.size) : 0,
+    };
+  },
+
+  toJSON(message: ListContentsRequest): unknown {
+    const obj: any = {};
+    if (message.category !== undefined) {
+      obj.category = message.category;
+    }
+    if (message.level !== undefined) {
+      obj.level = contentLevelToJSON(message.level);
+    }
+    if (message.sortBy !== 0) {
+      obj.sortBy = contentSortByToJSON(message.sortBy);
+    }
+    if (message.page !== 0) {
+      obj.page = Math.round(message.page);
+    }
+    if (message.size !== 0) {
+      obj.size = Math.round(message.size);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListContentsRequest>): ListContentsRequest {
+    return ListContentsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListContentsRequest>): ListContentsRequest {
+    const message = createBaseListContentsRequest();
+    message.category = object.category ?? undefined;
+    message.level = object.level ?? undefined;
+    message.sortBy = object.sortBy ?? 0;
+    message.page = object.page ?? 0;
+    message.size = object.size ?? 0;
+    return message;
+  },
+};
+
+function createBaseSearchContentsRequest(): SearchContentsRequest {
+  return { query: "", category: undefined, level: undefined, page: 0, size: 0 };
+}
+
+export const SearchContentsRequest: MessageFns<SearchContentsRequest> = {
+  encode(message: SearchContentsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.query !== "") {
+      writer.uint32(10).string(message.query);
+    }
+    if (message.category !== undefined) {
+      writer.uint32(18).string(message.category);
+    }
+    if (message.level !== undefined) {
+      writer.uint32(24).int32(message.level);
+    }
+    if (message.page !== 0) {
+      writer.uint32(32).int32(message.page);
+    }
+    if (message.size !== 0) {
+      writer.uint32(40).int32(message.size);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SearchContentsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSearchContentsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.query = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.category = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.level = reader.int32() as any;
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.page = reader.int32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.size = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SearchContentsRequest {
+    return {
+      query: isSet(object.query) ? globalThis.String(object.query) : "",
+      category: isSet(object.category) ? globalThis.String(object.category) : undefined,
+      level: isSet(object.level) ? contentLevelFromJSON(object.level) : undefined,
+      page: isSet(object.page) ? globalThis.Number(object.page) : 0,
+      size: isSet(object.size) ? globalThis.Number(object.size) : 0,
+    };
+  },
+
+  toJSON(message: SearchContentsRequest): unknown {
+    const obj: any = {};
+    if (message.query !== "") {
+      obj.query = message.query;
+    }
+    if (message.category !== undefined) {
+      obj.category = message.category;
+    }
+    if (message.level !== undefined) {
+      obj.level = contentLevelToJSON(message.level);
+    }
+    if (message.page !== 0) {
+      obj.page = Math.round(message.page);
+    }
+    if (message.size !== 0) {
+      obj.size = Math.round(message.size);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<SearchContentsRequest>): SearchContentsRequest {
+    return SearchContentsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SearchContentsRequest>): SearchContentsRequest {
+    const message = createBaseSearchContentsRequest();
+    message.query = object.query ?? "";
+    message.category = object.category ?? undefined;
+    message.level = object.level ?? undefined;
+    message.page = object.page ?? 0;
+    message.size = object.size ?? 0;
+    return message;
+  },
+};
+
+function createBaseGetRecommendedContentsRequest(): GetRecommendedContentsRequest {
+  return { limit: 0 };
+}
+
+export const GetRecommendedContentsRequest: MessageFns<GetRecommendedContentsRequest> = {
+  encode(message: GetRecommendedContentsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.limit !== 0) {
+      writer.uint32(8).int32(message.limit);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetRecommendedContentsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetRecommendedContentsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.limit = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetRecommendedContentsRequest {
+    return { limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0 };
+  },
+
+  toJSON(message: GetRecommendedContentsRequest): unknown {
+    const obj: any = {};
+    if (message.limit !== 0) {
+      obj.limit = Math.round(message.limit);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetRecommendedContentsRequest>): GetRecommendedContentsRequest {
+    return GetRecommendedContentsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetRecommendedContentsRequest>): GetRecommendedContentsRequest {
+    const message = createBaseGetRecommendedContentsRequest();
+    message.limit = object.limit ?? 0;
+    return message;
+  },
+};
+
+function createBaseContentResponse(): ContentResponse {
+  return {
+    id: "",
+    title: "",
+    description: "",
+    category: "",
+    level: 0,
+    durationMin: 0,
+    xpReward: "0",
+    keywords: [],
+    isPublished: false,
+    readCount: "0",
+    createdAt: undefined,
+    updatedAt: undefined,
+  };
+}
+
+export const ContentResponse: MessageFns<ContentResponse> = {
+  encode(message: ContentResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.id !== "") {
       writer.uint32(10).string(message.id);
     }
     if (message.title !== "") {
       writer.uint32(18).string(message.title);
     }
+    if (message.description !== "") {
+      writer.uint32(26).string(message.description);
+    }
     if (message.category !== "") {
-      writer.uint32(26).string(message.category);
+      writer.uint32(34).string(message.category);
     }
-    if (message.level !== "") {
-      writer.uint32(34).string(message.level);
+    if (message.level !== 0) {
+      writer.uint32(40).int32(message.level);
     }
-    if (message.body !== "") {
-      writer.uint32(42).string(message.body);
+    if (message.durationMin !== 0) {
+      writer.uint32(48).int32(message.durationMin);
+    }
+    if (message.xpReward !== "0") {
+      writer.uint32(56).int64(message.xpReward);
+    }
+    for (const v of message.keywords) {
+      writer.uint32(66).string(v!);
+    }
+    if (message.isPublished !== false) {
+      writer.uint32(72).bool(message.isPublished);
+    }
+    if (message.readCount !== "0") {
+      writer.uint32(80).int64(message.readCount);
+    }
+    if (message.createdAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.createdAt), writer.uint32(90).fork()).join();
+    }
+    if (message.updatedAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.updatedAt), writer.uint32(98).fork()).join();
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): Content {
+  decode(input: BinaryReader | Uint8Array, length?: number): ContentResponse {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseContent();
+    const message = createBaseContentResponse();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -98,7 +1285,7 @@ export const Content: MessageFns<Content> = {
             break;
           }
 
-          message.category = reader.string();
+          message.description = reader.string();
           continue;
         }
         case 4: {
@@ -106,15 +1293,71 @@ export const Content: MessageFns<Content> = {
             break;
           }
 
-          message.level = reader.string();
+          message.category = reader.string();
           continue;
         }
         case 5: {
-          if (tag !== 42) {
+          if (tag !== 40) {
             break;
           }
 
-          message.body = reader.string();
+          message.level = reader.int32() as any;
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.durationMin = reader.int32();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.xpReward = reader.int64().toString();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.keywords.push(reader.string());
+          continue;
+        }
+        case 9: {
+          if (tag !== 72) {
+            break;
+          }
+
+          message.isPublished = reader.bool();
+          continue;
+        }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
+
+          message.readCount = reader.int64().toString();
+          continue;
+        }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.createdAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.updatedAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
           continue;
         }
       }
@@ -126,17 +1369,48 @@ export const Content: MessageFns<Content> = {
     return message;
   },
 
-  fromJSON(object: any): Content {
+  fromJSON(object: any): ContentResponse {
     return {
       id: isSet(object.id) ? globalThis.String(object.id) : "",
       title: isSet(object.title) ? globalThis.String(object.title) : "",
+      description: isSet(object.description) ? globalThis.String(object.description) : "",
       category: isSet(object.category) ? globalThis.String(object.category) : "",
-      level: isSet(object.level) ? globalThis.String(object.level) : "",
-      body: isSet(object.body) ? globalThis.String(object.body) : "",
+      level: isSet(object.level) ? contentLevelFromJSON(object.level) : 0,
+      durationMin: isSet(object.durationMin)
+        ? globalThis.Number(object.durationMin)
+        : isSet(object.duration_min)
+        ? globalThis.Number(object.duration_min)
+        : 0,
+      xpReward: isSet(object.xpReward)
+        ? globalThis.String(object.xpReward)
+        : isSet(object.xp_reward)
+        ? globalThis.String(object.xp_reward)
+        : "0",
+      keywords: globalThis.Array.isArray(object?.keywords) ? object.keywords.map((e: any) => globalThis.String(e)) : [],
+      isPublished: isSet(object.isPublished)
+        ? globalThis.Boolean(object.isPublished)
+        : isSet(object.is_published)
+        ? globalThis.Boolean(object.is_published)
+        : false,
+      readCount: isSet(object.readCount)
+        ? globalThis.String(object.readCount)
+        : isSet(object.read_count)
+        ? globalThis.String(object.read_count)
+        : "0",
+      createdAt: isSet(object.createdAt)
+        ? fromJsonTimestamp(object.createdAt)
+        : isSet(object.created_at)
+        ? fromJsonTimestamp(object.created_at)
+        : undefined,
+      updatedAt: isSet(object.updatedAt)
+        ? fromJsonTimestamp(object.updatedAt)
+        : isSet(object.updated_at)
+        ? fromJsonTimestamp(object.updated_at)
+        : undefined,
     };
   },
 
-  toJSON(message: Content): unknown {
+  toJSON(message: ContentResponse): unknown {
     const obj: any = {};
     if (message.id !== "") {
       obj.id = message.id;
@@ -144,54 +1418,130 @@ export const Content: MessageFns<Content> = {
     if (message.title !== "") {
       obj.title = message.title;
     }
+    if (message.description !== "") {
+      obj.description = message.description;
+    }
     if (message.category !== "") {
       obj.category = message.category;
     }
-    if (message.level !== "") {
-      obj.level = message.level;
+    if (message.level !== 0) {
+      obj.level = contentLevelToJSON(message.level);
     }
-    if (message.body !== "") {
-      obj.body = message.body;
+    if (message.durationMin !== 0) {
+      obj.durationMin = Math.round(message.durationMin);
+    }
+    if (message.xpReward !== "0") {
+      obj.xpReward = message.xpReward;
+    }
+    if (message.keywords?.length) {
+      obj.keywords = message.keywords;
+    }
+    if (message.isPublished !== false) {
+      obj.isPublished = message.isPublished;
+    }
+    if (message.readCount !== "0") {
+      obj.readCount = message.readCount;
+    }
+    if (message.createdAt !== undefined) {
+      obj.createdAt = message.createdAt.toISOString();
+    }
+    if (message.updatedAt !== undefined) {
+      obj.updatedAt = message.updatedAt.toISOString();
     }
     return obj;
   },
 
-  create(base?: DeepPartial<Content>): Content {
-    return Content.fromPartial(base ?? {});
+  create(base?: DeepPartial<ContentResponse>): ContentResponse {
+    return ContentResponse.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<Content>): Content {
-    const message = createBaseContent();
+  fromPartial(object: DeepPartial<ContentResponse>): ContentResponse {
+    const message = createBaseContentResponse();
     message.id = object.id ?? "";
     message.title = object.title ?? "";
+    message.description = object.description ?? "";
     message.category = object.category ?? "";
-    message.level = object.level ?? "";
-    message.body = object.body ?? "";
+    message.level = object.level ?? 0;
+    message.durationMin = object.durationMin ?? 0;
+    message.xpReward = object.xpReward ?? "0";
+    message.keywords = object.keywords?.map((e) => e) || [];
+    message.isPublished = object.isPublished ?? false;
+    message.readCount = object.readCount ?? "0";
+    message.createdAt = object.createdAt ?? undefined;
+    message.updatedAt = object.updatedAt ?? undefined;
     return message;
   },
 };
 
-function createBaseListContentsRequest(): ListContentsRequest {
-  return { userId: "", query: "", page: undefined };
+function createBaseContentDetailResponse(): ContentDetailResponse {
+  return {
+    id: "",
+    title: "",
+    description: "",
+    category: "",
+    level: 0,
+    body: "",
+    durationMin: 0,
+    xpReward: "0",
+    keywords: [],
+    isPublished: false,
+    readCount: "0",
+    createdAt: undefined,
+    updatedAt: undefined,
+    userState: undefined,
+  };
 }
 
-export const ListContentsRequest: MessageFns<ListContentsRequest> = {
-  encode(message: ListContentsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.userId !== "") {
-      writer.uint32(10).string(message.userId);
+export const ContentDetailResponse: MessageFns<ContentDetailResponse> = {
+  encode(message: ContentDetailResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
     }
-    if (message.query !== "") {
-      writer.uint32(18).string(message.query);
+    if (message.title !== "") {
+      writer.uint32(18).string(message.title);
     }
-    if (message.page !== undefined) {
-      PageRequest.encode(message.page, writer.uint32(26).fork()).join();
+    if (message.description !== "") {
+      writer.uint32(26).string(message.description);
+    }
+    if (message.category !== "") {
+      writer.uint32(34).string(message.category);
+    }
+    if (message.level !== 0) {
+      writer.uint32(40).int32(message.level);
+    }
+    if (message.body !== "") {
+      writer.uint32(50).string(message.body);
+    }
+    if (message.durationMin !== 0) {
+      writer.uint32(56).int32(message.durationMin);
+    }
+    if (message.xpReward !== "0") {
+      writer.uint32(64).int64(message.xpReward);
+    }
+    for (const v of message.keywords) {
+      writer.uint32(74).string(v!);
+    }
+    if (message.isPublished !== false) {
+      writer.uint32(80).bool(message.isPublished);
+    }
+    if (message.readCount !== "0") {
+      writer.uint32(88).int64(message.readCount);
+    }
+    if (message.createdAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.createdAt), writer.uint32(98).fork()).join();
+    }
+    if (message.updatedAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.updatedAt), writer.uint32(106).fork()).join();
+    }
+    if (message.userState !== undefined) {
+      UserContentStateResponse.encode(message.userState, writer.uint32(114).fork()).join();
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): ListContentsRequest {
+  decode(input: BinaryReader | Uint8Array, length?: number): ContentDetailResponse {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseListContentsRequest();
+    const message = createBaseContentDetailResponse();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -200,7 +1550,7 @@ export const ListContentsRequest: MessageFns<ListContentsRequest> = {
             break;
           }
 
-          message.userId = reader.string();
+          message.id = reader.string();
           continue;
         }
         case 2: {
@@ -208,7 +1558,7 @@ export const ListContentsRequest: MessageFns<ListContentsRequest> = {
             break;
           }
 
-          message.query = reader.string();
+          message.title = reader.string();
           continue;
         }
         case 3: {
@@ -216,7 +1566,95 @@ export const ListContentsRequest: MessageFns<ListContentsRequest> = {
             break;
           }
 
-          message.page = PageRequest.decode(reader, reader.uint32());
+          message.description = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.category = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.level = reader.int32() as any;
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.body = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.durationMin = reader.int32();
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.xpReward = reader.int64().toString();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.keywords.push(reader.string());
+          continue;
+        }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
+
+          message.isPublished = reader.bool();
+          continue;
+        }
+        case 11: {
+          if (tag !== 88) {
+            break;
+          }
+
+          message.readCount = reader.int64().toString();
+          continue;
+        }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.createdAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.updatedAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 14: {
+          if (tag !== 114) {
+            break;
+          }
+
+          message.userState = UserContentStateResponse.decode(reader, reader.uint32());
           continue;
         }
       }
@@ -228,57 +1666,142 @@ export const ListContentsRequest: MessageFns<ListContentsRequest> = {
     return message;
   },
 
-  fromJSON(object: any): ListContentsRequest {
+  fromJSON(object: any): ContentDetailResponse {
     return {
-      userId: isSet(object.userId)
-        ? globalThis.String(object.userId)
-        : isSet(object.user_id)
-        ? globalThis.String(object.user_id)
-        : "",
-      query: isSet(object.query) ? globalThis.String(object.query) : "",
-      page: isSet(object.page) ? PageRequest.fromJSON(object.page) : undefined,
+      id: isSet(object.id) ? globalThis.String(object.id) : "",
+      title: isSet(object.title) ? globalThis.String(object.title) : "",
+      description: isSet(object.description) ? globalThis.String(object.description) : "",
+      category: isSet(object.category) ? globalThis.String(object.category) : "",
+      level: isSet(object.level) ? contentLevelFromJSON(object.level) : 0,
+      body: isSet(object.body) ? globalThis.String(object.body) : "",
+      durationMin: isSet(object.durationMin)
+        ? globalThis.Number(object.durationMin)
+        : isSet(object.duration_min)
+        ? globalThis.Number(object.duration_min)
+        : 0,
+      xpReward: isSet(object.xpReward)
+        ? globalThis.String(object.xpReward)
+        : isSet(object.xp_reward)
+        ? globalThis.String(object.xp_reward)
+        : "0",
+      keywords: globalThis.Array.isArray(object?.keywords) ? object.keywords.map((e: any) => globalThis.String(e)) : [],
+      isPublished: isSet(object.isPublished)
+        ? globalThis.Boolean(object.isPublished)
+        : isSet(object.is_published)
+        ? globalThis.Boolean(object.is_published)
+        : false,
+      readCount: isSet(object.readCount)
+        ? globalThis.String(object.readCount)
+        : isSet(object.read_count)
+        ? globalThis.String(object.read_count)
+        : "0",
+      createdAt: isSet(object.createdAt)
+        ? fromJsonTimestamp(object.createdAt)
+        : isSet(object.created_at)
+        ? fromJsonTimestamp(object.created_at)
+        : undefined,
+      updatedAt: isSet(object.updatedAt)
+        ? fromJsonTimestamp(object.updatedAt)
+        : isSet(object.updated_at)
+        ? fromJsonTimestamp(object.updated_at)
+        : undefined,
+      userState: isSet(object.userState)
+        ? UserContentStateResponse.fromJSON(object.userState)
+        : isSet(object.user_state)
+        ? UserContentStateResponse.fromJSON(object.user_state)
+        : undefined,
     };
   },
 
-  toJSON(message: ListContentsRequest): unknown {
+  toJSON(message: ContentDetailResponse): unknown {
     const obj: any = {};
-    if (message.userId !== "") {
-      obj.userId = message.userId;
+    if (message.id !== "") {
+      obj.id = message.id;
     }
-    if (message.query !== "") {
-      obj.query = message.query;
+    if (message.title !== "") {
+      obj.title = message.title;
     }
-    if (message.page !== undefined) {
-      obj.page = PageRequest.toJSON(message.page);
+    if (message.description !== "") {
+      obj.description = message.description;
+    }
+    if (message.category !== "") {
+      obj.category = message.category;
+    }
+    if (message.level !== 0) {
+      obj.level = contentLevelToJSON(message.level);
+    }
+    if (message.body !== "") {
+      obj.body = message.body;
+    }
+    if (message.durationMin !== 0) {
+      obj.durationMin = Math.round(message.durationMin);
+    }
+    if (message.xpReward !== "0") {
+      obj.xpReward = message.xpReward;
+    }
+    if (message.keywords?.length) {
+      obj.keywords = message.keywords;
+    }
+    if (message.isPublished !== false) {
+      obj.isPublished = message.isPublished;
+    }
+    if (message.readCount !== "0") {
+      obj.readCount = message.readCount;
+    }
+    if (message.createdAt !== undefined) {
+      obj.createdAt = message.createdAt.toISOString();
+    }
+    if (message.updatedAt !== undefined) {
+      obj.updatedAt = message.updatedAt.toISOString();
+    }
+    if (message.userState !== undefined) {
+      obj.userState = UserContentStateResponse.toJSON(message.userState);
     }
     return obj;
   },
 
-  create(base?: DeepPartial<ListContentsRequest>): ListContentsRequest {
-    return ListContentsRequest.fromPartial(base ?? {});
+  create(base?: DeepPartial<ContentDetailResponse>): ContentDetailResponse {
+    return ContentDetailResponse.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<ListContentsRequest>): ListContentsRequest {
-    const message = createBaseListContentsRequest();
-    message.userId = object.userId ?? "";
-    message.query = object.query ?? "";
-    message.page = (object.page !== undefined && object.page !== null)
-      ? PageRequest.fromPartial(object.page)
+  fromPartial(object: DeepPartial<ContentDetailResponse>): ContentDetailResponse {
+    const message = createBaseContentDetailResponse();
+    message.id = object.id ?? "";
+    message.title = object.title ?? "";
+    message.description = object.description ?? "";
+    message.category = object.category ?? "";
+    message.level = object.level ?? 0;
+    message.body = object.body ?? "";
+    message.durationMin = object.durationMin ?? 0;
+    message.xpReward = object.xpReward ?? "0";
+    message.keywords = object.keywords?.map((e) => e) || [];
+    message.isPublished = object.isPublished ?? false;
+    message.readCount = object.readCount ?? "0";
+    message.createdAt = object.createdAt ?? undefined;
+    message.updatedAt = object.updatedAt ?? undefined;
+    message.userState = (object.userState !== undefined && object.userState !== null)
+      ? UserContentStateResponse.fromPartial(object.userState)
       : undefined;
     return message;
   },
 };
 
 function createBaseListContentsResponse(): ListContentsResponse {
-  return { contents: [], page: undefined };
+  return { contents: [], totalCount: 0, page: 0, size: 0 };
 }
 
 export const ListContentsResponse: MessageFns<ListContentsResponse> = {
   encode(message: ListContentsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     for (const v of message.contents) {
-      Content.encode(v!, writer.uint32(10).fork()).join();
+      ContentWithStateResponse.encode(v!, writer.uint32(10).fork()).join();
     }
-    if (message.page !== undefined) {
-      PageResponse.encode(message.page, writer.uint32(18).fork()).join();
+    if (message.totalCount !== 0) {
+      writer.uint32(16).int32(message.totalCount);
+    }
+    if (message.page !== 0) {
+      writer.uint32(24).int32(message.page);
+    }
+    if (message.size !== 0) {
+      writer.uint32(32).int32(message.size);
     }
     return writer;
   },
@@ -295,15 +1818,31 @@ export const ListContentsResponse: MessageFns<ListContentsResponse> = {
             break;
           }
 
-          message.contents.push(Content.decode(reader, reader.uint32()));
+          message.contents.push(ContentWithStateResponse.decode(reader, reader.uint32()));
           continue;
         }
         case 2: {
-          if (tag !== 18) {
+          if (tag !== 16) {
             break;
           }
 
-          message.page = PageResponse.decode(reader, reader.uint32());
+          message.totalCount = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.page = reader.int32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.size = reader.int32();
           continue;
         }
       }
@@ -317,18 +1856,32 @@ export const ListContentsResponse: MessageFns<ListContentsResponse> = {
 
   fromJSON(object: any): ListContentsResponse {
     return {
-      contents: globalThis.Array.isArray(object?.contents) ? object.contents.map((e: any) => Content.fromJSON(e)) : [],
-      page: isSet(object.page) ? PageResponse.fromJSON(object.page) : undefined,
+      contents: globalThis.Array.isArray(object?.contents)
+        ? object.contents.map((e: any) => ContentWithStateResponse.fromJSON(e))
+        : [],
+      totalCount: isSet(object.totalCount)
+        ? globalThis.Number(object.totalCount)
+        : isSet(object.total_count)
+        ? globalThis.Number(object.total_count)
+        : 0,
+      page: isSet(object.page) ? globalThis.Number(object.page) : 0,
+      size: isSet(object.size) ? globalThis.Number(object.size) : 0,
     };
   },
 
   toJSON(message: ListContentsResponse): unknown {
     const obj: any = {};
     if (message.contents?.length) {
-      obj.contents = message.contents.map((e) => Content.toJSON(e));
+      obj.contents = message.contents.map((e) => ContentWithStateResponse.toJSON(e));
     }
-    if (message.page !== undefined) {
-      obj.page = PageResponse.toJSON(message.page);
+    if (message.totalCount !== 0) {
+      obj.totalCount = Math.round(message.totalCount);
+    }
+    if (message.page !== 0) {
+      obj.page = Math.round(message.page);
+    }
+    if (message.size !== 0) {
+      obj.size = Math.round(message.size);
     }
     return obj;
   },
@@ -338,36 +1891,33 @@ export const ListContentsResponse: MessageFns<ListContentsResponse> = {
   },
   fromPartial(object: DeepPartial<ListContentsResponse>): ListContentsResponse {
     const message = createBaseListContentsResponse();
-    message.contents = object.contents?.map((e) => Content.fromPartial(e)) || [];
-    message.page = (object.page !== undefined && object.page !== null)
-      ? PageResponse.fromPartial(object.page)
-      : undefined;
+    message.contents = object.contents?.map((e) => ContentWithStateResponse.fromPartial(e)) || [];
+    message.totalCount = object.totalCount ?? 0;
+    message.page = object.page ?? 0;
+    message.size = object.size ?? 0;
     return message;
   },
 };
 
-function createBaseCompleteContentRequest(): CompleteContentRequest {
-  return { userId: "", contentId: "", commandMetadata: undefined };
+function createBaseContentWithStateResponse(): ContentWithStateResponse {
+  return { content: undefined, userState: undefined };
 }
 
-export const CompleteContentRequest: MessageFns<CompleteContentRequest> = {
-  encode(message: CompleteContentRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.userId !== "") {
-      writer.uint32(10).string(message.userId);
+export const ContentWithStateResponse: MessageFns<ContentWithStateResponse> = {
+  encode(message: ContentWithStateResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.content !== undefined) {
+      ContentResponse.encode(message.content, writer.uint32(10).fork()).join();
     }
-    if (message.contentId !== "") {
-      writer.uint32(18).string(message.contentId);
-    }
-    if (message.commandMetadata !== undefined) {
-      CommandMetadata.encode(message.commandMetadata, writer.uint32(26).fork()).join();
+    if (message.userState !== undefined) {
+      UserContentStateResponse.encode(message.userState, writer.uint32(18).fork()).join();
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): CompleteContentRequest {
+  decode(input: BinaryReader | Uint8Array, length?: number): ContentWithStateResponse {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseCompleteContentRequest();
+    const message = createBaseContentWithStateResponse();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -376,7 +1926,7 @@ export const CompleteContentRequest: MessageFns<CompleteContentRequest> = {
             break;
           }
 
-          message.userId = reader.string();
+          message.content = ContentResponse.decode(reader, reader.uint32());
           continue;
         }
         case 2: {
@@ -384,15 +1934,7 @@ export const CompleteContentRequest: MessageFns<CompleteContentRequest> = {
             break;
           }
 
-          message.contentId = reader.string();
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.commandMetadata = CommandMetadata.decode(reader, reader.uint32());
+          message.userState = UserContentStateResponse.decode(reader, reader.uint32());
           continue;
         }
       }
@@ -404,76 +1946,62 @@ export const CompleteContentRequest: MessageFns<CompleteContentRequest> = {
     return message;
   },
 
-  fromJSON(object: any): CompleteContentRequest {
+  fromJSON(object: any): ContentWithStateResponse {
     return {
-      userId: isSet(object.userId)
-        ? globalThis.String(object.userId)
-        : isSet(object.user_id)
-        ? globalThis.String(object.user_id)
-        : "",
-      contentId: isSet(object.contentId)
-        ? globalThis.String(object.contentId)
-        : isSet(object.content_id)
-        ? globalThis.String(object.content_id)
-        : "",
-      commandMetadata: isSet(object.commandMetadata)
-        ? CommandMetadata.fromJSON(object.commandMetadata)
-        : isSet(object.command_metadata)
-        ? CommandMetadata.fromJSON(object.command_metadata)
+      content: isSet(object.content) ? ContentResponse.fromJSON(object.content) : undefined,
+      userState: isSet(object.userState)
+        ? UserContentStateResponse.fromJSON(object.userState)
+        : isSet(object.user_state)
+        ? UserContentStateResponse.fromJSON(object.user_state)
         : undefined,
     };
   },
 
-  toJSON(message: CompleteContentRequest): unknown {
+  toJSON(message: ContentWithStateResponse): unknown {
     const obj: any = {};
-    if (message.userId !== "") {
-      obj.userId = message.userId;
+    if (message.content !== undefined) {
+      obj.content = ContentResponse.toJSON(message.content);
     }
-    if (message.contentId !== "") {
-      obj.contentId = message.contentId;
-    }
-    if (message.commandMetadata !== undefined) {
-      obj.commandMetadata = CommandMetadata.toJSON(message.commandMetadata);
+    if (message.userState !== undefined) {
+      obj.userState = UserContentStateResponse.toJSON(message.userState);
     }
     return obj;
   },
 
-  create(base?: DeepPartial<CompleteContentRequest>): CompleteContentRequest {
-    return CompleteContentRequest.fromPartial(base ?? {});
+  create(base?: DeepPartial<ContentWithStateResponse>): ContentWithStateResponse {
+    return ContentWithStateResponse.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<CompleteContentRequest>): CompleteContentRequest {
-    const message = createBaseCompleteContentRequest();
-    message.userId = object.userId ?? "";
-    message.contentId = object.contentId ?? "";
-    message.commandMetadata = (object.commandMetadata !== undefined && object.commandMetadata !== null)
-      ? CommandMetadata.fromPartial(object.commandMetadata)
+  fromPartial(object: DeepPartial<ContentWithStateResponse>): ContentWithStateResponse {
+    const message = createBaseContentWithStateResponse();
+    message.content = (object.content !== undefined && object.content !== null)
+      ? ContentResponse.fromPartial(object.content)
+      : undefined;
+    message.userState = (object.userState !== undefined && object.userState !== null)
+      ? UserContentStateResponse.fromPartial(object.userState)
       : undefined;
     return message;
   },
 };
 
-function createBaseUserContentState(): UserContentState {
-  return { contentId: "", completed: false, favorite: false };
+function createBaseUpdateProgressRequest(): UpdateProgressRequest {
+  return { contentId: "", progressPct: 0 };
 }
 
-export const UserContentState: MessageFns<UserContentState> = {
-  encode(message: UserContentState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const UpdateProgressRequest: MessageFns<UpdateProgressRequest> = {
+  encode(message: UpdateProgressRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.contentId !== "") {
       writer.uint32(10).string(message.contentId);
     }
-    if (message.completed !== false) {
-      writer.uint32(16).bool(message.completed);
-    }
-    if (message.favorite !== false) {
-      writer.uint32(24).bool(message.favorite);
+    if (message.progressPct !== 0) {
+      writer.uint32(16).int32(message.progressPct);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): UserContentState {
+  decode(input: BinaryReader | Uint8Array, length?: number): UpdateProgressRequest {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseUserContentState();
+    const message = createBaseUpdateProgressRequest();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -490,15 +2018,7 @@ export const UserContentState: MessageFns<UserContentState> = {
             break;
           }
 
-          message.completed = reader.bool();
-          continue;
-        }
-        case 3: {
-          if (tag !== 24) {
-            break;
-          }
-
-          message.favorite = reader.bool();
+          message.progressPct = reader.int32();
           continue;
         }
       }
@@ -510,60 +2030,59 @@ export const UserContentState: MessageFns<UserContentState> = {
     return message;
   },
 
-  fromJSON(object: any): UserContentState {
+  fromJSON(object: any): UpdateProgressRequest {
     return {
       contentId: isSet(object.contentId)
         ? globalThis.String(object.contentId)
         : isSet(object.content_id)
         ? globalThis.String(object.content_id)
         : "",
-      completed: isSet(object.completed) ? globalThis.Boolean(object.completed) : false,
-      favorite: isSet(object.favorite) ? globalThis.Boolean(object.favorite) : false,
+      progressPct: isSet(object.progressPct)
+        ? globalThis.Number(object.progressPct)
+        : isSet(object.progress_pct)
+        ? globalThis.Number(object.progress_pct)
+        : 0,
     };
   },
 
-  toJSON(message: UserContentState): unknown {
+  toJSON(message: UpdateProgressRequest): unknown {
     const obj: any = {};
     if (message.contentId !== "") {
       obj.contentId = message.contentId;
     }
-    if (message.completed !== false) {
-      obj.completed = message.completed;
-    }
-    if (message.favorite !== false) {
-      obj.favorite = message.favorite;
+    if (message.progressPct !== 0) {
+      obj.progressPct = Math.round(message.progressPct);
     }
     return obj;
   },
 
-  create(base?: DeepPartial<UserContentState>): UserContentState {
-    return UserContentState.fromPartial(base ?? {});
+  create(base?: DeepPartial<UpdateProgressRequest>): UpdateProgressRequest {
+    return UpdateProgressRequest.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<UserContentState>): UserContentState {
-    const message = createBaseUserContentState();
+  fromPartial(object: DeepPartial<UpdateProgressRequest>): UpdateProgressRequest {
+    const message = createBaseUpdateProgressRequest();
     message.contentId = object.contentId ?? "";
-    message.completed = object.completed ?? false;
-    message.favorite = object.favorite ?? false;
+    message.progressPct = object.progressPct ?? 0;
     return message;
   },
 };
 
-function createBaseCompleteContentResponse(): CompleteContentResponse {
-  return { state: undefined };
+function createBaseCompleteContentRequest(): CompleteContentRequest {
+  return { contentId: "" };
 }
 
-export const CompleteContentResponse: MessageFns<CompleteContentResponse> = {
-  encode(message: CompleteContentResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.state !== undefined) {
-      UserContentState.encode(message.state, writer.uint32(10).fork()).join();
+export const CompleteContentRequest: MessageFns<CompleteContentRequest> = {
+  encode(message: CompleteContentRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.contentId !== "") {
+      writer.uint32(10).string(message.contentId);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): CompleteContentResponse {
+  decode(input: BinaryReader | Uint8Array, length?: number): CompleteContentRequest {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseCompleteContentResponse();
+    const message = createBaseCompleteContentRequest();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -572,7 +2091,7 @@ export const CompleteContentResponse: MessageFns<CompleteContentResponse> = {
             break;
           }
 
-          message.state = UserContentState.decode(reader, reader.uint32());
+          message.contentId = reader.string();
           continue;
         }
       }
@@ -584,35 +2103,681 @@ export const CompleteContentResponse: MessageFns<CompleteContentResponse> = {
     return message;
   },
 
-  fromJSON(object: any): CompleteContentResponse {
-    return { state: isSet(object.state) ? UserContentState.fromJSON(object.state) : undefined };
+  fromJSON(object: any): CompleteContentRequest {
+    return {
+      contentId: isSet(object.contentId)
+        ? globalThis.String(object.contentId)
+        : isSet(object.content_id)
+        ? globalThis.String(object.content_id)
+        : "",
+    };
   },
 
-  toJSON(message: CompleteContentResponse): unknown {
+  toJSON(message: CompleteContentRequest): unknown {
     const obj: any = {};
-    if (message.state !== undefined) {
-      obj.state = UserContentState.toJSON(message.state);
+    if (message.contentId !== "") {
+      obj.contentId = message.contentId;
     }
     return obj;
   },
 
-  create(base?: DeepPartial<CompleteContentResponse>): CompleteContentResponse {
-    return CompleteContentResponse.fromPartial(base ?? {});
+  create(base?: DeepPartial<CompleteContentRequest>): CompleteContentRequest {
+    return CompleteContentRequest.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<CompleteContentResponse>): CompleteContentResponse {
-    const message = createBaseCompleteContentResponse();
-    message.state = (object.state !== undefined && object.state !== null)
-      ? UserContentState.fromPartial(object.state)
-      : undefined;
+  fromPartial(object: DeepPartial<CompleteContentRequest>): CompleteContentRequest {
+    const message = createBaseCompleteContentRequest();
+    message.contentId = object.contentId ?? "";
     return message;
   },
 };
 
+function createBaseToggleFavoriteRequest(): ToggleFavoriteRequest {
+  return { contentId: "" };
+}
+
+export const ToggleFavoriteRequest: MessageFns<ToggleFavoriteRequest> = {
+  encode(message: ToggleFavoriteRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.contentId !== "") {
+      writer.uint32(10).string(message.contentId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ToggleFavoriteRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseToggleFavoriteRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.contentId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ToggleFavoriteRequest {
+    return {
+      contentId: isSet(object.contentId)
+        ? globalThis.String(object.contentId)
+        : isSet(object.content_id)
+        ? globalThis.String(object.content_id)
+        : "",
+    };
+  },
+
+  toJSON(message: ToggleFavoriteRequest): unknown {
+    const obj: any = {};
+    if (message.contentId !== "") {
+      obj.contentId = message.contentId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ToggleFavoriteRequest>): ToggleFavoriteRequest {
+    return ToggleFavoriteRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ToggleFavoriteRequest>): ToggleFavoriteRequest {
+    const message = createBaseToggleFavoriteRequest();
+    message.contentId = object.contentId ?? "";
+    return message;
+  },
+};
+
+function createBaseUserContentStateResponse(): UserContentStateResponse {
+  return {
+    id: "",
+    contentId: "",
+    progressPct: 0,
+    isCompleted: false,
+    isFavorite: false,
+    completedAt: undefined,
+    lastReadAt: undefined,
+  };
+}
+
+export const UserContentStateResponse: MessageFns<UserContentStateResponse> = {
+  encode(message: UserContentStateResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.contentId !== "") {
+      writer.uint32(18).string(message.contentId);
+    }
+    if (message.progressPct !== 0) {
+      writer.uint32(24).int32(message.progressPct);
+    }
+    if (message.isCompleted !== false) {
+      writer.uint32(32).bool(message.isCompleted);
+    }
+    if (message.isFavorite !== false) {
+      writer.uint32(40).bool(message.isFavorite);
+    }
+    if (message.completedAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.completedAt), writer.uint32(50).fork()).join();
+    }
+    if (message.lastReadAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.lastReadAt), writer.uint32(58).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): UserContentStateResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseUserContentStateResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.contentId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.progressPct = reader.int32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.isCompleted = reader.bool();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.isFavorite = reader.bool();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.completedAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.lastReadAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): UserContentStateResponse {
+    return {
+      id: isSet(object.id) ? globalThis.String(object.id) : "",
+      contentId: isSet(object.contentId)
+        ? globalThis.String(object.contentId)
+        : isSet(object.content_id)
+        ? globalThis.String(object.content_id)
+        : "",
+      progressPct: isSet(object.progressPct)
+        ? globalThis.Number(object.progressPct)
+        : isSet(object.progress_pct)
+        ? globalThis.Number(object.progress_pct)
+        : 0,
+      isCompleted: isSet(object.isCompleted)
+        ? globalThis.Boolean(object.isCompleted)
+        : isSet(object.is_completed)
+        ? globalThis.Boolean(object.is_completed)
+        : false,
+      isFavorite: isSet(object.isFavorite)
+        ? globalThis.Boolean(object.isFavorite)
+        : isSet(object.is_favorite)
+        ? globalThis.Boolean(object.is_favorite)
+        : false,
+      completedAt: isSet(object.completedAt)
+        ? fromJsonTimestamp(object.completedAt)
+        : isSet(object.completed_at)
+        ? fromJsonTimestamp(object.completed_at)
+        : undefined,
+      lastReadAt: isSet(object.lastReadAt)
+        ? fromJsonTimestamp(object.lastReadAt)
+        : isSet(object.last_read_at)
+        ? fromJsonTimestamp(object.last_read_at)
+        : undefined,
+    };
+  },
+
+  toJSON(message: UserContentStateResponse): unknown {
+    const obj: any = {};
+    if (message.id !== "") {
+      obj.id = message.id;
+    }
+    if (message.contentId !== "") {
+      obj.contentId = message.contentId;
+    }
+    if (message.progressPct !== 0) {
+      obj.progressPct = Math.round(message.progressPct);
+    }
+    if (message.isCompleted !== false) {
+      obj.isCompleted = message.isCompleted;
+    }
+    if (message.isFavorite !== false) {
+      obj.isFavorite = message.isFavorite;
+    }
+    if (message.completedAt !== undefined) {
+      obj.completedAt = message.completedAt.toISOString();
+    }
+    if (message.lastReadAt !== undefined) {
+      obj.lastReadAt = message.lastReadAt.toISOString();
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<UserContentStateResponse>): UserContentStateResponse {
+    return UserContentStateResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<UserContentStateResponse>): UserContentStateResponse {
+    const message = createBaseUserContentStateResponse();
+    message.id = object.id ?? "";
+    message.contentId = object.contentId ?? "";
+    message.progressPct = object.progressPct ?? 0;
+    message.isCompleted = object.isCompleted ?? false;
+    message.isFavorite = object.isFavorite ?? false;
+    message.completedAt = object.completedAt ?? undefined;
+    message.lastReadAt = object.lastReadAt ?? undefined;
+    return message;
+  },
+};
+
+function createBaseGetUserLearningStatsRequest(): GetUserLearningStatsRequest {
+  return {};
+}
+
+export const GetUserLearningStatsRequest: MessageFns<GetUserLearningStatsRequest> = {
+  encode(_: GetUserLearningStatsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetUserLearningStatsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetUserLearningStatsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): GetUserLearningStatsRequest {
+    return {};
+  },
+
+  toJSON(_: GetUserLearningStatsRequest): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetUserLearningStatsRequest>): GetUserLearningStatsRequest {
+    return GetUserLearningStatsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<GetUserLearningStatsRequest>): GetUserLearningStatsRequest {
+    const message = createBaseGetUserLearningStatsRequest();
+    return message;
+  },
+};
+
+function createBaseUserLearningStatsResponse(): UserLearningStatsResponse {
+  return { totalContents: 0, completedContents: 0, overallProgressPct: 0, categoryStats: [] };
+}
+
+export const UserLearningStatsResponse: MessageFns<UserLearningStatsResponse> = {
+  encode(message: UserLearningStatsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.totalContents !== 0) {
+      writer.uint32(8).int32(message.totalContents);
+    }
+    if (message.completedContents !== 0) {
+      writer.uint32(16).int32(message.completedContents);
+    }
+    if (message.overallProgressPct !== 0) {
+      writer.uint32(24).int32(message.overallProgressPct);
+    }
+    for (const v of message.categoryStats) {
+      CategoryProgress.encode(v!, writer.uint32(34).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): UserLearningStatsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseUserLearningStatsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.totalContents = reader.int32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.completedContents = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.overallProgressPct = reader.int32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.categoryStats.push(CategoryProgress.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): UserLearningStatsResponse {
+    return {
+      totalContents: isSet(object.totalContents)
+        ? globalThis.Number(object.totalContents)
+        : isSet(object.total_contents)
+        ? globalThis.Number(object.total_contents)
+        : 0,
+      completedContents: isSet(object.completedContents)
+        ? globalThis.Number(object.completedContents)
+        : isSet(object.completed_contents)
+        ? globalThis.Number(object.completed_contents)
+        : 0,
+      overallProgressPct: isSet(object.overallProgressPct)
+        ? globalThis.Number(object.overallProgressPct)
+        : isSet(object.overall_progress_pct)
+        ? globalThis.Number(object.overall_progress_pct)
+        : 0,
+      categoryStats: globalThis.Array.isArray(object?.categoryStats)
+        ? object.categoryStats.map((e: any) => CategoryProgress.fromJSON(e))
+        : globalThis.Array.isArray(object?.category_stats)
+        ? object.category_stats.map((e: any) => CategoryProgress.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: UserLearningStatsResponse): unknown {
+    const obj: any = {};
+    if (message.totalContents !== 0) {
+      obj.totalContents = Math.round(message.totalContents);
+    }
+    if (message.completedContents !== 0) {
+      obj.completedContents = Math.round(message.completedContents);
+    }
+    if (message.overallProgressPct !== 0) {
+      obj.overallProgressPct = Math.round(message.overallProgressPct);
+    }
+    if (message.categoryStats?.length) {
+      obj.categoryStats = message.categoryStats.map((e) => CategoryProgress.toJSON(e));
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<UserLearningStatsResponse>): UserLearningStatsResponse {
+    return UserLearningStatsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<UserLearningStatsResponse>): UserLearningStatsResponse {
+    const message = createBaseUserLearningStatsResponse();
+    message.totalContents = object.totalContents ?? 0;
+    message.completedContents = object.completedContents ?? 0;
+    message.overallProgressPct = object.overallProgressPct ?? 0;
+    message.categoryStats = object.categoryStats?.map((e) => CategoryProgress.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseCategoryProgress(): CategoryProgress {
+  return { category: "", total: 0, completed: 0, progressPct: 0 };
+}
+
+export const CategoryProgress: MessageFns<CategoryProgress> = {
+  encode(message: CategoryProgress, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.category !== "") {
+      writer.uint32(10).string(message.category);
+    }
+    if (message.total !== 0) {
+      writer.uint32(16).int32(message.total);
+    }
+    if (message.completed !== 0) {
+      writer.uint32(24).int32(message.completed);
+    }
+    if (message.progressPct !== 0) {
+      writer.uint32(32).int32(message.progressPct);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CategoryProgress {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCategoryProgress();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.category = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.total = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.completed = reader.int32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.progressPct = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CategoryProgress {
+    return {
+      category: isSet(object.category) ? globalThis.String(object.category) : "",
+      total: isSet(object.total) ? globalThis.Number(object.total) : 0,
+      completed: isSet(object.completed) ? globalThis.Number(object.completed) : 0,
+      progressPct: isSet(object.progressPct)
+        ? globalThis.Number(object.progressPct)
+        : isSet(object.progress_pct)
+        ? globalThis.Number(object.progress_pct)
+        : 0,
+    };
+  },
+
+  toJSON(message: CategoryProgress): unknown {
+    const obj: any = {};
+    if (message.category !== "") {
+      obj.category = message.category;
+    }
+    if (message.total !== 0) {
+      obj.total = Math.round(message.total);
+    }
+    if (message.completed !== 0) {
+      obj.completed = Math.round(message.completed);
+    }
+    if (message.progressPct !== 0) {
+      obj.progressPct = Math.round(message.progressPct);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<CategoryProgress>): CategoryProgress {
+    return CategoryProgress.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<CategoryProgress>): CategoryProgress {
+    const message = createBaseCategoryProgress();
+    message.category = object.category ?? "";
+    message.total = object.total ?? 0;
+    message.completed = object.completed ?? 0;
+    message.progressPct = object.progressPct ?? 0;
+    return message;
+  },
+};
+
+function createBaseListFavoritesRequest(): ListFavoritesRequest {
+  return { page: 0, size: 0 };
+}
+
+export const ListFavoritesRequest: MessageFns<ListFavoritesRequest> = {
+  encode(message: ListFavoritesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.page !== 0) {
+      writer.uint32(8).int32(message.page);
+    }
+    if (message.size !== 0) {
+      writer.uint32(16).int32(message.size);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListFavoritesRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListFavoritesRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.page = reader.int32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.size = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListFavoritesRequest {
+    return {
+      page: isSet(object.page) ? globalThis.Number(object.page) : 0,
+      size: isSet(object.size) ? globalThis.Number(object.size) : 0,
+    };
+  },
+
+  toJSON(message: ListFavoritesRequest): unknown {
+    const obj: any = {};
+    if (message.page !== 0) {
+      obj.page = Math.round(message.page);
+    }
+    if (message.size !== 0) {
+      obj.size = Math.round(message.size);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListFavoritesRequest>): ListFavoritesRequest {
+    return ListFavoritesRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListFavoritesRequest>): ListFavoritesRequest {
+    const message = createBaseListFavoritesRequest();
+    message.page = object.page ?? 0;
+    message.size = object.size ?? 0;
+    return message;
+  },
+};
+
+/** ─── Learning Service ─── */
 export type LearningServiceDefinition = typeof LearningServiceDefinition;
 export const LearningServiceDefinition = {
   name: "LearningService",
   fullName: "candle.learning.v1.LearningService",
   methods: {
+    /** 콘텐츠 CRUD (관리자) */
+    createContent: {
+      name: "CreateContent",
+      requestType: CreateContentRequest as typeof CreateContentRequest,
+      requestStream: false,
+      responseType: ContentResponse as typeof ContentResponse,
+      responseStream: false,
+      options: {},
+    },
+    updateContent: {
+      name: "UpdateContent",
+      requestType: UpdateContentRequest as typeof UpdateContentRequest,
+      requestStream: false,
+      responseType: ContentResponse as typeof ContentResponse,
+      responseStream: false,
+      options: {},
+    },
+    deleteContent: {
+      name: "DeleteContent",
+      requestType: DeleteContentRequest as typeof DeleteContentRequest,
+      requestStream: false,
+      responseType: DeleteContentResponse as typeof DeleteContentResponse,
+      responseStream: false,
+      options: {},
+    },
+    /** 콘텐츠 조회 */
+    getContent: {
+      name: "GetContent",
+      requestType: GetContentRequest as typeof GetContentRequest,
+      requestStream: false,
+      responseType: ContentDetailResponse as typeof ContentDetailResponse,
+      responseStream: false,
+      options: {},
+    },
     listContents: {
       name: "ListContents",
       requestType: ListContentsRequest as typeof ListContentsRequest,
@@ -621,11 +2786,63 @@ export const LearningServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    searchContents: {
+      name: "SearchContents",
+      requestType: SearchContentsRequest as typeof SearchContentsRequest,
+      requestStream: false,
+      responseType: ListContentsResponse as typeof ListContentsResponse,
+      responseStream: false,
+      options: {},
+    },
+    /** 추천 콘텐츠 */
+    getRecommendedContents: {
+      name: "GetRecommendedContents",
+      requestType: GetRecommendedContentsRequest as typeof GetRecommendedContentsRequest,
+      requestStream: false,
+      responseType: ListContentsResponse as typeof ListContentsResponse,
+      responseStream: false,
+      options: {},
+    },
+    /** 사용자 학습 상태 */
+    updateProgress: {
+      name: "UpdateProgress",
+      requestType: UpdateProgressRequest as typeof UpdateProgressRequest,
+      requestStream: false,
+      responseType: UserContentStateResponse as typeof UserContentStateResponse,
+      responseStream: false,
+      options: {},
+    },
     completeContent: {
       name: "CompleteContent",
       requestType: CompleteContentRequest as typeof CompleteContentRequest,
       requestStream: false,
-      responseType: CompleteContentResponse as typeof CompleteContentResponse,
+      responseType: UserContentStateResponse as typeof UserContentStateResponse,
+      responseStream: false,
+      options: {},
+    },
+    toggleFavorite: {
+      name: "ToggleFavorite",
+      requestType: ToggleFavoriteRequest as typeof ToggleFavoriteRequest,
+      requestStream: false,
+      responseType: UserContentStateResponse as typeof UserContentStateResponse,
+      responseStream: false,
+      options: {},
+    },
+    /** 사용자 학습 현황 (대시보드용) */
+    getUserLearningStats: {
+      name: "GetUserLearningStats",
+      requestType: GetUserLearningStatsRequest as typeof GetUserLearningStatsRequest,
+      requestStream: false,
+      responseType: UserLearningStatsResponse as typeof UserLearningStatsResponse,
+      responseStream: false,
+      options: {},
+    },
+    /** 즐겨찾기 목록 */
+    listFavorites: {
+      name: "ListFavorites",
+      requestType: ListFavoritesRequest as typeof ListFavoritesRequest,
+      requestStream: false,
+      responseType: ListContentsResponse as typeof ListContentsResponse,
       responseStream: false,
       options: {},
     },
@@ -633,25 +2850,117 @@ export const LearningServiceDefinition = {
 } as const;
 
 export interface LearningServiceImplementation<CallContextExt = {}> {
+  /** 콘텐츠 CRUD (관리자) */
+  createContent(
+    request: CreateContentRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ContentResponse>>;
+  updateContent(
+    request: UpdateContentRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ContentResponse>>;
+  deleteContent(
+    request: DeleteContentRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<DeleteContentResponse>>;
+  /** 콘텐츠 조회 */
+  getContent(
+    request: GetContentRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ContentDetailResponse>>;
   listContents(
     request: ListContentsRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<ListContentsResponse>>;
+  searchContents(
+    request: SearchContentsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ListContentsResponse>>;
+  /** 추천 콘텐츠 */
+  getRecommendedContents(
+    request: GetRecommendedContentsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ListContentsResponse>>;
+  /** 사용자 학습 상태 */
+  updateProgress(
+    request: UpdateProgressRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<UserContentStateResponse>>;
   completeContent(
     request: CompleteContentRequest,
     context: CallContext & CallContextExt,
-  ): Promise<DeepPartial<CompleteContentResponse>>;
+  ): Promise<DeepPartial<UserContentStateResponse>>;
+  toggleFavorite(
+    request: ToggleFavoriteRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<UserContentStateResponse>>;
+  /** 사용자 학습 현황 (대시보드용) */
+  getUserLearningStats(
+    request: GetUserLearningStatsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<UserLearningStatsResponse>>;
+  /** 즐겨찾기 목록 */
+  listFavorites(
+    request: ListFavoritesRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ListContentsResponse>>;
 }
 
 export interface LearningServiceClient<CallOptionsExt = {}> {
+  /** 콘텐츠 CRUD (관리자) */
+  createContent(
+    request: DeepPartial<CreateContentRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ContentResponse>;
+  updateContent(
+    request: DeepPartial<UpdateContentRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ContentResponse>;
+  deleteContent(
+    request: DeepPartial<DeleteContentRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<DeleteContentResponse>;
+  /** 콘텐츠 조회 */
+  getContent(
+    request: DeepPartial<GetContentRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ContentDetailResponse>;
   listContents(
     request: DeepPartial<ListContentsRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<ListContentsResponse>;
+  searchContents(
+    request: DeepPartial<SearchContentsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ListContentsResponse>;
+  /** 추천 콘텐츠 */
+  getRecommendedContents(
+    request: DeepPartial<GetRecommendedContentsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ListContentsResponse>;
+  /** 사용자 학습 상태 */
+  updateProgress(
+    request: DeepPartial<UpdateProgressRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<UserContentStateResponse>;
   completeContent(
     request: DeepPartial<CompleteContentRequest>,
     options?: CallOptions & CallOptionsExt,
-  ): Promise<CompleteContentResponse>;
+  ): Promise<UserContentStateResponse>;
+  toggleFavorite(
+    request: DeepPartial<ToggleFavoriteRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<UserContentStateResponse>;
+  /** 사용자 학습 현황 (대시보드용) */
+  getUserLearningStats(
+    request: DeepPartial<GetUserLearningStatsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<UserLearningStatsResponse>;
+  /** 즐겨찾기 목록 */
+  listFavorites(
+    request: DeepPartial<ListFavoritesRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ListContentsResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
@@ -661,6 +2970,28 @@ export type DeepPartial<T> = T extends Builtin ? T
   : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
   : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
   : Partial<T>;
+
+function toTimestamp(date: Date): Timestamp {
+  const seconds = Math.trunc(date.getTime() / 1_000).toString();
+  const nanos = (date.getTime() % 1_000) * 1_000_000;
+  return { seconds, nanos };
+}
+
+function fromTimestamp(t: Timestamp): Date {
+  let millis = (globalThis.Number(t.seconds) || 0) * 1_000;
+  millis += (t.nanos || 0) / 1_000_000;
+  return new globalThis.Date(millis);
+}
+
+function fromJsonTimestamp(o: any): Date {
+  if (o instanceof globalThis.Date) {
+    return o;
+  } else if (typeof o === "string") {
+    return new globalThis.Date(o);
+  } else {
+    return fromTimestamp(Timestamp.fromJSON(o));
+  }
+}
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

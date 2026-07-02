@@ -24,7 +24,17 @@ import { getMarketStatus, getQuote } from '../data/market';
 import { getMarketProvider } from '../providers';
 import { requireIdempotencyKey, mapGrpcError } from '../grpc';
 import { env } from '../config/env';
-import { grpcPlaceOrder, grpcCancelOrder } from '../grpc/trading.grpc-client';
+import {
+  grpcPlaceOrder,
+  grpcCancelOrder,
+  grpcAmendOrder,
+  grpcListOrders,
+  grpcGetBalance,
+  grpcListReservations,
+  grpcPlaceReservation,
+  grpcCancelReservation,
+  grpcAmendReservation,
+} from '../grpc/trading.grpc-client';
 
 /** 게이트웨이가 JWT 검증 후 주입한 X-Account-Id 헤더로 actor 추출. */
 function resolveActor(req: { headers: Record<string, unknown> }): string {
@@ -71,8 +81,18 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.get(
     '/balance',
-    { schema: { tags: ['account'], summary: '잔고 분리 조회 (총/묶인/가용)', response: { 200: AccountBalance } } },
-    async () => getBalance(),
+    { schema: { tags: ['account'], summary: '잔고 분리 조회 (총/묶인/가용)', response: { 200: AccountBalance, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcGetBalance(resolveActor(req));
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+      return getBalance();
+    },
   );
 
   app.get(
@@ -135,8 +155,18 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.get(
     '/orders',
-    { schema: { tags: ['account'], summary: '주문 목록 조회 (ORD-004)', querystring: OrderListQuery, response: { 200: Type.Array(Transaction) } } },
-    async (req) => {
+    { schema: { tags: ['account'], summary: '주문 목록 조회 (ORD-004)', querystring: OrderListQuery, response: { 200: Type.Array(Transaction), 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          // OrderService.ListOrders엔 종목 필터가 없어 symbol은 BFF에서 후처리한다.
+          const list = await grpcListOrders({ userId: resolveActor(req), status: req.query.status });
+          return req.query.symbol ? list.filter((o) => o.symbol === req.query.symbol) : list;
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
       let result = allOrders();
       if (req.query.status) result = result.filter((o) => o.status === req.query.status);
       if (req.query.symbol) result = result.filter((o) => o.symbol === req.query.symbol);
@@ -305,9 +335,27 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.patch(
     '/orders/:id',
-    { schema: { tags: ['account'], summary: '지정가 주문 정정 (CAN-005/007/008)', params: OrderIdParams, body: AmendOrderBody, response: { 201: Transaction, 404: ErrorResponse, 409: ErrorResponse } } },
+    { schema: { tags: ['account'], summary: '지정가 주문 정정 (CAN-005/007/008)', params: OrderIdParams, body: AmendOrderBody, response: { 201: Transaction, 404: ErrorResponse, 409: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
     async (req, reply) => {
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+
+      // 실제 gRPC 경로 — OrderService.AmendOrder (원주문 취소 후 parent 연결된 신규 주문).
+      if (env.dataSource === 'grpc') {
+        try {
+          const tx = await grpcAmendOrder({
+            userId: resolveActor(req),
+            orderId: req.params.id,
+            quantity: req.body.quantity,
+            price: req.body.price,
+            idempotencyKey,
+          });
+          return reply.status(201).send(tx);
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 404 | 409 | 500 | 503 | 504).send(mapped);
+        }
+      }
+
       const order = reservations.find((o) => o.id === req.params.id) ?? transactions.find((o) => o.id === req.params.id);
       if (!order) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown order: ${req.params.id}` });
       if (order.status !== 'pending' || order.orderKind !== 'limit') {
@@ -336,8 +384,18 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
   // ── 예약 주문 (RSV-*) ─────────────────────────────────────────────
   app.get(
     '/reservations',
-    { schema: { tags: ['account'], summary: '예약 주문 목록 조회 (RSV-009)', querystring: ReservationListQuery, response: { 200: Type.Array(Reservation) } } },
-    async (req) => (req.query.status ? demoReservations.filter((r) => r.status === req.query.status) : demoReservations),
+    { schema: { tags: ['account'], summary: '예약 주문 목록 조회 (RSV-009)', querystring: ReservationListQuery, response: { 200: Type.Array(Reservation), 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcListReservations({ userId: resolveActor(req), status: req.query.status });
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+      return req.query.status ? demoReservations.filter((r) => r.status === req.query.status) : demoReservations;
+    },
   );
 
   app.get(
@@ -357,12 +415,48 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
         tags: ['account'],
         summary: '예약 주문 생성 (시점/유형/날짜 제약)',
         body: CreateReservationBody,
-        response: { 201: Reservation, 400: ErrorResponse, 404: ErrorResponse, 422: ErrorResponse },
+        response: { 201: Reservation, 400: ErrorResponse, 404: ErrorResponse, 422: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse },
       },
     },
     // NOTE: 스케줄 실행/체결·자동취소(RSV-010~015)는 백엔드 책임. 목은 접수 결과만 합성.
     async (req, reply) => {
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+
+      // 실제 gRPC 경로 — ReservationService.PlaceReservation.
+      // 입력/정책 검증(시점별 허용유형·지정가 가격·실행예정일)은 BFF에서, 잔고/보유·중복은 백엔드에서.
+      if (env.dataSource === 'grpc') {
+        const { type, timing, orderKind, quantity } = req.body;
+        if (!allowedReservationKinds(timing).includes(orderKind)) {
+          const hint = timing === 'open' ? '시가 예약은 시장가/지정가만 가능합니다.' : '종가 예약은 시간외종가만 가능합니다.';
+          return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: hint });
+        }
+        if (orderKind === 'limit') {
+          if (req.body.price == null) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '지정가 예약은 가격이 필요합니다.' });
+          if (!Number.isInteger(req.body.price)) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '지정가는 1원 단위(정수)만 가능합니다.' });
+        }
+        const scheduledDate = resolveScheduledDate(timing, req.body.scheduledDate);
+        if (!scheduledDate) {
+          return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '실행 예정일은 내일부터 7일 이내여야 합니다.' });
+        }
+        try {
+          const r = await grpcPlaceReservation({
+            userId: resolveActor(req),
+            symbol: req.body.symbol,
+            type,
+            timing,
+            orderKind,
+            quantity,
+            price: orderKind === 'limit' ? req.body.price! : 0,
+            scheduledDate,
+            idempotencyKey,
+          });
+          return reply.status(201).send(r);
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 400 | 404 | 422 | 500 | 503 | 504).send(mapped);
+        }
+      }
+
       const { type, timing, orderKind, quantity } = req.body;
       const stock = await provider.getStock(req.body.symbol);
       if (!stock) {
@@ -430,10 +524,22 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.delete(
     '/reservations/:id',
-    { schema: { tags: ['account'], summary: '예약 주문 취소 (RSV-016~018)', params: ReservationIdParams, response: { 204: Type.Null(), 404: ErrorResponse, 409: ErrorResponse } } },
+    { schema: { tags: ['account'], summary: '예약 주문 취소 (RSV-016~018)', params: ReservationIdParams, response: { 204: Type.Null(), 404: ErrorResponse, 409: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
     // NOTE: mock — 실제로는 reserved_balance 반환(RSV-014/취소). 여기선 접수 취소만.
     async (req, reply) => {
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+
+      // 실제 gRPC 경로 — ReservationService.CancelReservation. 성공 시 204(계약 유지).
+      if (env.dataSource === 'grpc') {
+        try {
+          await grpcCancelReservation({ userId: resolveActor(req), reservationId: req.params.id, idempotencyKey });
+          return reply.status(204).send(null);
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 404 | 409 | 500 | 503 | 504).send(mapped);
+        }
+      }
+
       const r = demoReservations.find((x) => x.id === req.params.id);
       if (!r) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown reservation: ${req.params.id}` });
       if (r.status !== 'reserved') return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'RESERVED 상태의 예약 주문만 취소할 수 있습니다.' });
@@ -453,6 +559,10 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
         response: { 201: Reservation, 400: ErrorResponse, 404: ErrorResponse, 409: ErrorResponse },
       },
     },
+    // NOTE: 예약 정정은 아직 mock 유지. proto AmendReservation은 전체 필드(timing/kind/quantity/
+    //   price/scheduledDate)를 요구하는데 이 바디는 partial patch라 원본과 병합이 필요하고,
+    //   ReservationService엔 단건 조회(GetReservation) RPC가 없어 BFF가 원본을 못 가져온다.
+    //   → grpc 전환 시: 프론트가 전체 필드를 보내거나 백엔드에 GetReservation 추가 후 연결.
     async (req, reply) => {
       requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const original = demoReservations.find((x) => x.id === req.params.id);
