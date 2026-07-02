@@ -67,13 +67,17 @@ export async function grpcGetStock(code: string): Promise<StockCatalogDetail | u
 }
 
 // ── proto → shared 매핑 ─────────────────────────────────────────────
+// stock-service(=DB stocks) 의 금액 필드(시총·매출·이익)는 억원 단위다. 프론트 포매터는 원 단위를
+// 기대하므로(예: formatMarketCap 은 /1e8 로 억을 만든다) BFF 경계에서 원 단위로 정규화한다.
+const EOK = 100_000_000; // 1억 (억원 → 원)
+
 function toSummary(s: Stock): StockSummary {
   return {
     code: s.code,
     name: s.name,
     market: marketTypeToJSON(s.market),
     sector: s.sector,
-    marketCap: Number(s.marketCap),
+    marketCap: Number(s.marketCap) * EOK,
     sharesOutstanding: Number(s.sharesOutstanding),
     status: listingStatusToJSON(s.status),
   };
@@ -89,9 +93,9 @@ function toDetail(detail: StockDetail, source: DataSource): StockCatalogDetail {
     ...(f
       ? {
           financials: {
-            revenue: Number(f.revenue),
-            operatingProfit: Number(f.operatingProfit),
-            netIncome: Number(f.netIncome),
+            revenue: Number(f.revenue) * EOK,
+            operatingProfit: Number(f.operatingProfit) * EOK,
+            netIncome: Number(f.netIncome) * EOK,
             per: Number(f.per) || 0,
             pbr: Number(f.pbr) || 0,
             roe: Number(f.roe) || 0,
