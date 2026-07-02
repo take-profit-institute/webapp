@@ -2,6 +2,8 @@ import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import { Type } from '@sinclair/typebox';
 import { getMarketProvider } from '../providers';
 import { getMarketStatus } from '../data/market';
+import { env } from '../config/env';
+import { grpcGetIntradayTicks } from '../grpc/market.grpc-client';
 import { ErrorResponse } from '@candle/shared';
 import {
   Candle,
@@ -89,10 +91,20 @@ const marketRoutes: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     '/stocks/:symbol/intraday',
     { schema: { tags: ['market'], summary: '당일 실시간 틱 히스토리', params: SymbolParams, response: { 200: IntradayHistory } } },
-    async (req) => ({
-      symbol: req.params.symbol,
-      ticks: app.tickStore.getHistory(req.params.symbol),
-    }),
+    async (req) => {
+      const symbol = req.params.symbol;
+      // grpc 모드: market-service(ka10079)에서 당일 틱 스냅샷을 당겨온다(장마감에도 그림).
+      // 스냅샷이 비거나 실패하면 라이브 인메모리 버퍼(tick-store)로 폴백한다.
+      if (env.dataSource === 'grpc') {
+        try {
+          const ticks = await grpcGetIntradayTicks(symbol);
+          if (ticks.length > 0) return { symbol, ticks };
+        } catch (err) {
+          req.log.warn({ err }, 'intraday snapshot via market-service failed; falling back to tick buffer');
+        }
+      }
+      return { symbol, ticks: app.tickStore.getHistory(symbol) };
+    },
   );
 };
 

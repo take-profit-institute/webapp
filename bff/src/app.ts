@@ -8,6 +8,7 @@ import { env } from './config/env';
 import pubsubPlugin from './plugins/pubsub.plugin';
 import marketStreamPlugin from './services/market-stream.service';
 import tickStorePlugin from './services/tick-store.service';
+import marketBridgePlugin from './services/market-bridge.service';
 import mockMarketStream from './mock/market-stream.mock';
 import wsRoutes from './routes/ws.routes';
 import routes from './routes';
@@ -60,6 +61,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(websocket);
   await app.register(marketStreamPlugin);
   await app.register(tickStorePlugin);
+  await app.register(marketBridgePlugin); // stock-price(raw) → market:quotes(WsQuoteUpdate)
   await app.register(mockMarketStream);
   await app.register(wsRoutes);
 

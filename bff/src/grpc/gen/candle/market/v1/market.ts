@@ -52,6 +52,29 @@ export interface BatchQuotesResponse {
   quotes: Quote[];
 }
 
+/**
+ * 당일 실시간 시세 그래프의 초기 스냅샷. 키움 주식틱차트(ka10079)를 조회해 오늘치 틱을 돌려준다.
+ * 장마감이어도 오늘 그래프를 그릴 수 있게 REST 로 당겨오는 경로다. 라이브 갱신은 WS(Redis)로 별도.
+ */
+export interface IntradayTick {
+  /** 체결가(원) */
+  price: string;
+  /** 체결시각 */
+  ts?: Date | undefined;
+}
+
+export interface GetIntradayTicksRequest {
+  symbol: string;
+  /** 최근 N개(0 이면 서버 기본값) */
+  limit: number;
+}
+
+export interface GetIntradayTicksResponse {
+  symbol: string;
+  /** 오래된 -> 최신 */
+  ticks: IntradayTick[];
+}
+
 function createBaseStock(): Stock {
   return { symbol: "", name: "", market: "" };
 }
@@ -662,6 +685,234 @@ export const BatchQuotesResponse: MessageFns<BatchQuotesResponse> = {
   },
 };
 
+function createBaseIntradayTick(): IntradayTick {
+  return { price: "0", ts: undefined };
+}
+
+export const IntradayTick: MessageFns<IntradayTick> = {
+  encode(message: IntradayTick, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.price !== "0") {
+      writer.uint32(8).int64(message.price);
+    }
+    if (message.ts !== undefined) {
+      Timestamp.encode(toTimestamp(message.ts), writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): IntradayTick {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseIntradayTick();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.price = reader.int64().toString();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.ts = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): IntradayTick {
+    return {
+      price: isSet(object.price) ? globalThis.String(object.price) : "0",
+      ts: isSet(object.ts) ? fromJsonTimestamp(object.ts) : undefined,
+    };
+  },
+
+  toJSON(message: IntradayTick): unknown {
+    const obj: any = {};
+    if (message.price !== "0") {
+      obj.price = message.price;
+    }
+    if (message.ts !== undefined) {
+      obj.ts = message.ts.toISOString();
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<IntradayTick>): IntradayTick {
+    return IntradayTick.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<IntradayTick>): IntradayTick {
+    const message = createBaseIntradayTick();
+    message.price = object.price ?? "0";
+    message.ts = object.ts ?? undefined;
+    return message;
+  },
+};
+
+function createBaseGetIntradayTicksRequest(): GetIntradayTicksRequest {
+  return { symbol: "", limit: 0 };
+}
+
+export const GetIntradayTicksRequest: MessageFns<GetIntradayTicksRequest> = {
+  encode(message: GetIntradayTicksRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.symbol !== "") {
+      writer.uint32(10).string(message.symbol);
+    }
+    if (message.limit !== 0) {
+      writer.uint32(16).int32(message.limit);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetIntradayTicksRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetIntradayTicksRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.symbol = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.limit = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetIntradayTicksRequest {
+    return {
+      symbol: isSet(object.symbol) ? globalThis.String(object.symbol) : "",
+      limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0,
+    };
+  },
+
+  toJSON(message: GetIntradayTicksRequest): unknown {
+    const obj: any = {};
+    if (message.symbol !== "") {
+      obj.symbol = message.symbol;
+    }
+    if (message.limit !== 0) {
+      obj.limit = Math.round(message.limit);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetIntradayTicksRequest>): GetIntradayTicksRequest {
+    return GetIntradayTicksRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetIntradayTicksRequest>): GetIntradayTicksRequest {
+    const message = createBaseGetIntradayTicksRequest();
+    message.symbol = object.symbol ?? "";
+    message.limit = object.limit ?? 0;
+    return message;
+  },
+};
+
+function createBaseGetIntradayTicksResponse(): GetIntradayTicksResponse {
+  return { symbol: "", ticks: [] };
+}
+
+export const GetIntradayTicksResponse: MessageFns<GetIntradayTicksResponse> = {
+  encode(message: GetIntradayTicksResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.symbol !== "") {
+      writer.uint32(10).string(message.symbol);
+    }
+    for (const v of message.ticks) {
+      IntradayTick.encode(v!, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetIntradayTicksResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetIntradayTicksResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.symbol = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.ticks.push(IntradayTick.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetIntradayTicksResponse {
+    return {
+      symbol: isSet(object.symbol) ? globalThis.String(object.symbol) : "",
+      ticks: globalThis.Array.isArray(object?.ticks) ? object.ticks.map((e: any) => IntradayTick.fromJSON(e)) : [],
+    };
+  },
+
+  toJSON(message: GetIntradayTicksResponse): unknown {
+    const obj: any = {};
+    if (message.symbol !== "") {
+      obj.symbol = message.symbol;
+    }
+    if (message.ticks?.length) {
+      obj.ticks = message.ticks.map((e) => IntradayTick.toJSON(e));
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetIntradayTicksResponse>): GetIntradayTicksResponse {
+    return GetIntradayTicksResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetIntradayTicksResponse>): GetIntradayTicksResponse {
+    const message = createBaseGetIntradayTicksResponse();
+    message.symbol = object.symbol ?? "";
+    message.ticks = object.ticks?.map((e) => IntradayTick.fromPartial(e)) || [];
+    return message;
+  },
+};
+
 export type MarketServiceDefinition = typeof MarketServiceDefinition;
 export const MarketServiceDefinition = {
   name: "MarketService",
@@ -691,6 +942,14 @@ export const MarketServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    getIntradayTicks: {
+      name: "GetIntradayTicks",
+      requestType: GetIntradayTicksRequest as typeof GetIntradayTicksRequest,
+      requestStream: false,
+      responseType: GetIntradayTicksResponse as typeof GetIntradayTicksResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -704,6 +963,10 @@ export interface MarketServiceImplementation<CallContextExt = {}> {
     request: BatchQuotesRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<BatchQuotesResponse>>;
+  getIntradayTicks(
+    request: GetIntradayTicksRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<GetIntradayTicksResponse>>;
 }
 
 export interface MarketServiceClient<CallOptionsExt = {}> {
@@ -716,6 +979,10 @@ export interface MarketServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<BatchQuotesRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<BatchQuotesResponse>;
+  getIntradayTicks(
+    request: DeepPartial<GetIntradayTicksRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<GetIntradayTicksResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
