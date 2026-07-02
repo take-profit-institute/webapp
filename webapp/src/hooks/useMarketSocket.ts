@@ -4,8 +4,9 @@ import type { WsClientMessage, WsServerMessage } from '@/lib/api-types';
 import { useMarketStore } from '@/store/useMarketStore';
 import { API_BASE_URL } from '@/apis';
 
-// WS도 REST와 같은 게이트웨이(8000)로 보낸다. 명시적 override가 없으면 API base에서 파생.
-// http→ws / https→wss 자동 변환.
+// 시세 WS는 게이트웨이(8000)를 타지 않는다 — 게이트웨이는 WS 업그레이드 프록시/인증이 안 된다.
+// BFF(/ws)에 직결한다(NEXT_PUBLIC_WS_BASE_URL). 미설정 시 API base(게이트웨이)로 폴백하면
+// 핸드셰이크에서 401이 나므로 dev/prod 모두 이 값을 설정해야 한다. http→ws / https→wss 자동 변환.
 const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE_URL ?? API_BASE_URL.replace(/^http/, 'ws');
 
 export function useMarketSocket(symbols: string[]) {
