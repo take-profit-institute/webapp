@@ -101,6 +101,84 @@ export interface BackfillCandlesResponse {
   upserted: number;
 }
 
+/**
+ * 장 마감 후 batch(stock.close-daily.v1)가 호출한다. 해당 거래일의 미확정 일봉을 확정(closed=true)하고
+ * 종가 이벤트를 발행한다. 이미 확정된 캔들은 건너뛰므로 재실행에 안전하다.
+ */
+export interface CloseDailyCandlesRequest {
+  /** YYYY-MM-DD (KST 거래일) */
+  tradeDate: string;
+  /** batch execution_id 등 (재실행 추적) */
+  idempotencyKey: string;
+}
+
+export interface CloseDailyCandlesResponse {
+  /** 이번 호출에서 새로 확정한 캔들 수 */
+  closedCount: number;
+}
+
+/**
+ * 리스트 화면(관심종목/랭킹)의 미니 차트용 경량 조회. GetCandles 를 종목마다 부르는 대신
+ * 여러 종목의 최근 종가 시퀀스만 한 번에 받는다. DB 에 있는 데이터만 반환하며 백필하지 않는다.
+ */
+export interface GetSparklinesRequest {
+  codes: string[];
+  /** 기본 DAY_1 */
+  interval: CandleInterval;
+  /** 기본 10 (약 2주 영업일) */
+  points: number;
+}
+
+export interface Sparkline {
+  code: string;
+  /** 오래된 -> 최신 종가 */
+  closes: string[];
+  /** 마지막(최신) 캔들 시각 */
+  lastOpenTime?: Date | undefined;
+}
+
+export interface GetSparklinesResponse {
+  sparklines: Sparkline[];
+}
+
+/** 종목 + 기준일자 -> 그 일자 직전(exclusive)의 마지막 일봉 종가(= 전 거래일 종가). */
+export interface GetPreviousCloseRequest {
+  code: string;
+  /** 이 시각보다 앞선 가장 최근 일봉을 찾는다 */
+  date?: Date | undefined;
+}
+
+export interface GetPreviousCloseResponse {
+  code: string;
+  prevClose: string;
+  /** 종가가 속한 캔들 시각(= 전 거래일) */
+  prevOpenTime?: Date | undefined;
+}
+
+/**
+ * 종목 통계(52주 고저 등) — 상세 화면 헤더용. candles(일봉)에서 집계한다.
+ * DB 에 있는 데이터만 집계하며 백필하지 않는다. 데이터가 없으면 0/미설정으로 응답한다(예외 아님).
+ */
+export interface GetPriceStatsRequest {
+  code: string;
+  /** 기본 365 (약 52주) */
+  windowDays: number;
+}
+
+export interface GetPriceStatsResponse {
+  code: string;
+  /** window 내 최고가 (= 52주 최고) */
+  high: string;
+  /** window 내 최저가 (= 52주 최저) */
+  low: string;
+  /** 최근 일봉 종가 */
+  latestClose: string;
+  /** 최근 일봉 거래량 */
+  latestVolume: string;
+  /** 최근 일봉 시각 (데이터 없으면 미설정) */
+  asOf?: Date | undefined;
+}
+
 function createBaseCandle(): Candle {
   return {
     code: "",
@@ -621,6 +699,824 @@ export const BackfillCandlesResponse: MessageFns<BackfillCandlesResponse> = {
   },
 };
 
+function createBaseCloseDailyCandlesRequest(): CloseDailyCandlesRequest {
+  return { tradeDate: "", idempotencyKey: "" };
+}
+
+export const CloseDailyCandlesRequest: MessageFns<CloseDailyCandlesRequest> = {
+  encode(message: CloseDailyCandlesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.tradeDate !== "") {
+      writer.uint32(10).string(message.tradeDate);
+    }
+    if (message.idempotencyKey !== "") {
+      writer.uint32(18).string(message.idempotencyKey);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CloseDailyCandlesRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCloseDailyCandlesRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.tradeDate = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.idempotencyKey = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CloseDailyCandlesRequest {
+    return {
+      tradeDate: isSet(object.tradeDate)
+        ? globalThis.String(object.tradeDate)
+        : isSet(object.trade_date)
+        ? globalThis.String(object.trade_date)
+        : "",
+      idempotencyKey: isSet(object.idempotencyKey)
+        ? globalThis.String(object.idempotencyKey)
+        : isSet(object.idempotency_key)
+        ? globalThis.String(object.idempotency_key)
+        : "",
+    };
+  },
+
+  toJSON(message: CloseDailyCandlesRequest): unknown {
+    const obj: any = {};
+    if (message.tradeDate !== "") {
+      obj.tradeDate = message.tradeDate;
+    }
+    if (message.idempotencyKey !== "") {
+      obj.idempotencyKey = message.idempotencyKey;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<CloseDailyCandlesRequest>): CloseDailyCandlesRequest {
+    return CloseDailyCandlesRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<CloseDailyCandlesRequest>): CloseDailyCandlesRequest {
+    const message = createBaseCloseDailyCandlesRequest();
+    message.tradeDate = object.tradeDate ?? "";
+    message.idempotencyKey = object.idempotencyKey ?? "";
+    return message;
+  },
+};
+
+function createBaseCloseDailyCandlesResponse(): CloseDailyCandlesResponse {
+  return { closedCount: 0 };
+}
+
+export const CloseDailyCandlesResponse: MessageFns<CloseDailyCandlesResponse> = {
+  encode(message: CloseDailyCandlesResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.closedCount !== 0) {
+      writer.uint32(8).int32(message.closedCount);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CloseDailyCandlesResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCloseDailyCandlesResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.closedCount = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CloseDailyCandlesResponse {
+    return {
+      closedCount: isSet(object.closedCount)
+        ? globalThis.Number(object.closedCount)
+        : isSet(object.closed_count)
+        ? globalThis.Number(object.closed_count)
+        : 0,
+    };
+  },
+
+  toJSON(message: CloseDailyCandlesResponse): unknown {
+    const obj: any = {};
+    if (message.closedCount !== 0) {
+      obj.closedCount = Math.round(message.closedCount);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<CloseDailyCandlesResponse>): CloseDailyCandlesResponse {
+    return CloseDailyCandlesResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<CloseDailyCandlesResponse>): CloseDailyCandlesResponse {
+    const message = createBaseCloseDailyCandlesResponse();
+    message.closedCount = object.closedCount ?? 0;
+    return message;
+  },
+};
+
+function createBaseGetSparklinesRequest(): GetSparklinesRequest {
+  return { codes: [], interval: 0, points: 0 };
+}
+
+export const GetSparklinesRequest: MessageFns<GetSparklinesRequest> = {
+  encode(message: GetSparklinesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.codes) {
+      writer.uint32(10).string(v!);
+    }
+    if (message.interval !== 0) {
+      writer.uint32(16).int32(message.interval);
+    }
+    if (message.points !== 0) {
+      writer.uint32(24).int32(message.points);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetSparklinesRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetSparklinesRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.codes.push(reader.string());
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.interval = reader.int32() as any;
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.points = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetSparklinesRequest {
+    return {
+      codes: globalThis.Array.isArray(object?.codes) ? object.codes.map((e: any) => globalThis.String(e)) : [],
+      interval: isSet(object.interval) ? candleIntervalFromJSON(object.interval) : 0,
+      points: isSet(object.points) ? globalThis.Number(object.points) : 0,
+    };
+  },
+
+  toJSON(message: GetSparklinesRequest): unknown {
+    const obj: any = {};
+    if (message.codes?.length) {
+      obj.codes = message.codes;
+    }
+    if (message.interval !== 0) {
+      obj.interval = candleIntervalToJSON(message.interval);
+    }
+    if (message.points !== 0) {
+      obj.points = Math.round(message.points);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetSparklinesRequest>): GetSparklinesRequest {
+    return GetSparklinesRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetSparklinesRequest>): GetSparklinesRequest {
+    const message = createBaseGetSparklinesRequest();
+    message.codes = object.codes?.map((e) => e) || [];
+    message.interval = object.interval ?? 0;
+    message.points = object.points ?? 0;
+    return message;
+  },
+};
+
+function createBaseSparkline(): Sparkline {
+  return { code: "", closes: [], lastOpenTime: undefined };
+}
+
+export const Sparkline: MessageFns<Sparkline> = {
+  encode(message: Sparkline, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.code !== "") {
+      writer.uint32(10).string(message.code);
+    }
+    writer.uint32(18).fork();
+    for (const v of message.closes) {
+      writer.int64(v);
+    }
+    writer.join();
+    if (message.lastOpenTime !== undefined) {
+      Timestamp.encode(toTimestamp(message.lastOpenTime), writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Sparkline {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSparkline();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.code = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag === 16) {
+            message.closes.push(reader.int64().toString());
+
+            continue;
+          }
+
+          if (tag === 18) {
+            const end2 = reader.uint32() + reader.pos;
+            while (reader.pos < end2) {
+              message.closes.push(reader.int64().toString());
+            }
+
+            continue;
+          }
+
+          break;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.lastOpenTime = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): Sparkline {
+    return {
+      code: isSet(object.code) ? globalThis.String(object.code) : "",
+      closes: globalThis.Array.isArray(object?.closes) ? object.closes.map((e: any) => globalThis.String(e)) : [],
+      lastOpenTime: isSet(object.lastOpenTime)
+        ? fromJsonTimestamp(object.lastOpenTime)
+        : isSet(object.last_open_time)
+        ? fromJsonTimestamp(object.last_open_time)
+        : undefined,
+    };
+  },
+
+  toJSON(message: Sparkline): unknown {
+    const obj: any = {};
+    if (message.code !== "") {
+      obj.code = message.code;
+    }
+    if (message.closes?.length) {
+      obj.closes = message.closes;
+    }
+    if (message.lastOpenTime !== undefined) {
+      obj.lastOpenTime = message.lastOpenTime.toISOString();
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<Sparkline>): Sparkline {
+    return Sparkline.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<Sparkline>): Sparkline {
+    const message = createBaseSparkline();
+    message.code = object.code ?? "";
+    message.closes = object.closes?.map((e) => e) || [];
+    message.lastOpenTime = object.lastOpenTime ?? undefined;
+    return message;
+  },
+};
+
+function createBaseGetSparklinesResponse(): GetSparklinesResponse {
+  return { sparklines: [] };
+}
+
+export const GetSparklinesResponse: MessageFns<GetSparklinesResponse> = {
+  encode(message: GetSparklinesResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.sparklines) {
+      Sparkline.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetSparklinesResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetSparklinesResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.sparklines.push(Sparkline.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetSparklinesResponse {
+    return {
+      sparklines: globalThis.Array.isArray(object?.sparklines)
+        ? object.sparklines.map((e: any) => Sparkline.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: GetSparklinesResponse): unknown {
+    const obj: any = {};
+    if (message.sparklines?.length) {
+      obj.sparklines = message.sparklines.map((e) => Sparkline.toJSON(e));
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetSparklinesResponse>): GetSparklinesResponse {
+    return GetSparklinesResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetSparklinesResponse>): GetSparklinesResponse {
+    const message = createBaseGetSparklinesResponse();
+    message.sparklines = object.sparklines?.map((e) => Sparkline.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseGetPreviousCloseRequest(): GetPreviousCloseRequest {
+  return { code: "", date: undefined };
+}
+
+export const GetPreviousCloseRequest: MessageFns<GetPreviousCloseRequest> = {
+  encode(message: GetPreviousCloseRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.code !== "") {
+      writer.uint32(10).string(message.code);
+    }
+    if (message.date !== undefined) {
+      Timestamp.encode(toTimestamp(message.date), writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetPreviousCloseRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetPreviousCloseRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.code = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.date = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetPreviousCloseRequest {
+    return {
+      code: isSet(object.code) ? globalThis.String(object.code) : "",
+      date: isSet(object.date) ? fromJsonTimestamp(object.date) : undefined,
+    };
+  },
+
+  toJSON(message: GetPreviousCloseRequest): unknown {
+    const obj: any = {};
+    if (message.code !== "") {
+      obj.code = message.code;
+    }
+    if (message.date !== undefined) {
+      obj.date = message.date.toISOString();
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetPreviousCloseRequest>): GetPreviousCloseRequest {
+    return GetPreviousCloseRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetPreviousCloseRequest>): GetPreviousCloseRequest {
+    const message = createBaseGetPreviousCloseRequest();
+    message.code = object.code ?? "";
+    message.date = object.date ?? undefined;
+    return message;
+  },
+};
+
+function createBaseGetPreviousCloseResponse(): GetPreviousCloseResponse {
+  return { code: "", prevClose: "0", prevOpenTime: undefined };
+}
+
+export const GetPreviousCloseResponse: MessageFns<GetPreviousCloseResponse> = {
+  encode(message: GetPreviousCloseResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.code !== "") {
+      writer.uint32(10).string(message.code);
+    }
+    if (message.prevClose !== "0") {
+      writer.uint32(16).int64(message.prevClose);
+    }
+    if (message.prevOpenTime !== undefined) {
+      Timestamp.encode(toTimestamp(message.prevOpenTime), writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetPreviousCloseResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetPreviousCloseResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.code = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.prevClose = reader.int64().toString();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.prevOpenTime = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetPreviousCloseResponse {
+    return {
+      code: isSet(object.code) ? globalThis.String(object.code) : "",
+      prevClose: isSet(object.prevClose)
+        ? globalThis.String(object.prevClose)
+        : isSet(object.prev_close)
+        ? globalThis.String(object.prev_close)
+        : "0",
+      prevOpenTime: isSet(object.prevOpenTime)
+        ? fromJsonTimestamp(object.prevOpenTime)
+        : isSet(object.prev_open_time)
+        ? fromJsonTimestamp(object.prev_open_time)
+        : undefined,
+    };
+  },
+
+  toJSON(message: GetPreviousCloseResponse): unknown {
+    const obj: any = {};
+    if (message.code !== "") {
+      obj.code = message.code;
+    }
+    if (message.prevClose !== "0") {
+      obj.prevClose = message.prevClose;
+    }
+    if (message.prevOpenTime !== undefined) {
+      obj.prevOpenTime = message.prevOpenTime.toISOString();
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetPreviousCloseResponse>): GetPreviousCloseResponse {
+    return GetPreviousCloseResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetPreviousCloseResponse>): GetPreviousCloseResponse {
+    const message = createBaseGetPreviousCloseResponse();
+    message.code = object.code ?? "";
+    message.prevClose = object.prevClose ?? "0";
+    message.prevOpenTime = object.prevOpenTime ?? undefined;
+    return message;
+  },
+};
+
+function createBaseGetPriceStatsRequest(): GetPriceStatsRequest {
+  return { code: "", windowDays: 0 };
+}
+
+export const GetPriceStatsRequest: MessageFns<GetPriceStatsRequest> = {
+  encode(message: GetPriceStatsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.code !== "") {
+      writer.uint32(10).string(message.code);
+    }
+    if (message.windowDays !== 0) {
+      writer.uint32(16).int32(message.windowDays);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetPriceStatsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetPriceStatsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.code = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.windowDays = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetPriceStatsRequest {
+    return {
+      code: isSet(object.code) ? globalThis.String(object.code) : "",
+      windowDays: isSet(object.windowDays)
+        ? globalThis.Number(object.windowDays)
+        : isSet(object.window_days)
+        ? globalThis.Number(object.window_days)
+        : 0,
+    };
+  },
+
+  toJSON(message: GetPriceStatsRequest): unknown {
+    const obj: any = {};
+    if (message.code !== "") {
+      obj.code = message.code;
+    }
+    if (message.windowDays !== 0) {
+      obj.windowDays = Math.round(message.windowDays);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetPriceStatsRequest>): GetPriceStatsRequest {
+    return GetPriceStatsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetPriceStatsRequest>): GetPriceStatsRequest {
+    const message = createBaseGetPriceStatsRequest();
+    message.code = object.code ?? "";
+    message.windowDays = object.windowDays ?? 0;
+    return message;
+  },
+};
+
+function createBaseGetPriceStatsResponse(): GetPriceStatsResponse {
+  return { code: "", high: "0", low: "0", latestClose: "0", latestVolume: "0", asOf: undefined };
+}
+
+export const GetPriceStatsResponse: MessageFns<GetPriceStatsResponse> = {
+  encode(message: GetPriceStatsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.code !== "") {
+      writer.uint32(10).string(message.code);
+    }
+    if (message.high !== "0") {
+      writer.uint32(16).int64(message.high);
+    }
+    if (message.low !== "0") {
+      writer.uint32(24).int64(message.low);
+    }
+    if (message.latestClose !== "0") {
+      writer.uint32(32).int64(message.latestClose);
+    }
+    if (message.latestVolume !== "0") {
+      writer.uint32(40).int64(message.latestVolume);
+    }
+    if (message.asOf !== undefined) {
+      Timestamp.encode(toTimestamp(message.asOf), writer.uint32(50).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetPriceStatsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetPriceStatsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.code = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.high = reader.int64().toString();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.low = reader.int64().toString();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.latestClose = reader.int64().toString();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.latestVolume = reader.int64().toString();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.asOf = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetPriceStatsResponse {
+    return {
+      code: isSet(object.code) ? globalThis.String(object.code) : "",
+      high: isSet(object.high) ? globalThis.String(object.high) : "0",
+      low: isSet(object.low) ? globalThis.String(object.low) : "0",
+      latestClose: isSet(object.latestClose)
+        ? globalThis.String(object.latestClose)
+        : isSet(object.latest_close)
+        ? globalThis.String(object.latest_close)
+        : "0",
+      latestVolume: isSet(object.latestVolume)
+        ? globalThis.String(object.latestVolume)
+        : isSet(object.latest_volume)
+        ? globalThis.String(object.latest_volume)
+        : "0",
+      asOf: isSet(object.asOf)
+        ? fromJsonTimestamp(object.asOf)
+        : isSet(object.as_of)
+        ? fromJsonTimestamp(object.as_of)
+        : undefined,
+    };
+  },
+
+  toJSON(message: GetPriceStatsResponse): unknown {
+    const obj: any = {};
+    if (message.code !== "") {
+      obj.code = message.code;
+    }
+    if (message.high !== "0") {
+      obj.high = message.high;
+    }
+    if (message.low !== "0") {
+      obj.low = message.low;
+    }
+    if (message.latestClose !== "0") {
+      obj.latestClose = message.latestClose;
+    }
+    if (message.latestVolume !== "0") {
+      obj.latestVolume = message.latestVolume;
+    }
+    if (message.asOf !== undefined) {
+      obj.asOf = message.asOf.toISOString();
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetPriceStatsResponse>): GetPriceStatsResponse {
+    return GetPriceStatsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetPriceStatsResponse>): GetPriceStatsResponse {
+    const message = createBaseGetPriceStatsResponse();
+    message.code = object.code ?? "";
+    message.high = object.high ?? "0";
+    message.low = object.low ?? "0";
+    message.latestClose = object.latestClose ?? "0";
+    message.latestVolume = object.latestVolume ?? "0";
+    message.asOf = object.asOf ?? undefined;
+    return message;
+  },
+};
+
 export type ChartServiceDefinition = typeof ChartServiceDefinition;
 export const ChartServiceDefinition = {
   name: "ChartService",
@@ -634,11 +1530,43 @@ export const ChartServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    getSparklines: {
+      name: "GetSparklines",
+      requestType: GetSparklinesRequest as typeof GetSparklinesRequest,
+      requestStream: false,
+      responseType: GetSparklinesResponse as typeof GetSparklinesResponse,
+      responseStream: false,
+      options: {},
+    },
+    getPreviousClose: {
+      name: "GetPreviousClose",
+      requestType: GetPreviousCloseRequest as typeof GetPreviousCloseRequest,
+      requestStream: false,
+      responseType: GetPreviousCloseResponse as typeof GetPreviousCloseResponse,
+      responseStream: false,
+      options: {},
+    },
+    getPriceStats: {
+      name: "GetPriceStats",
+      requestType: GetPriceStatsRequest as typeof GetPriceStatsRequest,
+      requestStream: false,
+      responseType: GetPriceStatsResponse as typeof GetPriceStatsResponse,
+      responseStream: false,
+      options: {},
+    },
     backfillCandles: {
       name: "BackfillCandles",
       requestType: BackfillCandlesRequest as typeof BackfillCandlesRequest,
       requestStream: false,
       responseType: BackfillCandlesResponse as typeof BackfillCandlesResponse,
+      responseStream: false,
+      options: {},
+    },
+    closeDailyCandles: {
+      name: "CloseDailyCandles",
+      requestType: CloseDailyCandlesRequest as typeof CloseDailyCandlesRequest,
+      requestStream: false,
+      responseType: CloseDailyCandlesResponse as typeof CloseDailyCandlesResponse,
       responseStream: false,
       options: {},
     },
@@ -650,10 +1578,26 @@ export interface ChartServiceImplementation<CallContextExt = {}> {
     request: GetCandlesRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<GetCandlesResponse>>;
+  getSparklines(
+    request: GetSparklinesRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<GetSparklinesResponse>>;
+  getPreviousClose(
+    request: GetPreviousCloseRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<GetPreviousCloseResponse>>;
+  getPriceStats(
+    request: GetPriceStatsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<GetPriceStatsResponse>>;
   backfillCandles(
     request: BackfillCandlesRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<BackfillCandlesResponse>>;
+  closeDailyCandles(
+    request: CloseDailyCandlesRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<CloseDailyCandlesResponse>>;
 }
 
 export interface ChartServiceClient<CallOptionsExt = {}> {
@@ -661,10 +1605,26 @@ export interface ChartServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<GetCandlesRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<GetCandlesResponse>;
+  getSparklines(
+    request: DeepPartial<GetSparklinesRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<GetSparklinesResponse>;
+  getPreviousClose(
+    request: DeepPartial<GetPreviousCloseRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<GetPreviousCloseResponse>;
+  getPriceStats(
+    request: DeepPartial<GetPriceStatsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<GetPriceStatsResponse>;
   backfillCandles(
     request: DeepPartial<BackfillCandlesRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<BackfillCandlesResponse>;
+  closeDailyCandles(
+    request: DeepPartial<CloseDailyCandlesRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<CloseDailyCandlesResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

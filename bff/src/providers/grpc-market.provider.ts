@@ -2,8 +2,11 @@
  * MarketProvider 구현 — 실시간 시세 백엔드(market-service gRPC)가 아직 없으므로
  * 종목 목록/상세/캔들은 stock-service(카탈로그 + ChartService)로 위임한다.
  *
- * - listStocks/getStock: stock-service StockService 카탈로그 → Quote/StockDetail 어댑트.
- *   시세 필드(price/change/volume 등)는 시세 소스가 없어 0으로 채운다.
+ * - listStocks: stock-service StockService 카탈로그 → Quote 어댑트. 실시간 시세(price/change 등)는
+ *   소스가 없어 0.
+ * - getStock: 카탈로그(업종/시총/재무/설명) + ChartService.GetPriceStats(52주 고저 + 최근 일봉
+ *   종가/거래량) 를 합쳐 StockDetail 을 채운다. 실시간 등락(change/prevClose 등)은 시세 피드가
+ *   붙기 전까지 0.
  * - getCandles: stock-service ChartService (grpcGetCandles).
  * - getNews/getMovers: 백엔드 없음 → 빈 결과(throw 금지).
  */
@@ -18,7 +21,7 @@ import type {
   StockSummary,
 } from '@candle/shared';
 import type { MarketProvider, StockListFilter } from './market.provider';
-import { grpcGetCandles } from '../grpc/stock-chart.grpc-client';
+import { grpcGetCandles, grpcGetPriceStats, type PriceStats } from '../grpc/stock-chart.grpc-client';
 import { grpcGetStock, grpcSearchStocks } from '../grpc/stock.grpc-client';
 
 const EMPTY_FINANCIALS = { revenue: 0, operatingProfit: 0, netIncome: 0, per: 0, pbr: 0, roe: 0 };
@@ -31,7 +34,10 @@ export class GrpcMarketProvider implements MarketProvider {
 
   async getStock(symbol: string): Promise<StockDetail | undefined> {
     const detail = await grpcGetStock(symbol);
-    return detail ? catalogToStockDetail(detail) : undefined;
+    if (!detail) return undefined;
+    // 52주 고저·최근 일봉은 부가정보 — 실패해도 상세는 내려준다(펀더멘털은 이미 확보).
+    const stats = await grpcGetPriceStats(symbol).catch(() => null);
+    return catalogToStockDetail(detail, stats);
   }
 
   getCandles(symbol: string, interval: '1d' | '1w' | '1M', limit: number): Promise<Candle[]> {
@@ -77,12 +83,18 @@ function summaryToQuote(s: StockSummary): Quote {
   };
 }
 
-function catalogToStockDetail(detail: StockCatalogDetail): StockDetail {
+function catalogToStockDetail(detail: StockCatalogDetail, stats: PriceStats | null): StockDetail {
   const f = detail.financials;
+  const quote = summaryToQuote(detail);
+  // 실시간 시세는 없지만, 최근 일봉 종가/거래량을 현재가 대용으로 노출한다(등락은 피드 붙기 전 0).
+  if (stats) {
+    quote.price = stats.latestClose;
+    quote.volume = stats.latestVolume;
+  }
   return {
-    ...summaryToQuote(detail),
-    high52w: 0,
-    low52w: 0,
+    ...quote,
+    high52w: stats?.high52w ?? 0,
+    low52w: stats?.low52w ?? 0,
     description: detail.description ?? '',
     financials: f
       ? {

@@ -38,6 +38,25 @@ export async function grpcGetCandles(
   return res.candles.map(toSharedCandle);
 }
 
+/** 52주 고저 + 최근 일봉 종가/거래량. candles(일봉) 집계 — 데이터 없으면 전부 0. */
+export interface PriceStats {
+  high52w: number;
+  low52w: number;
+  latestClose: number;
+  latestVolume: number;
+}
+
+export async function grpcGetPriceStats(symbol: string, windowDays = 0): Promise<PriceStats> {
+  // windowDays=0 → 서버 기본값(365, 약 52주) 사용.
+  const res = await getClient().getPriceStats({ code: symbol, windowDays });
+  return {
+    high52w: Number(res.high),
+    low52w: Number(res.low),
+    latestClose: Number(res.latestClose),
+    latestVolume: Number(res.latestVolume),
+  };
+}
+
 function intervalToProto(interval: SharedCandleInterval): CandleInterval {
   switch (interval) {
     case '1w': return CandleInterval.WEEK_1;
