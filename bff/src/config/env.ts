@@ -46,7 +46,7 @@ export const env = {
   grpc: {
     authAddr: str('GRPC_AUTH_ADDR', 'localhost:50051'),
     userAddr: str('GRPC_USER_ADDR', 'localhost:50052'),
-    marketAddr: str('GRPC_MARKET_ADDR', 'localhost:50053'),
+    marketAddr: str('GRPC_MARKET_ADDR', 'localhost:50063'),
     accountAddr: str('GRPC_ACCOUNT_ADDR', 'localhost:50054'),
     portfolioAddr: str('GRPC_PORTFOLIO_ADDR', 'localhost:50055'),
     rankingAddr: str('GRPC_RANKING_ADDR', 'localhost:50056'),
