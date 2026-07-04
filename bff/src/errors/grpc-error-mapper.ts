@@ -59,7 +59,7 @@ export function mapGrpcError(err: unknown, traceId?: string): PublicErrorRespons
   }
 
   const upstreamCode = extractGrpcMetadata(err, 'x-error-code') ?? codeLike(err.details);
-  const upstreamMessage = extractGrpcMetadata(err, 'x-error-message');
+  const upstreamMessage = extractGrpcMetadata(err, 'x-error-message') ?? messageLike(err.details);
   const code = upstreamCode ? UPSTREAM_CODE_MAP[upstreamCode] ?? fallbackCodeByStatus(statusCode) : fallbackCodeByStatus(statusCode);
 
   return buildErrorResponse({
@@ -95,6 +95,11 @@ function fallbackCodeByStatus(statusCode: number): ErrorCode {
 function codeLike(value: string | undefined): string | undefined {
   if (!value) return undefined;
   return /^[A-Z][A-Z0-9_]{2,}$/.test(value) ? value : undefined;
+}
+
+function messageLike(value: string | undefined): string | undefined {
+  if (!value || codeLike(value)) return undefined;
+  return value;
 }
 
 function extractGrpcMetadata(err: ClientError, key: string): string | undefined {

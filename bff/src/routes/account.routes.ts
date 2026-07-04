@@ -161,6 +161,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     clientPrice: number | undefined,
   ): Promise<{ price: number } | { error: { statusCode: 400 | 404 | 503; error: string; message: string } }> {
     if (orderKind === 'limit') return resolveOrderPrice(symbol, 'limit', clientPrice);
+    if (orderKind === 'market') return { price: 0 };
 
     const stock = await provider.getStock(symbol);
     if (!stock) {
