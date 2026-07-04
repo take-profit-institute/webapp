@@ -32,7 +32,8 @@ export {
   getIntradayHistory,
   getSparklines,
 } from './market';
-export { searchStocks, getStockCatalog } from './stocks';
+export { searchStocks, getStockCatalog, getLiveMarketStocks } from './stocks';
+export type { LiveMarketStock, LiveMarketStockPage } from './stocks';
 export {
   getNotifications,
   getUnreadCount,

@@ -4,57 +4,43 @@ import { useState } from 'react';
 import Link from 'next/link';
 import {
   Search,
-  SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-react';
-import MiniSparkline from '@/components/MiniSparkline';
-import { getSparklines, searchStocks, useApi } from '@/apis';
+import MarketIndexWidget from '@/components/MarketIndexWidget';
+import { getLiveMarketStocks, useApi } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
-import { generateSparkline, symbolSeed } from '@/lib/chart-utils';
 import { formatMarketCap } from '@/lib/format';
 import { marketDetailHref } from '@/lib/market-routes';
-import type { StockMarket, StockSort } from '@/lib/api-types';
+import type { StockMarket } from '@/lib/api-types';
 
 const exchanges: Array<'전체' | StockMarket> = ['전체', 'KOSPI', 'KOSDAQ'];
-const sectors = ['전체', '반도체', 'IT', '배터리', '자동차', '바이오'];
-const sorts: Array<{ label: string; value: StockSort }> = [
-  { label: '코드순', value: 'CODE_ASC' },
-  { label: '이름순', value: 'NAME_ASC' },
-  { label: '시총순', value: 'MARKET_CAP_DESC' },
-];
-
 const PAGE_SIZE = 20;
 const PAGE_WINDOW_SIZE = 5;
 
 export default function MarketPage() {
   const [activeExchange, setActiveExchange] = useState<'전체' | StockMarket>('전체');
-  const [activeSector, setActiveSector] = useState('전체');
   const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<StockSort>('CODE_ASC');
   const [page, setPage] = useState(0);
 
   const { data, loading, error, refetch } = useApi(
-    () => searchStocks({
-      q: query.trim() || undefined,
+    () => getLiveMarketStocks({
       market: activeExchange === '전체' ? undefined : activeExchange,
-      sector: activeSector === '전체' ? undefined : activeSector,
-      sort,
       page,
       size: PAGE_SIZE,
     }),
-    [query, activeExchange, activeSector, sort, page],
+    [activeExchange, page],
   );
-  const { data: sparklines } = useApi(() => getSparklines(14), []);
 
-  const stockList = data?.items ?? [];
+  const normalizedQuery = query.trim().toLocaleLowerCase('ko-KR');
+  const stockList = (data?.items ?? []).filter((stock) =>
+    !normalizedQuery || stock.name.toLocaleLowerCase('ko-KR').includes(normalizedQuery) || stock.code.includes(normalizedQuery),
+  );
   const totalElements = data?.totalElements ?? 0;
   const totalPages = data?.totalPages ?? 1;
   const currentPage = data?.page ?? page;
-  const sparklinesMap = sparklines ?? {};
-  const activeSortLabel = sorts.find((s) => s.value === sort)?.label ?? '정렬';
 
   const pageWindowStart = Math.floor(currentPage / PAGE_WINDOW_SIZE) * PAGE_WINDOW_SIZE;
   const pageWindowEnd = Math.min(totalPages - 1, pageWindowStart + PAGE_WINDOW_SIZE - 1);
@@ -66,21 +52,6 @@ export default function MarketPage() {
   const canMoveNextWindow = pageWindowEnd < totalPages - 1;
   const itemStart = totalElements === 0 ? 0 : currentPage * PAGE_SIZE + 1;
   const itemEnd = Math.min((currentPage + 1) * PAGE_SIZE, totalElements);
-
-  function getStockSparkData(symbol: string, fallbackPrice: number) {
-    const closes = sparklinesMap[symbol] ?? [];
-    const spark = closes.length >= 2 ? closes : generateSparkline(fallbackPrice || 1, 12, symbolSeed(symbol));
-    const firstClose = closes[0] ?? fallbackPrice;
-    const lastClose = closes[closes.length - 1] ?? fallbackPrice;
-    const isUp = lastClose >= firstClose;
-    return { spark, isUp };
-  }
-
-  function cycleSort() {
-    const idx = sorts.findIndex((s) => s.value === sort);
-    setSort(sorts[(idx + 1) % sorts.length].value);
-    setPage(0);
-  }
 
   return (
     <div className="p-3 md:p-6 max-w-[1200px]">
@@ -99,23 +70,7 @@ export default function MarketPage() {
         </Link>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-1 mb-4 scrollbar-none">
-        {[
-          { label: 'KOSPI', value: '2,847.34', change: '+12.5', pct: '+0.44%', up: true },
-          { label: 'KOSDAQ', value: '847.12', change: '-3.2', pct: '-0.38%', up: false },
-        ].map(idx => (
-          <div key={idx.label} className="card p-3 md:p-4 flex items-center justify-between shrink-0 w-44 md:w-auto md:flex-1">
-            <div>
-              <p className="text-xs font-mono mb-1" style={{ color: 'var(--text-muted)' }}>{idx.label}</p>
-              <p className="text-lg md:text-xl font-black font-mono" style={{ fontFamily: 'JetBrains Mono', color: 'var(--text-primary)' }}>{idx.value}</p>
-            </div>
-            <div className="text-right">
-              <span className={`badge-${idx.up ? 'gain' : 'loss'} text-xs`}>{idx.pct}</span>
-              <p className="text-xs font-mono mt-1" style={{ color: 'var(--text-muted)' }}>{idx.change}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+      <MarketIndexWidget />
 
       <div className="card p-3 md:p-4 mb-3">
         <div className="flex gap-2 mb-3">
@@ -131,14 +86,7 @@ export default function MarketPage() {
               }}
             />
           </div>
-          <button
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs shrink-0"
-            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: sort !== 'CODE_ASC' ? 'var(--amber)' : 'var(--text-secondary)' }}
-            onClick={cycleSort}
-          >
-            <SlidersHorizontal size={12} />
-            <span className="hidden sm:inline">{activeSortLabel}</span>
-          </button>
+          <div className="flex items-center px-3 text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>시가총액순</div>
         </div>
         <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
           {exchanges.map(e => (
@@ -155,20 +103,6 @@ export default function MarketPage() {
               {e}
             </button>
           ))}
-          <div className="w-px shrink-0" style={{ background: 'var(--border-subtle)' }} />
-          {sectors.map(s => (
-            <button key={s} onClick={() => {
-              setActiveSector(s);
-              setPage(0);
-            }}
-              className="px-3 py-1 rounded-full text-xs transition-all shrink-0"
-              style={{
-                color: activeSector === s ? 'var(--amber)' : 'var(--text-muted)',
-                background: activeSector === s ? 'var(--amber-subtle)' : 'transparent',
-              }}>
-              {s}
-            </button>
-          ))}
         </div>
       </div>
 
@@ -179,7 +113,7 @@ export default function MarketPage() {
         <>
           <div className="lg:hidden space-y-2">
             {stockList.map(s => {
-              const { spark, isUp } = getStockSparkData(s.code, s.marketCap);
+              const isUp = s.changePercent >= 0;
               return (
                 <Link key={s.code} href={marketDetailHref(s.code)}
                   className="card-interactive flex items-center px-4 py-3 gap-3"
@@ -196,12 +130,13 @@ export default function MarketPage() {
                       <span className="badge-amber" style={{ fontSize: 9, padding: '1px 4px' }}>{s.market}</span>
                     </div>
                   </div>
-                  <MiniSparkline data={spark} width={44} height={22} positive={isUp} />
                   <div className="text-right shrink-0 w-24">
-                    <p className="text-xs font-mono font-semibold" style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>
-                      {formatMarketCap(s.marketCap, 'KRW')}
+                    <p className="text-sm font-mono font-semibold" style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>
+                      {s.price.toLocaleString('ko-KR')}원
                     </p>
-                    <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{s.sector}</p>
+                    <p className={`text-xs ${isUp ? 'text-gain' : 'text-loss'}`}>
+                      {s.changePercent > 0 ? '+' : ''}{s.changePercent.toFixed(2)}%
+                    </p>
                   </div>
                 </Link>
               );
@@ -210,22 +145,23 @@ export default function MarketPage() {
 
           <div className="hidden lg:block card overflow-hidden">
             <div className="grid text-xs px-4 py-3" style={{
-              gridTemplateColumns: '2fr 1fr 1fr 90px',
+              gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr',
               color: 'var(--text-muted)',
               borderBottom: '1px solid var(--border-subtle)',
               fontFamily: 'Noto Sans KR',
             }}>
               <span>종목</span>
-              <span className="text-right">시장</span>
+              <span className="text-right">현재가</span>
+              <span className="text-right">전일 대비</span>
               <span className="text-right">시가총액</span>
-              <span className="text-right">2주 추이</span>
+              <span className="text-right">거래량</span>
             </div>
             {stockList.map((s, i) => {
-              const { spark, isUp } = getStockSparkData(s.code, s.marketCap);
+              const isUp = s.changePercent >= 0;
               return (
                 <Link key={s.code} href={marketDetailHref(s.code)}
                   className="grid px-4 py-3 transition-colors hover:bg-[var(--bg-elevated)]"
-                  style={{ gridTemplateColumns: '2fr 1fr 1fr 90px', borderBottom: i < stockList.length - 1 ? '1px solid var(--border-subtle)' : 'none', textDecoration: 'none' }}
+                  style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', borderBottom: i < stockList.length - 1 ? '1px solid var(--border-subtle)' : 'none', textDecoration: 'none' }}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
@@ -236,18 +172,24 @@ export default function MarketPage() {
                       <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{s.name}</p>
                       <div className="flex items-center gap-2">
                         <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>{s.code}</span>
-                        <span className="badge-amber" style={{ fontSize: 10, padding: '1px 5px' }}>{s.sector}</span>
+                        <span className="badge-amber" style={{ fontSize: 10, padding: '1px 5px' }}>{s.market}</span>
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center justify-end">
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.market}</span>
+                    <span className="font-mono text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{s.price.toLocaleString('ko-KR')}원</span>
+                  </div>
+                  <div className="flex items-center justify-end">
+                    <div className="text-right font-mono text-xs" style={{ color: isUp ? 'var(--gain)' : 'var(--loss)' }}>
+                      <p>{s.change > 0 ? '+' : ''}{s.change.toLocaleString('ko-KR')}원</p>
+                      <p>{s.changePercent > 0 ? '+' : ''}{s.changePercent.toFixed(2)}%</p>
+                    </div>
                   </div>
                   <div className="flex items-center justify-end">
                     <span className="font-mono text-sm font-semibold" style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>{formatMarketCap(s.marketCap, 'KRW')}</span>
                   </div>
                   <div className="flex items-center justify-end">
-                    <MiniSparkline data={spark} width={64} height={28} positive={isUp} />
+                    <span className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{s.volume.toLocaleString('ko-KR')}</span>
                   </div>
                 </Link>
               );
