@@ -1,20 +1,21 @@
 import fp from 'fastify-plugin';
 import type { WsQuoteUpdate } from '@candle/shared';
 import { env } from '../config/env';
+import { BFF_QUOTES_CHANNEL, MARKET_SOURCE_CHANNEL } from './market-channels';
 
 /**
  * market-service ↔ BFF 실시간 시세 브리지.
  *
  * market-service는 Redis 채널 `stock-price`에 도메인 메시지(StockPriceMessage)를 발행한다.
- * BFF의 소비자(market-stream=WS 브로드캐스트, tick-store=초기 스냅샷 버퍼)는 모두 `market:quotes`에서
- * 프론트 WS 계약(WsQuoteUpdate)을 기대한다. 이 브리지가 그 둘을 잇는 유일한 어댑터다:
- *   `stock-price`(raw) → WsQuoteUpdate 변환 → `market:quotes` 재발행
+ * BFF의 소비자(market-stream=WS 브로드캐스트, tick-store=초기 스냅샷 버퍼)는 모두 BFF 내부 채널
+ * `bff:quotes`에서 프론트 WS 계약(WsQuoteUpdate)을 기대한다. 이 브리지가 그 둘을 잇는 유일한 어댑터다:
+ *   `stock-price`(raw) → WsQuoteUpdate 변환 → `bff:quotes` 재발행
  * → 실시간 스트림과 초기 틱 버퍼가 이 브리지 하나로 함께 채워진다.
  *
- * mock 모드에서는 mock 스트림이 `market:quotes`를 직접 채우므로 비활성화한다.
+ * mock 모드에서는 mock 스트림이 `bff:quotes`를 직접 채우므로 비활성화한다.
  */
-const SOURCE_CHANNEL = 'stock-price';
-const TARGET_CHANNEL = 'market:quotes';
+const SOURCE_CHANNEL = MARKET_SOURCE_CHANNEL;
+const TARGET_CHANNEL = BFF_QUOTES_CHANNEL;
 
 /** market-service StockPriceMessage (Redis JSON). GenericJacksonJsonRedisSerializer가 붙이는 `@class`는 무시. */
 interface StockPriceMessage {

@@ -75,6 +75,36 @@ export interface GetIntradayTicksResponse {
   ticks: IntradayTick[];
 }
 
+/**
+ * 종목 상세를 보는 뷰어에게 라이브 tick 을 팬아웃한다. 스냅샷용 Quote 와 달리 5% 판정에 쓰는
+ * 시가(open_price)까지 싣는다. 스트림이 열리면 구독 수요(viewer)가 잡히고, 닫히면 해제된다.
+ */
+export interface LiveQuote {
+  symbol: string;
+  /** 현재가(원) */
+  price: string;
+  /** 전일 대비 */
+  change: string;
+  /** 등락률 % */
+  changeRate: number;
+  /** 오늘 시가(원) */
+  openPrice: string;
+  /** 누적 거래량 */
+  tradingVolume: string;
+  /** 키움 부호코드 */
+  priceChangeSign: string;
+  /** 체결시각 */
+  ts?: Date | undefined;
+}
+
+/**
+ * 심볼당 스트림 1개 = 멀티플렉스 단위. BFF 가 브라우저 뷰어를 자기 쪽에서 ref-count 하고,
+ * 심볼별 뷰어 0→1 에 이 스트림을 열고 1→0 에 닫는다. 같은 심볼을 N 명이 봐도 upstream 은 1개.
+ */
+export interface StreamQuotesRequest {
+  symbol: string;
+}
+
 function createBaseStock(): Stock {
   return { symbol: "", name: "", market: "" };
 }
@@ -913,6 +943,261 @@ export const GetIntradayTicksResponse: MessageFns<GetIntradayTicksResponse> = {
   },
 };
 
+function createBaseLiveQuote(): LiveQuote {
+  return {
+    symbol: "",
+    price: "0",
+    change: "0",
+    changeRate: 0,
+    openPrice: "0",
+    tradingVolume: "0",
+    priceChangeSign: "",
+    ts: undefined,
+  };
+}
+
+export const LiveQuote: MessageFns<LiveQuote> = {
+  encode(message: LiveQuote, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.symbol !== "") {
+      writer.uint32(10).string(message.symbol);
+    }
+    if (message.price !== "0") {
+      writer.uint32(16).int64(message.price);
+    }
+    if (message.change !== "0") {
+      writer.uint32(24).int64(message.change);
+    }
+    if (message.changeRate !== 0) {
+      writer.uint32(33).double(message.changeRate);
+    }
+    if (message.openPrice !== "0") {
+      writer.uint32(40).int64(message.openPrice);
+    }
+    if (message.tradingVolume !== "0") {
+      writer.uint32(48).int64(message.tradingVolume);
+    }
+    if (message.priceChangeSign !== "") {
+      writer.uint32(58).string(message.priceChangeSign);
+    }
+    if (message.ts !== undefined) {
+      Timestamp.encode(toTimestamp(message.ts), writer.uint32(66).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): LiveQuote {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseLiveQuote();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.symbol = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.price = reader.int64().toString();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.change = reader.int64().toString();
+          continue;
+        }
+        case 4: {
+          if (tag !== 33) {
+            break;
+          }
+
+          message.changeRate = reader.double();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.openPrice = reader.int64().toString();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.tradingVolume = reader.int64().toString();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.priceChangeSign = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.ts = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): LiveQuote {
+    return {
+      symbol: isSet(object.symbol) ? globalThis.String(object.symbol) : "",
+      price: isSet(object.price) ? globalThis.String(object.price) : "0",
+      change: isSet(object.change) ? globalThis.String(object.change) : "0",
+      changeRate: isSet(object.changeRate)
+        ? globalThis.Number(object.changeRate)
+        : isSet(object.change_rate)
+        ? globalThis.Number(object.change_rate)
+        : 0,
+      openPrice: isSet(object.openPrice)
+        ? globalThis.String(object.openPrice)
+        : isSet(object.open_price)
+        ? globalThis.String(object.open_price)
+        : "0",
+      tradingVolume: isSet(object.tradingVolume)
+        ? globalThis.String(object.tradingVolume)
+        : isSet(object.trading_volume)
+        ? globalThis.String(object.trading_volume)
+        : "0",
+      priceChangeSign: isSet(object.priceChangeSign)
+        ? globalThis.String(object.priceChangeSign)
+        : isSet(object.price_change_sign)
+        ? globalThis.String(object.price_change_sign)
+        : "",
+      ts: isSet(object.ts) ? fromJsonTimestamp(object.ts) : undefined,
+    };
+  },
+
+  toJSON(message: LiveQuote): unknown {
+    const obj: any = {};
+    if (message.symbol !== "") {
+      obj.symbol = message.symbol;
+    }
+    if (message.price !== "0") {
+      obj.price = message.price;
+    }
+    if (message.change !== "0") {
+      obj.change = message.change;
+    }
+    if (message.changeRate !== 0) {
+      obj.changeRate = message.changeRate;
+    }
+    if (message.openPrice !== "0") {
+      obj.openPrice = message.openPrice;
+    }
+    if (message.tradingVolume !== "0") {
+      obj.tradingVolume = message.tradingVolume;
+    }
+    if (message.priceChangeSign !== "") {
+      obj.priceChangeSign = message.priceChangeSign;
+    }
+    if (message.ts !== undefined) {
+      obj.ts = message.ts.toISOString();
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<LiveQuote>): LiveQuote {
+    return LiveQuote.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<LiveQuote>): LiveQuote {
+    const message = createBaseLiveQuote();
+    message.symbol = object.symbol ?? "";
+    message.price = object.price ?? "0";
+    message.change = object.change ?? "0";
+    message.changeRate = object.changeRate ?? 0;
+    message.openPrice = object.openPrice ?? "0";
+    message.tradingVolume = object.tradingVolume ?? "0";
+    message.priceChangeSign = object.priceChangeSign ?? "";
+    message.ts = object.ts ?? undefined;
+    return message;
+  },
+};
+
+function createBaseStreamQuotesRequest(): StreamQuotesRequest {
+  return { symbol: "" };
+}
+
+export const StreamQuotesRequest: MessageFns<StreamQuotesRequest> = {
+  encode(message: StreamQuotesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.symbol !== "") {
+      writer.uint32(10).string(message.symbol);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): StreamQuotesRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseStreamQuotesRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.symbol = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): StreamQuotesRequest {
+    return { symbol: isSet(object.symbol) ? globalThis.String(object.symbol) : "" };
+  },
+
+  toJSON(message: StreamQuotesRequest): unknown {
+    const obj: any = {};
+    if (message.symbol !== "") {
+      obj.symbol = message.symbol;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<StreamQuotesRequest>): StreamQuotesRequest {
+    return StreamQuotesRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<StreamQuotesRequest>): StreamQuotesRequest {
+    const message = createBaseStreamQuotesRequest();
+    message.symbol = object.symbol ?? "";
+    return message;
+  },
+};
+
 export type MarketServiceDefinition = typeof MarketServiceDefinition;
 export const MarketServiceDefinition = {
   name: "MarketService",
@@ -950,6 +1235,14 @@ export const MarketServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    streamQuotes: {
+      name: "StreamQuotes",
+      requestType: StreamQuotesRequest as typeof StreamQuotesRequest,
+      requestStream: false,
+      responseType: LiveQuote as typeof LiveQuote,
+      responseStream: true,
+      options: {},
+    },
   },
 } as const;
 
@@ -967,6 +1260,10 @@ export interface MarketServiceImplementation<CallContextExt = {}> {
     request: GetIntradayTicksRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<GetIntradayTicksResponse>>;
+  streamQuotes(
+    request: StreamQuotesRequest,
+    context: CallContext & CallContextExt,
+  ): ServerStreamingMethodResult<DeepPartial<LiveQuote>>;
 }
 
 export interface MarketServiceClient<CallOptionsExt = {}> {
@@ -983,6 +1280,10 @@ export interface MarketServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<GetIntradayTicksRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<GetIntradayTicksResponse>;
+  streamQuotes(
+    request: DeepPartial<StreamQuotesRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): AsyncIterable<LiveQuote>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
@@ -1018,6 +1319,8 @@ function fromJsonTimestamp(o: any): Date {
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;
 }
+
+export type ServerStreamingMethodResult<Response> = { [Symbol.asyncIterator](): AsyncIterator<Response, void> };
 
 export interface MessageFns<T> {
   encode(message: T, writer?: BinaryWriter): BinaryWriter;

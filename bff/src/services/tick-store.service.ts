@@ -1,5 +1,6 @@
 import fp from 'fastify-plugin';
 import type { IntradayTick, WsQuoteUpdate } from '@candle/shared';
+import { BFF_QUOTES_CHANNEL } from './market-channels';
 
 interface TickStoreService {
   getHistory(symbol: string): IntradayTick[];
@@ -16,7 +17,7 @@ const MAX_TICKS = 500; // ~8 min at 1 tick/sec; bump for production with 1-min a
 export default fp(async (app) => {
   const store = new Map<string, IntradayTick[]>();
 
-  await app.pubsub.subscribe('market:quotes', (raw) => {
+  await app.pubsub.subscribe(BFF_QUOTES_CHANNEL, (raw) => {
     try {
       const msg = JSON.parse(raw) as WsQuoteUpdate;
       if (msg.type !== 'quote_update') return;

@@ -191,6 +191,26 @@ export interface RecordDailySnapshotResponse {
   snapshot?: PortfolioSnapshot | undefined;
 }
 
+export interface DailyPortfolioSnapshot {
+  userId: string;
+  /** 현금 + 주식 평가금액 */
+  totalAsset: string;
+  /** PortfolioSnapshot.cumulative_return_rate와 동일한 값 */
+  cumulativeReturnRate: string;
+}
+
+export interface ListDailyPortfolioSnapshotsRequest {
+  /** KST 거래일, "2026-06-29" (YYYY-MM-DD) */
+  snapshotDate: string;
+  /** default 100, max 500 */
+  page?: PageRequest | undefined;
+}
+
+export interface ListDailyPortfolioSnapshotsResponse {
+  snapshots: DailyPortfolioSnapshot[];
+  page?: PageResponse | undefined;
+}
+
 function createBaseHolding(): Holding {
   return {
     symbol: "",
@@ -2520,6 +2540,272 @@ export const RecordDailySnapshotResponse: MessageFns<RecordDailySnapshotResponse
   },
 };
 
+function createBaseDailyPortfolioSnapshot(): DailyPortfolioSnapshot {
+  return { userId: "", totalAsset: "0", cumulativeReturnRate: "" };
+}
+
+export const DailyPortfolioSnapshot: MessageFns<DailyPortfolioSnapshot> = {
+  encode(message: DailyPortfolioSnapshot, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.totalAsset !== "0") {
+      writer.uint32(16).int64(message.totalAsset);
+    }
+    if (message.cumulativeReturnRate !== "") {
+      writer.uint32(26).string(message.cumulativeReturnRate);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DailyPortfolioSnapshot {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDailyPortfolioSnapshot();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.totalAsset = reader.int64().toString();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.cumulativeReturnRate = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DailyPortfolioSnapshot {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      totalAsset: isSet(object.totalAsset)
+        ? globalThis.String(object.totalAsset)
+        : isSet(object.total_asset)
+        ? globalThis.String(object.total_asset)
+        : "0",
+      cumulativeReturnRate: isSet(object.cumulativeReturnRate)
+        ? globalThis.String(object.cumulativeReturnRate)
+        : isSet(object.cumulative_return_rate)
+        ? globalThis.String(object.cumulative_return_rate)
+        : "",
+    };
+  },
+
+  toJSON(message: DailyPortfolioSnapshot): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.totalAsset !== "0") {
+      obj.totalAsset = message.totalAsset;
+    }
+    if (message.cumulativeReturnRate !== "") {
+      obj.cumulativeReturnRate = message.cumulativeReturnRate;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DailyPortfolioSnapshot>): DailyPortfolioSnapshot {
+    return DailyPortfolioSnapshot.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DailyPortfolioSnapshot>): DailyPortfolioSnapshot {
+    const message = createBaseDailyPortfolioSnapshot();
+    message.userId = object.userId ?? "";
+    message.totalAsset = object.totalAsset ?? "0";
+    message.cumulativeReturnRate = object.cumulativeReturnRate ?? "";
+    return message;
+  },
+};
+
+function createBaseListDailyPortfolioSnapshotsRequest(): ListDailyPortfolioSnapshotsRequest {
+  return { snapshotDate: "", page: undefined };
+}
+
+export const ListDailyPortfolioSnapshotsRequest: MessageFns<ListDailyPortfolioSnapshotsRequest> = {
+  encode(message: ListDailyPortfolioSnapshotsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.snapshotDate !== "") {
+      writer.uint32(10).string(message.snapshotDate);
+    }
+    if (message.page !== undefined) {
+      PageRequest.encode(message.page, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListDailyPortfolioSnapshotsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListDailyPortfolioSnapshotsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.snapshotDate = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.page = PageRequest.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListDailyPortfolioSnapshotsRequest {
+    return {
+      snapshotDate: isSet(object.snapshotDate)
+        ? globalThis.String(object.snapshotDate)
+        : isSet(object.snapshot_date)
+        ? globalThis.String(object.snapshot_date)
+        : "",
+      page: isSet(object.page) ? PageRequest.fromJSON(object.page) : undefined,
+    };
+  },
+
+  toJSON(message: ListDailyPortfolioSnapshotsRequest): unknown {
+    const obj: any = {};
+    if (message.snapshotDate !== "") {
+      obj.snapshotDate = message.snapshotDate;
+    }
+    if (message.page !== undefined) {
+      obj.page = PageRequest.toJSON(message.page);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListDailyPortfolioSnapshotsRequest>): ListDailyPortfolioSnapshotsRequest {
+    return ListDailyPortfolioSnapshotsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListDailyPortfolioSnapshotsRequest>): ListDailyPortfolioSnapshotsRequest {
+    const message = createBaseListDailyPortfolioSnapshotsRequest();
+    message.snapshotDate = object.snapshotDate ?? "";
+    message.page = (object.page !== undefined && object.page !== null)
+      ? PageRequest.fromPartial(object.page)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseListDailyPortfolioSnapshotsResponse(): ListDailyPortfolioSnapshotsResponse {
+  return { snapshots: [], page: undefined };
+}
+
+export const ListDailyPortfolioSnapshotsResponse: MessageFns<ListDailyPortfolioSnapshotsResponse> = {
+  encode(message: ListDailyPortfolioSnapshotsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.snapshots) {
+      DailyPortfolioSnapshot.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.page !== undefined) {
+      PageResponse.encode(message.page, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListDailyPortfolioSnapshotsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListDailyPortfolioSnapshotsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.snapshots.push(DailyPortfolioSnapshot.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.page = PageResponse.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListDailyPortfolioSnapshotsResponse {
+    return {
+      snapshots: globalThis.Array.isArray(object?.snapshots)
+        ? object.snapshots.map((e: any) => DailyPortfolioSnapshot.fromJSON(e))
+        : [],
+      page: isSet(object.page) ? PageResponse.fromJSON(object.page) : undefined,
+    };
+  },
+
+  toJSON(message: ListDailyPortfolioSnapshotsResponse): unknown {
+    const obj: any = {};
+    if (message.snapshots?.length) {
+      obj.snapshots = message.snapshots.map((e) => DailyPortfolioSnapshot.toJSON(e));
+    }
+    if (message.page !== undefined) {
+      obj.page = PageResponse.toJSON(message.page);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListDailyPortfolioSnapshotsResponse>): ListDailyPortfolioSnapshotsResponse {
+    return ListDailyPortfolioSnapshotsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListDailyPortfolioSnapshotsResponse>): ListDailyPortfolioSnapshotsResponse {
+    const message = createBaseListDailyPortfolioSnapshotsResponse();
+    message.snapshots = object.snapshots?.map((e) => DailyPortfolioSnapshot.fromPartial(e)) || [];
+    message.page = (object.page !== undefined && object.page !== null)
+      ? PageResponse.fromPartial(object.page)
+      : undefined;
+    return message;
+  },
+};
+
 /** BFF 테이블의 HoldingService → portfolio-service 가 구현 */
 export type HoldingServiceDefinition = typeof HoldingServiceDefinition;
 export const HoldingServiceDefinition = {
@@ -2621,6 +2907,14 @@ export const PortfolioServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    listDailyPortfolioSnapshots: {
+      name: "ListDailyPortfolioSnapshots",
+      requestType: ListDailyPortfolioSnapshotsRequest as typeof ListDailyPortfolioSnapshotsRequest,
+      requestStream: false,
+      responseType: ListDailyPortfolioSnapshotsResponse as typeof ListDailyPortfolioSnapshotsResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -2649,6 +2943,10 @@ export interface PortfolioServiceImplementation<CallContextExt = {}> {
     request: RecordDailySnapshotRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<RecordDailySnapshotResponse>>;
+  listDailyPortfolioSnapshots(
+    request: ListDailyPortfolioSnapshotsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ListDailyPortfolioSnapshotsResponse>>;
 }
 
 export interface PortfolioServiceClient<CallOptionsExt = {}> {
@@ -2676,6 +2974,10 @@ export interface PortfolioServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<RecordDailySnapshotRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<RecordDailySnapshotResponse>;
+  listDailyPortfolioSnapshots(
+    request: DeepPartial<ListDailyPortfolioSnapshotsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ListDailyPortfolioSnapshotsResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

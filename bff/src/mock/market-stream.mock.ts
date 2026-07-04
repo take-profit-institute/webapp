@@ -1,6 +1,7 @@
 import fp from 'fastify-plugin';
 import type { WsQuoteUpdate } from '@candle/shared';
 import { env } from '../config/env';
+import { BFF_QUOTES_CHANNEL } from '../services/market-channels';
 
 const MOCK_STOCKS = [
   { symbol: '005930', price: 71400 },
@@ -41,7 +42,7 @@ export default fp(async (app) => {
       },
     };
 
-    await app.pubsub.publish('market:quotes', JSON.stringify(msg));
+    await app.pubsub.publish(BFF_QUOTES_CHANNEL, JSON.stringify(msg));
   }, 1000);
 
   app.addHook('onClose', async () => clearInterval(interval));

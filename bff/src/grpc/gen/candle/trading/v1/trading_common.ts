@@ -193,6 +193,12 @@ export enum ReservationStatus {
   RESERVATION_STATUS_RESERVED = 1,
   RESERVATION_STATUS_EXECUTED = 2,
   RESERVATION_STATUS_CANCELLED = 3,
+  /** RESERVATION_STATUS_CONVERTING - 시가+지정가 전환 진행 중 (ReservationDue 발행~ReservationConverted 수신 전) */
+  RESERVATION_STATUS_CONVERTING = 4,
+  /** RESERVATION_STATUS_FAILED - 잔고 부족 등 처리 실패 */
+  RESERVATION_STATUS_FAILED = 5,
+  /** RESERVATION_STATUS_EXPIRED - 접수 마감 후 미처리 등 자동 만료 */
+  RESERVATION_STATUS_EXPIRED = 6,
   UNRECOGNIZED = -1,
 }
 
@@ -210,6 +216,15 @@ export function reservationStatusFromJSON(object: any): ReservationStatus {
     case 3:
     case "RESERVATION_STATUS_CANCELLED":
       return ReservationStatus.RESERVATION_STATUS_CANCELLED;
+    case 4:
+    case "RESERVATION_STATUS_CONVERTING":
+      return ReservationStatus.RESERVATION_STATUS_CONVERTING;
+    case 5:
+    case "RESERVATION_STATUS_FAILED":
+      return ReservationStatus.RESERVATION_STATUS_FAILED;
+    case 6:
+    case "RESERVATION_STATUS_EXPIRED":
+      return ReservationStatus.RESERVATION_STATUS_EXPIRED;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -227,6 +242,12 @@ export function reservationStatusToJSON(object: ReservationStatus): string {
       return "RESERVATION_STATUS_EXECUTED";
     case ReservationStatus.RESERVATION_STATUS_CANCELLED:
       return "RESERVATION_STATUS_CANCELLED";
+    case ReservationStatus.RESERVATION_STATUS_CONVERTING:
+      return "RESERVATION_STATUS_CONVERTING";
+    case ReservationStatus.RESERVATION_STATUS_FAILED:
+      return "RESERVATION_STATUS_FAILED";
+    case ReservationStatus.RESERVATION_STATUS_EXPIRED:
+      return "RESERVATION_STATUS_EXPIRED";
     case ReservationStatus.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";
