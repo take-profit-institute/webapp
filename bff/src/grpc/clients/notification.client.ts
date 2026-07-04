@@ -2,7 +2,6 @@ import { createClientFactory, type Client } from 'nice-grpc';
 import type { Notification, NotificationStatus as SharedNotificationStatus, NotificationType as SharedNotificationType } from '@candle/shared';
 import type { GrpcChannel } from '../channel';
 import type { GrpcCallOptions } from '../types';
-import { notImplemented } from '../types';
 import { createDeadlineInterceptor } from '../interceptors/deadline.interceptor';
 import { createIdempotencyInterceptor } from '../idempotency/interceptor';
 import { buildCommandMetadata } from '../idempotency';
@@ -148,9 +147,24 @@ class GrpcNotificationServiceClient implements NotificationServiceClient {
     );
   }
 
-  // proto 미지원 — 라우트가 grpc 모드에서도 mock 경로로 폴백한다.
-  markAllRead(): Promise<void> { return notImplemented('NotificationService', 'markAllRead'); }
-  deleteNotification(): Promise<void> { return notImplemented('NotificationService', 'deleteNotification'); }
+  async markAllRead(req: { userId: string }, opts?: GrpcCallOptions): Promise<void> {
+    const callOpts = opts ?? { userId: req.userId };
+    await this.client.markAllAsRead(
+      { userId: req.userId, commandMetadata: buildCommandMetadata(callOpts) },
+      callOpts,
+    );
+  }
+
+  async deleteNotification(
+    req: { userId: string; notificationId: string },
+    opts?: GrpcCallOptions,
+  ): Promise<void> {
+    const callOpts = opts ?? { userId: req.userId };
+    await this.client.deleteNotification(
+      { userId: req.userId, notificationId: req.notificationId, commandMetadata: buildCommandMetadata(callOpts) },
+      callOpts,
+    );
+  }
 }
 
 export function createNotificationServiceClient(channel: GrpcChannel): NotificationServiceClient {

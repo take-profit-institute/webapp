@@ -249,6 +249,27 @@ export interface MarkAsReadResponse {
   notification?: Notification | undefined;
 }
 
+export interface MarkAllAsReadRequest {
+  userId: string;
+  commandMetadata?: CommandMetadata | undefined;
+}
+
+export interface MarkAllAsReadResponse {
+  /** 이번 호출로 UNREAD→READ 전이된 건수 */
+  updatedCount: number;
+}
+
+export interface DeleteNotificationRequest {
+  userId: string;
+  notificationId: string;
+  commandMetadata?: CommandMetadata | undefined;
+}
+
+export interface DeleteNotificationResponse {
+  /** false면 이미 삭제됨(멱등) */
+  success: boolean;
+}
+
 export interface CountUnreadRequest {
   userId: string;
 }
@@ -1045,6 +1066,320 @@ export const MarkAsReadResponse: MessageFns<MarkAsReadResponse> = {
   },
 };
 
+function createBaseMarkAllAsReadRequest(): MarkAllAsReadRequest {
+  return { userId: "", commandMetadata: undefined };
+}
+
+export const MarkAllAsReadRequest: MessageFns<MarkAllAsReadRequest> = {
+  encode(message: MarkAllAsReadRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.commandMetadata !== undefined) {
+      CommandMetadata.encode(message.commandMetadata, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MarkAllAsReadRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMarkAllAsReadRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.commandMetadata = CommandMetadata.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MarkAllAsReadRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      commandMetadata: isSet(object.commandMetadata)
+        ? CommandMetadata.fromJSON(object.commandMetadata)
+        : isSet(object.command_metadata)
+        ? CommandMetadata.fromJSON(object.command_metadata)
+        : undefined,
+    };
+  },
+
+  toJSON(message: MarkAllAsReadRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.commandMetadata !== undefined) {
+      obj.commandMetadata = CommandMetadata.toJSON(message.commandMetadata);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<MarkAllAsReadRequest>): MarkAllAsReadRequest {
+    return MarkAllAsReadRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<MarkAllAsReadRequest>): MarkAllAsReadRequest {
+    const message = createBaseMarkAllAsReadRequest();
+    message.userId = object.userId ?? "";
+    message.commandMetadata = (object.commandMetadata !== undefined && object.commandMetadata !== null)
+      ? CommandMetadata.fromPartial(object.commandMetadata)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseMarkAllAsReadResponse(): MarkAllAsReadResponse {
+  return { updatedCount: 0 };
+}
+
+export const MarkAllAsReadResponse: MessageFns<MarkAllAsReadResponse> = {
+  encode(message: MarkAllAsReadResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.updatedCount !== 0) {
+      writer.uint32(8).int32(message.updatedCount);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MarkAllAsReadResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMarkAllAsReadResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.updatedCount = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MarkAllAsReadResponse {
+    return {
+      updatedCount: isSet(object.updatedCount)
+        ? globalThis.Number(object.updatedCount)
+        : isSet(object.updated_count)
+        ? globalThis.Number(object.updated_count)
+        : 0,
+    };
+  },
+
+  toJSON(message: MarkAllAsReadResponse): unknown {
+    const obj: any = {};
+    if (message.updatedCount !== 0) {
+      obj.updatedCount = Math.round(message.updatedCount);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<MarkAllAsReadResponse>): MarkAllAsReadResponse {
+    return MarkAllAsReadResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<MarkAllAsReadResponse>): MarkAllAsReadResponse {
+    const message = createBaseMarkAllAsReadResponse();
+    message.updatedCount = object.updatedCount ?? 0;
+    return message;
+  },
+};
+
+function createBaseDeleteNotificationRequest(): DeleteNotificationRequest {
+  return { userId: "", notificationId: "", commandMetadata: undefined };
+}
+
+export const DeleteNotificationRequest: MessageFns<DeleteNotificationRequest> = {
+  encode(message: DeleteNotificationRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.notificationId !== "") {
+      writer.uint32(18).string(message.notificationId);
+    }
+    if (message.commandMetadata !== undefined) {
+      CommandMetadata.encode(message.commandMetadata, writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeleteNotificationRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeleteNotificationRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.notificationId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.commandMetadata = CommandMetadata.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DeleteNotificationRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      notificationId: isSet(object.notificationId)
+        ? globalThis.String(object.notificationId)
+        : isSet(object.notification_id)
+        ? globalThis.String(object.notification_id)
+        : "",
+      commandMetadata: isSet(object.commandMetadata)
+        ? CommandMetadata.fromJSON(object.commandMetadata)
+        : isSet(object.command_metadata)
+        ? CommandMetadata.fromJSON(object.command_metadata)
+        : undefined,
+    };
+  },
+
+  toJSON(message: DeleteNotificationRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.notificationId !== "") {
+      obj.notificationId = message.notificationId;
+    }
+    if (message.commandMetadata !== undefined) {
+      obj.commandMetadata = CommandMetadata.toJSON(message.commandMetadata);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DeleteNotificationRequest>): DeleteNotificationRequest {
+    return DeleteNotificationRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DeleteNotificationRequest>): DeleteNotificationRequest {
+    const message = createBaseDeleteNotificationRequest();
+    message.userId = object.userId ?? "";
+    message.notificationId = object.notificationId ?? "";
+    message.commandMetadata = (object.commandMetadata !== undefined && object.commandMetadata !== null)
+      ? CommandMetadata.fromPartial(object.commandMetadata)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseDeleteNotificationResponse(): DeleteNotificationResponse {
+  return { success: false };
+}
+
+export const DeleteNotificationResponse: MessageFns<DeleteNotificationResponse> = {
+  encode(message: DeleteNotificationResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.success !== false) {
+      writer.uint32(8).bool(message.success);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeleteNotificationResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeleteNotificationResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.success = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DeleteNotificationResponse {
+    return { success: isSet(object.success) ? globalThis.Boolean(object.success) : false };
+  },
+
+  toJSON(message: DeleteNotificationResponse): unknown {
+    const obj: any = {};
+    if (message.success !== false) {
+      obj.success = message.success;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DeleteNotificationResponse>): DeleteNotificationResponse {
+    return DeleteNotificationResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DeleteNotificationResponse>): DeleteNotificationResponse {
+    const message = createBaseDeleteNotificationResponse();
+    message.success = object.success ?? false;
+    return message;
+  },
+};
+
 function createBaseCountUnreadRequest(): CountUnreadRequest {
   return { userId: "" };
 }
@@ -1776,6 +2111,22 @@ export const NotificationServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    markAllAsRead: {
+      name: "MarkAllAsRead",
+      requestType: MarkAllAsReadRequest as typeof MarkAllAsReadRequest,
+      requestStream: false,
+      responseType: MarkAllAsReadResponse as typeof MarkAllAsReadResponse,
+      responseStream: false,
+      options: {},
+    },
+    deleteNotification: {
+      name: "DeleteNotification",
+      requestType: DeleteNotificationRequest as typeof DeleteNotificationRequest,
+      requestStream: false,
+      responseType: DeleteNotificationResponse as typeof DeleteNotificationResponse,
+      responseStream: false,
+      options: {},
+    },
     countUnread: {
       name: "CountUnread",
       requestType: CountUnreadRequest as typeof CountUnreadRequest,
@@ -1812,6 +2163,14 @@ export interface NotificationServiceImplementation<CallContextExt = {}> {
     request: MarkAsReadRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<MarkAsReadResponse>>;
+  markAllAsRead(
+    request: MarkAllAsReadRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<MarkAllAsReadResponse>>;
+  deleteNotification(
+    request: DeleteNotificationRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<DeleteNotificationResponse>>;
   countUnread(
     request: CountUnreadRequest,
     context: CallContext & CallContextExt,
@@ -1839,6 +2198,14 @@ export interface NotificationServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<MarkAsReadRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<MarkAsReadResponse>;
+  markAllAsRead(
+    request: DeepPartial<MarkAllAsReadRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<MarkAllAsReadResponse>;
+  deleteNotification(
+    request: DeepPartial<DeleteNotificationRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<DeleteNotificationResponse>;
   countUnread(
     request: DeepPartial<CountUnreadRequest>,
     options?: CallOptions & CallOptionsExt,

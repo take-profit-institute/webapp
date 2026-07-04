@@ -171,11 +171,24 @@ const notificationRoutes: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ['notification'],
         summary: '전체 읽음 처리',
-        response: { 204: Type.Null() },
+        response: { 204: Type.Null(), 401: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse },
       },
     },
     async (req, reply) => {
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+
+      if (env.dataSource === 'grpc') {
+        const userId = extractUserId(req);
+        if (!userId) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
+        try {
+          await req.server.grpc.notification.markAllRead({ userId }, { userId, idempotencyKey });
+          return reply.status(204).send(null);
+        } catch (err) {
+          const mapped = mapGrpcError(err, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+
       markAllRead();
       return reply.status(204).send(null);
     },
@@ -188,11 +201,24 @@ const notificationRoutes: FastifyPluginAsyncTypebox = async (app) => {
         tags: ['notification'],
         summary: '알림 삭제',
         params: NotificationIdParams,
-        response: { 204: Type.Null(), 404: ErrorResponse },
+        response: { 204: Type.Null(), 401: ErrorResponse, 404: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse },
       },
     },
     async (req, reply) => {
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+
+      if (env.dataSource === 'grpc') {
+        const userId = extractUserId(req);
+        if (!userId) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
+        try {
+          await req.server.grpc.notification.deleteNotification({ userId, notificationId: req.params.id }, { userId, idempotencyKey });
+          return reply.status(204).send(null);
+        } catch (err) {
+          const mapped = mapGrpcError(err, req.id);
+          return reply.code(mapped.statusCode as 404 | 500 | 503 | 504).send(mapped);
+        }
+      }
+
       const removed = removeNotification(req.params.id);
       if (!removed) {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: '알림을 찾을 수 없습니다' });
