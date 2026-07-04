@@ -376,13 +376,16 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
           const orderKind: OrderKind = req.body.orderKind ?? 'market';
           const resolved = await resolveOrderPrice(req.body.symbol, orderKind, req.body.price);
           if ('error' in resolved) return reply.code(resolved.error.statusCode).send(resolved.error);
-          if (orderKind === 'market' && !getMarketStatus().open) {
+          // 장 마감 중 즉시 주문은 시장가·지정가 모두 다음 개장(09:00) 예약으로 접수한다.
+          // 프론트가 이 경우 버튼을 "예약"으로 표기하므로 지정가도 동일하게 변환해야 한다.
+          // (지정가만 즉시 PlaceOrder로 보내면 trading이 OUTSIDE_TRADING_HOURS → 422로 거부.)
+          if (!getMarketStatus().open) {
             const reservation = await grpcPlaceReservation({
               userId: resolveActor(req),
               symbol: req.body.symbol,
               type: req.body.type,
               timing: 'open',
-              orderKind: 'market',
+              orderKind,
               quantity: req.body.quantity,
               price: resolved.price,
               scheduledDate: nextScheduledDate(),
