@@ -37,10 +37,13 @@ import {
   grpcToggleFavorite,
 } from '../grpc/learning.grpc-client';
 
-/** 게이트웨이가 JWT 검증 후 주입한 X-Account-Id 헤더로 actor 추출. */
-function resolveActor(req: { headers: Record<string, unknown> }): string {
+const DEV_LEARNING_USER_ID = '00000000-0000-0000-0000-000000000001';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** learning-service는 user_id를 UUID로 파싱하므로 gRPC 호출 전 UUID 계약을 보장한다. */
+function resolveLearningActor(req: { headers: Record<string, unknown> }): string {
   const header = req.headers['x-account-id'];
-  return typeof header === 'string' && header ? header : 'demo-user';
+  return typeof header === 'string' && UUID_RE.test(header) ? header : DEV_LEARNING_USER_ID;
 }
 
 /** Ranking, missions and learning content — app-domain data (DB-backed later). */
@@ -309,7 +312,7 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       if (env.dataSource === 'grpc') {
         try {
-          return await grpcListContents(resolveActor(req), req.query);
+          return await grpcListContents(resolveLearningActor(req), req.query);
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
@@ -337,7 +340,7 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       if (env.dataSource === 'grpc') {
         try {
-          return await grpcGetProgress(resolveActor(req));
+          return await grpcGetProgress(resolveLearningActor(req));
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
@@ -353,7 +356,7 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       if (env.dataSource === 'grpc') {
         try {
-          return await grpcListFavorites(resolveActor(req));
+          return await grpcListFavorites(resolveLearningActor(req));
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
@@ -369,7 +372,7 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       if (env.dataSource === 'grpc') {
         try {
-          return await grpcGetRecommended(resolveActor(req), 4);
+          return await grpcGetRecommended(resolveLearningActor(req), 4);
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
@@ -389,7 +392,7 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       if (env.dataSource === 'grpc') {
         try {
-          const content = await grpcGetContent(resolveActor(req), req.params.id);
+          const content = await grpcGetContent(resolveLearningActor(req), req.params.id);
           if (!content) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown content: ${req.params.id}` });
           return content;
         } catch (e) {
@@ -412,7 +415,7 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
       if (env.dataSource === 'grpc') {
         try {
-          return await grpcCompleteContent(resolveActor(req), req.params.id, idempotencyKey);
+          return await grpcCompleteContent(resolveLearningActor(req), req.params.id, idempotencyKey);
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 404 | 500 | 503 | 504).send(mapped);
@@ -440,7 +443,7 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
       if (env.dataSource === 'grpc') {
         try {
-          return await grpcToggleFavorite(resolveActor(req), req.params.id, idempotencyKey);
+          return await grpcToggleFavorite(resolveLearningActor(req), req.params.id, idempotencyKey);
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 404 | 500 | 503 | 504).send(mapped);

@@ -87,7 +87,6 @@ export {
   getMyPageSummary,
 } from './users';
 export {
-  LEARN_CONTENT_IDS,
   CHALLENGE_IDS,
   getRankings,
   getMyRanking,

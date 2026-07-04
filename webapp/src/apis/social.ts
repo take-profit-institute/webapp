@@ -16,7 +16,6 @@ import type {
 } from '@/lib/api-types';
 import { apiClient } from './client';
 
-export const LEARN_CONTENT_IDS = ['l1', 'l2', 'l3', 'l4', 'l5', 'l6', 'l7', 'l8', 'l9'];
 export const CHALLENGE_IDS = ['c1', 'c2', 'c3'];
 
 /** 투자 랭킹. */
