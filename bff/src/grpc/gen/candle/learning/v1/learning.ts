@@ -11,7 +11,6 @@ import { Timestamp } from "../../../google/protobuf/timestamp";
 
 export const protobufPackage = "candle.learning.v1";
 
-/** ─── Enums ─── */
 export enum ContentLevel {
   CONTENT_LEVEL_UNSPECIFIED = 0,
   CONTENT_LEVEL_BEGINNER = 1,
@@ -60,7 +59,6 @@ export function contentLevelToJSON(object: ContentLevel): string {
 export enum ContentSortBy {
   CONTENT_SORT_BY_UNSPECIFIED = 0,
   CONTENT_SORT_BY_LATEST = 1,
-  /** CONTENT_SORT_BY_POPULAR - read_count 기준 */
   CONTENT_SORT_BY_POPULAR = 2,
   CONTENT_SORT_BY_READ_COUNT = 3,
   UNRECOGNIZED = -1,
@@ -103,7 +101,6 @@ export function contentSortByToJSON(object: ContentSortBy): string {
   }
 }
 
-/** ─── 콘텐츠 Messages ─── */
 export interface CreateContentRequest {
   title: string;
   description: string;
@@ -138,10 +135,12 @@ export interface DeleteContentResponse {
 }
 
 export interface GetContentRequest {
+  userId: string;
   contentId: string;
 }
 
 export interface ListContentsRequest {
+  userId: string;
   category?: string | undefined;
   level?: ContentLevel | undefined;
   sortBy: ContentSortBy;
@@ -150,7 +149,7 @@ export interface ListContentsRequest {
 }
 
 export interface SearchContentsRequest {
-  /** 제목 + 키워드 검색 */
+  userId: string;
   query: string;
   category?: string | undefined;
   level?: ContentLevel | undefined;
@@ -159,10 +158,10 @@ export interface SearchContentsRequest {
 }
 
 export interface GetRecommendedContentsRequest {
+  userId: string;
   limit: number;
 }
 
-/** ─── 콘텐츠 Response ─── */
 export interface ContentResponse {
   id: string;
   title: string;
@@ -191,10 +190,7 @@ export interface ContentDetailResponse {
   isPublished: boolean;
   readCount: string;
   createdAt?: Date | undefined;
-  updatedAt?:
-    | Date
-    | undefined;
-  /** 요청한 사용자의 학습 상태 (있으면) */
+  updatedAt?: Date | undefined;
   userState?: UserContentStateResponse | undefined;
 }
 
@@ -210,18 +206,19 @@ export interface ContentWithStateResponse {
   userState?: UserContentStateResponse | undefined;
 }
 
-/** ─── 사용자 학습 상태 Messages ─── */
 export interface UpdateProgressRequest {
+  userId: string;
   contentId: string;
-  /** 0~100 */
   progressPct: number;
 }
 
 export interface CompleteContentRequest {
+  userId: string;
   contentId: string;
 }
 
 export interface ToggleFavoriteRequest {
+  userId: string;
   contentId: string;
 }
 
@@ -235,14 +232,13 @@ export interface UserContentStateResponse {
   lastReadAt?: Date | undefined;
 }
 
-/** ─── 학습 현황 (대시보드) ─── */
 export interface GetUserLearningStatsRequest {
+  userId: string;
 }
 
 export interface UserLearningStatsResponse {
   totalContents: number;
   completedContents: number;
-  /** 전체 진도율 (UI: 22%) */
   overallProgressPct: number;
   categoryStats: CategoryProgress[];
 }
@@ -251,11 +247,11 @@ export interface CategoryProgress {
   category: string;
   total: number;
   completed: number;
-  /** UI: 기술적분석 1/3 · 33% */
   progressPct: number;
 }
 
 export interface ListFavoritesRequest {
+  userId: string;
   page: number;
   size: number;
 }
@@ -826,13 +822,16 @@ export const DeleteContentResponse: MessageFns<DeleteContentResponse> = {
 };
 
 function createBaseGetContentRequest(): GetContentRequest {
-  return { contentId: "" };
+  return { userId: "", contentId: "" };
 }
 
 export const GetContentRequest: MessageFns<GetContentRequest> = {
   encode(message: GetContentRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
     if (message.contentId !== "") {
-      writer.uint32(10).string(message.contentId);
+      writer.uint32(18).string(message.contentId);
     }
     return writer;
   },
@@ -846,6 +845,14 @@ export const GetContentRequest: MessageFns<GetContentRequest> = {
       switch (tag >>> 3) {
         case 1: {
           if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
             break;
           }
 
@@ -863,6 +870,11 @@ export const GetContentRequest: MessageFns<GetContentRequest> = {
 
   fromJSON(object: any): GetContentRequest {
     return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
       contentId: isSet(object.contentId)
         ? globalThis.String(object.contentId)
         : isSet(object.content_id)
@@ -873,6 +885,9 @@ export const GetContentRequest: MessageFns<GetContentRequest> = {
 
   toJSON(message: GetContentRequest): unknown {
     const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
     if (message.contentId !== "") {
       obj.contentId = message.contentId;
     }
@@ -884,31 +899,35 @@ export const GetContentRequest: MessageFns<GetContentRequest> = {
   },
   fromPartial(object: DeepPartial<GetContentRequest>): GetContentRequest {
     const message = createBaseGetContentRequest();
+    message.userId = object.userId ?? "";
     message.contentId = object.contentId ?? "";
     return message;
   },
 };
 
 function createBaseListContentsRequest(): ListContentsRequest {
-  return { category: undefined, level: undefined, sortBy: 0, page: 0, size: 0 };
+  return { userId: "", category: undefined, level: undefined, sortBy: 0, page: 0, size: 0 };
 }
 
 export const ListContentsRequest: MessageFns<ListContentsRequest> = {
   encode(message: ListContentsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
     if (message.category !== undefined) {
-      writer.uint32(10).string(message.category);
+      writer.uint32(18).string(message.category);
     }
     if (message.level !== undefined) {
-      writer.uint32(16).int32(message.level);
+      writer.uint32(24).int32(message.level);
     }
     if (message.sortBy !== 0) {
-      writer.uint32(24).int32(message.sortBy);
+      writer.uint32(32).int32(message.sortBy);
     }
     if (message.page !== 0) {
-      writer.uint32(32).int32(message.page);
+      writer.uint32(40).int32(message.page);
     }
     if (message.size !== 0) {
-      writer.uint32(40).int32(message.size);
+      writer.uint32(48).int32(message.size);
     }
     return writer;
   },
@@ -925,135 +944,7 @@ export const ListContentsRequest: MessageFns<ListContentsRequest> = {
             break;
           }
 
-          message.category = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 16) {
-            break;
-          }
-
-          message.level = reader.int32() as any;
-          continue;
-        }
-        case 3: {
-          if (tag !== 24) {
-            break;
-          }
-
-          message.sortBy = reader.int32() as any;
-          continue;
-        }
-        case 4: {
-          if (tag !== 32) {
-            break;
-          }
-
-          message.page = reader.int32();
-          continue;
-        }
-        case 5: {
-          if (tag !== 40) {
-            break;
-          }
-
-          message.size = reader.int32();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): ListContentsRequest {
-    return {
-      category: isSet(object.category) ? globalThis.String(object.category) : undefined,
-      level: isSet(object.level) ? contentLevelFromJSON(object.level) : undefined,
-      sortBy: isSet(object.sortBy)
-        ? contentSortByFromJSON(object.sortBy)
-        : isSet(object.sort_by)
-        ? contentSortByFromJSON(object.sort_by)
-        : 0,
-      page: isSet(object.page) ? globalThis.Number(object.page) : 0,
-      size: isSet(object.size) ? globalThis.Number(object.size) : 0,
-    };
-  },
-
-  toJSON(message: ListContentsRequest): unknown {
-    const obj: any = {};
-    if (message.category !== undefined) {
-      obj.category = message.category;
-    }
-    if (message.level !== undefined) {
-      obj.level = contentLevelToJSON(message.level);
-    }
-    if (message.sortBy !== 0) {
-      obj.sortBy = contentSortByToJSON(message.sortBy);
-    }
-    if (message.page !== 0) {
-      obj.page = Math.round(message.page);
-    }
-    if (message.size !== 0) {
-      obj.size = Math.round(message.size);
-    }
-    return obj;
-  },
-
-  create(base?: DeepPartial<ListContentsRequest>): ListContentsRequest {
-    return ListContentsRequest.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<ListContentsRequest>): ListContentsRequest {
-    const message = createBaseListContentsRequest();
-    message.category = object.category ?? undefined;
-    message.level = object.level ?? undefined;
-    message.sortBy = object.sortBy ?? 0;
-    message.page = object.page ?? 0;
-    message.size = object.size ?? 0;
-    return message;
-  },
-};
-
-function createBaseSearchContentsRequest(): SearchContentsRequest {
-  return { query: "", category: undefined, level: undefined, page: 0, size: 0 };
-}
-
-export const SearchContentsRequest: MessageFns<SearchContentsRequest> = {
-  encode(message: SearchContentsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.query !== "") {
-      writer.uint32(10).string(message.query);
-    }
-    if (message.category !== undefined) {
-      writer.uint32(18).string(message.category);
-    }
-    if (message.level !== undefined) {
-      writer.uint32(24).int32(message.level);
-    }
-    if (message.page !== 0) {
-      writer.uint32(32).int32(message.page);
-    }
-    if (message.size !== 0) {
-      writer.uint32(40).int32(message.size);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): SearchContentsRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSearchContentsRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.query = reader.string();
+          message.userId = reader.string();
           continue;
         }
         case 2: {
@@ -1077,11 +968,167 @@ export const SearchContentsRequest: MessageFns<SearchContentsRequest> = {
             break;
           }
 
-          message.page = reader.int32();
+          message.sortBy = reader.int32() as any;
           continue;
         }
         case 5: {
           if (tag !== 40) {
+            break;
+          }
+
+          message.page = reader.int32();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.size = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListContentsRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      category: isSet(object.category) ? globalThis.String(object.category) : undefined,
+      level: isSet(object.level) ? contentLevelFromJSON(object.level) : undefined,
+      sortBy: isSet(object.sortBy)
+        ? contentSortByFromJSON(object.sortBy)
+        : isSet(object.sort_by)
+        ? contentSortByFromJSON(object.sort_by)
+        : 0,
+      page: isSet(object.page) ? globalThis.Number(object.page) : 0,
+      size: isSet(object.size) ? globalThis.Number(object.size) : 0,
+    };
+  },
+
+  toJSON(message: ListContentsRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.category !== undefined) {
+      obj.category = message.category;
+    }
+    if (message.level !== undefined) {
+      obj.level = contentLevelToJSON(message.level);
+    }
+    if (message.sortBy !== 0) {
+      obj.sortBy = contentSortByToJSON(message.sortBy);
+    }
+    if (message.page !== 0) {
+      obj.page = Math.round(message.page);
+    }
+    if (message.size !== 0) {
+      obj.size = Math.round(message.size);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListContentsRequest>): ListContentsRequest {
+    return ListContentsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListContentsRequest>): ListContentsRequest {
+    const message = createBaseListContentsRequest();
+    message.userId = object.userId ?? "";
+    message.category = object.category ?? undefined;
+    message.level = object.level ?? undefined;
+    message.sortBy = object.sortBy ?? 0;
+    message.page = object.page ?? 0;
+    message.size = object.size ?? 0;
+    return message;
+  },
+};
+
+function createBaseSearchContentsRequest(): SearchContentsRequest {
+  return { userId: "", query: "", category: undefined, level: undefined, page: 0, size: 0 };
+}
+
+export const SearchContentsRequest: MessageFns<SearchContentsRequest> = {
+  encode(message: SearchContentsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.query !== "") {
+      writer.uint32(18).string(message.query);
+    }
+    if (message.category !== undefined) {
+      writer.uint32(26).string(message.category);
+    }
+    if (message.level !== undefined) {
+      writer.uint32(32).int32(message.level);
+    }
+    if (message.page !== 0) {
+      writer.uint32(40).int32(message.page);
+    }
+    if (message.size !== 0) {
+      writer.uint32(48).int32(message.size);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SearchContentsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSearchContentsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.query = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.category = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.level = reader.int32() as any;
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.page = reader.int32();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
             break;
           }
 
@@ -1099,6 +1146,11 @@ export const SearchContentsRequest: MessageFns<SearchContentsRequest> = {
 
   fromJSON(object: any): SearchContentsRequest {
     return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
       query: isSet(object.query) ? globalThis.String(object.query) : "",
       category: isSet(object.category) ? globalThis.String(object.category) : undefined,
       level: isSet(object.level) ? contentLevelFromJSON(object.level) : undefined,
@@ -1109,6 +1161,9 @@ export const SearchContentsRequest: MessageFns<SearchContentsRequest> = {
 
   toJSON(message: SearchContentsRequest): unknown {
     const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
     if (message.query !== "") {
       obj.query = message.query;
     }
@@ -1132,6 +1187,7 @@ export const SearchContentsRequest: MessageFns<SearchContentsRequest> = {
   },
   fromPartial(object: DeepPartial<SearchContentsRequest>): SearchContentsRequest {
     const message = createBaseSearchContentsRequest();
+    message.userId = object.userId ?? "";
     message.query = object.query ?? "";
     message.category = object.category ?? undefined;
     message.level = object.level ?? undefined;
@@ -1142,13 +1198,16 @@ export const SearchContentsRequest: MessageFns<SearchContentsRequest> = {
 };
 
 function createBaseGetRecommendedContentsRequest(): GetRecommendedContentsRequest {
-  return { limit: 0 };
+  return { userId: "", limit: 0 };
 }
 
 export const GetRecommendedContentsRequest: MessageFns<GetRecommendedContentsRequest> = {
   encode(message: GetRecommendedContentsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
     if (message.limit !== 0) {
-      writer.uint32(8).int32(message.limit);
+      writer.uint32(16).int32(message.limit);
     }
     return writer;
   },
@@ -1161,7 +1220,15 @@ export const GetRecommendedContentsRequest: MessageFns<GetRecommendedContentsReq
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1: {
-          if (tag !== 8) {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
             break;
           }
 
@@ -1178,11 +1245,21 @@ export const GetRecommendedContentsRequest: MessageFns<GetRecommendedContentsReq
   },
 
   fromJSON(object: any): GetRecommendedContentsRequest {
-    return { limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0 };
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0,
+    };
   },
 
   toJSON(message: GetRecommendedContentsRequest): unknown {
     const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
     if (message.limit !== 0) {
       obj.limit = Math.round(message.limit);
     }
@@ -1194,6 +1271,7 @@ export const GetRecommendedContentsRequest: MessageFns<GetRecommendedContentsReq
   },
   fromPartial(object: DeepPartial<GetRecommendedContentsRequest>): GetRecommendedContentsRequest {
     const message = createBaseGetRecommendedContentsRequest();
+    message.userId = object.userId ?? "";
     message.limit = object.limit ?? 0;
     return message;
   },
@@ -1984,16 +2062,19 @@ export const ContentWithStateResponse: MessageFns<ContentWithStateResponse> = {
 };
 
 function createBaseUpdateProgressRequest(): UpdateProgressRequest {
-  return { contentId: "", progressPct: 0 };
+  return { userId: "", contentId: "", progressPct: 0 };
 }
 
 export const UpdateProgressRequest: MessageFns<UpdateProgressRequest> = {
   encode(message: UpdateProgressRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
     if (message.contentId !== "") {
-      writer.uint32(10).string(message.contentId);
+      writer.uint32(18).string(message.contentId);
     }
     if (message.progressPct !== 0) {
-      writer.uint32(16).int32(message.progressPct);
+      writer.uint32(24).int32(message.progressPct);
     }
     return writer;
   },
@@ -2010,11 +2091,19 @@ export const UpdateProgressRequest: MessageFns<UpdateProgressRequest> = {
             break;
           }
 
-          message.contentId = reader.string();
+          message.userId = reader.string();
           continue;
         }
         case 2: {
-          if (tag !== 16) {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.contentId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
             break;
           }
 
@@ -2032,6 +2121,11 @@ export const UpdateProgressRequest: MessageFns<UpdateProgressRequest> = {
 
   fromJSON(object: any): UpdateProgressRequest {
     return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
       contentId: isSet(object.contentId)
         ? globalThis.String(object.contentId)
         : isSet(object.content_id)
@@ -2047,6 +2141,9 @@ export const UpdateProgressRequest: MessageFns<UpdateProgressRequest> = {
 
   toJSON(message: UpdateProgressRequest): unknown {
     const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
     if (message.contentId !== "") {
       obj.contentId = message.contentId;
     }
@@ -2061,6 +2158,7 @@ export const UpdateProgressRequest: MessageFns<UpdateProgressRequest> = {
   },
   fromPartial(object: DeepPartial<UpdateProgressRequest>): UpdateProgressRequest {
     const message = createBaseUpdateProgressRequest();
+    message.userId = object.userId ?? "";
     message.contentId = object.contentId ?? "";
     message.progressPct = object.progressPct ?? 0;
     return message;
@@ -2068,13 +2166,16 @@ export const UpdateProgressRequest: MessageFns<UpdateProgressRequest> = {
 };
 
 function createBaseCompleteContentRequest(): CompleteContentRequest {
-  return { contentId: "" };
+  return { userId: "", contentId: "" };
 }
 
 export const CompleteContentRequest: MessageFns<CompleteContentRequest> = {
   encode(message: CompleteContentRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
     if (message.contentId !== "") {
-      writer.uint32(10).string(message.contentId);
+      writer.uint32(18).string(message.contentId);
     }
     return writer;
   },
@@ -2088,6 +2189,14 @@ export const CompleteContentRequest: MessageFns<CompleteContentRequest> = {
       switch (tag >>> 3) {
         case 1: {
           if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
             break;
           }
 
@@ -2105,6 +2214,11 @@ export const CompleteContentRequest: MessageFns<CompleteContentRequest> = {
 
   fromJSON(object: any): CompleteContentRequest {
     return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
       contentId: isSet(object.contentId)
         ? globalThis.String(object.contentId)
         : isSet(object.content_id)
@@ -2115,6 +2229,9 @@ export const CompleteContentRequest: MessageFns<CompleteContentRequest> = {
 
   toJSON(message: CompleteContentRequest): unknown {
     const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
     if (message.contentId !== "") {
       obj.contentId = message.contentId;
     }
@@ -2126,19 +2243,23 @@ export const CompleteContentRequest: MessageFns<CompleteContentRequest> = {
   },
   fromPartial(object: DeepPartial<CompleteContentRequest>): CompleteContentRequest {
     const message = createBaseCompleteContentRequest();
+    message.userId = object.userId ?? "";
     message.contentId = object.contentId ?? "";
     return message;
   },
 };
 
 function createBaseToggleFavoriteRequest(): ToggleFavoriteRequest {
-  return { contentId: "" };
+  return { userId: "", contentId: "" };
 }
 
 export const ToggleFavoriteRequest: MessageFns<ToggleFavoriteRequest> = {
   encode(message: ToggleFavoriteRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
     if (message.contentId !== "") {
-      writer.uint32(10).string(message.contentId);
+      writer.uint32(18).string(message.contentId);
     }
     return writer;
   },
@@ -2152,6 +2273,14 @@ export const ToggleFavoriteRequest: MessageFns<ToggleFavoriteRequest> = {
       switch (tag >>> 3) {
         case 1: {
           if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
             break;
           }
 
@@ -2169,6 +2298,11 @@ export const ToggleFavoriteRequest: MessageFns<ToggleFavoriteRequest> = {
 
   fromJSON(object: any): ToggleFavoriteRequest {
     return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
       contentId: isSet(object.contentId)
         ? globalThis.String(object.contentId)
         : isSet(object.content_id)
@@ -2179,6 +2313,9 @@ export const ToggleFavoriteRequest: MessageFns<ToggleFavoriteRequest> = {
 
   toJSON(message: ToggleFavoriteRequest): unknown {
     const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
     if (message.contentId !== "") {
       obj.contentId = message.contentId;
     }
@@ -2190,6 +2327,7 @@ export const ToggleFavoriteRequest: MessageFns<ToggleFavoriteRequest> = {
   },
   fromPartial(object: DeepPartial<ToggleFavoriteRequest>): ToggleFavoriteRequest {
     const message = createBaseToggleFavoriteRequest();
+    message.userId = object.userId ?? "";
     message.contentId = object.contentId ?? "";
     return message;
   },
@@ -2384,11 +2522,14 @@ export const UserContentStateResponse: MessageFns<UserContentStateResponse> = {
 };
 
 function createBaseGetUserLearningStatsRequest(): GetUserLearningStatsRequest {
-  return {};
+  return { userId: "" };
 }
 
 export const GetUserLearningStatsRequest: MessageFns<GetUserLearningStatsRequest> = {
-  encode(_: GetUserLearningStatsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(message: GetUserLearningStatsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
     return writer;
   },
 
@@ -2399,6 +2540,14 @@ export const GetUserLearningStatsRequest: MessageFns<GetUserLearningStatsRequest
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2408,20 +2557,30 @@ export const GetUserLearningStatsRequest: MessageFns<GetUserLearningStatsRequest
     return message;
   },
 
-  fromJSON(_: any): GetUserLearningStatsRequest {
-    return {};
+  fromJSON(object: any): GetUserLearningStatsRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+    };
   },
 
-  toJSON(_: GetUserLearningStatsRequest): unknown {
+  toJSON(message: GetUserLearningStatsRequest): unknown {
     const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
     return obj;
   },
 
   create(base?: DeepPartial<GetUserLearningStatsRequest>): GetUserLearningStatsRequest {
     return GetUserLearningStatsRequest.fromPartial(base ?? {});
   },
-  fromPartial(_: DeepPartial<GetUserLearningStatsRequest>): GetUserLearningStatsRequest {
+  fromPartial(object: DeepPartial<GetUserLearningStatsRequest>): GetUserLearningStatsRequest {
     const message = createBaseGetUserLearningStatsRequest();
+    message.userId = object.userId ?? "";
     return message;
   },
 };
@@ -2663,16 +2822,19 @@ export const CategoryProgress: MessageFns<CategoryProgress> = {
 };
 
 function createBaseListFavoritesRequest(): ListFavoritesRequest {
-  return { page: 0, size: 0 };
+  return { userId: "", page: 0, size: 0 };
 }
 
 export const ListFavoritesRequest: MessageFns<ListFavoritesRequest> = {
   encode(message: ListFavoritesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
     if (message.page !== 0) {
-      writer.uint32(8).int32(message.page);
+      writer.uint32(16).int32(message.page);
     }
     if (message.size !== 0) {
-      writer.uint32(16).int32(message.size);
+      writer.uint32(24).int32(message.size);
     }
     return writer;
   },
@@ -2685,15 +2847,23 @@ export const ListFavoritesRequest: MessageFns<ListFavoritesRequest> = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1: {
-          if (tag !== 8) {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
             break;
           }
 
           message.page = reader.int32();
           continue;
         }
-        case 2: {
-          if (tag !== 16) {
+        case 3: {
+          if (tag !== 24) {
             break;
           }
 
@@ -2711,6 +2881,11 @@ export const ListFavoritesRequest: MessageFns<ListFavoritesRequest> = {
 
   fromJSON(object: any): ListFavoritesRequest {
     return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
       page: isSet(object.page) ? globalThis.Number(object.page) : 0,
       size: isSet(object.size) ? globalThis.Number(object.size) : 0,
     };
@@ -2718,6 +2893,9 @@ export const ListFavoritesRequest: MessageFns<ListFavoritesRequest> = {
 
   toJSON(message: ListFavoritesRequest): unknown {
     const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
     if (message.page !== 0) {
       obj.page = Math.round(message.page);
     }
@@ -2732,19 +2910,18 @@ export const ListFavoritesRequest: MessageFns<ListFavoritesRequest> = {
   },
   fromPartial(object: DeepPartial<ListFavoritesRequest>): ListFavoritesRequest {
     const message = createBaseListFavoritesRequest();
+    message.userId = object.userId ?? "";
     message.page = object.page ?? 0;
     message.size = object.size ?? 0;
     return message;
   },
 };
 
-/** ─── Learning Service ─── */
 export type LearningServiceDefinition = typeof LearningServiceDefinition;
 export const LearningServiceDefinition = {
   name: "LearningService",
   fullName: "candle.learning.v1.LearningService",
   methods: {
-    /** 콘텐츠 CRUD (관리자) */
     createContent: {
       name: "CreateContent",
       requestType: CreateContentRequest as typeof CreateContentRequest,
@@ -2769,7 +2946,6 @@ export const LearningServiceDefinition = {
       responseStream: false,
       options: {},
     },
-    /** 콘텐츠 조회 */
     getContent: {
       name: "GetContent",
       requestType: GetContentRequest as typeof GetContentRequest,
@@ -2794,7 +2970,6 @@ export const LearningServiceDefinition = {
       responseStream: false,
       options: {},
     },
-    /** 추천 콘텐츠 */
     getRecommendedContents: {
       name: "GetRecommendedContents",
       requestType: GetRecommendedContentsRequest as typeof GetRecommendedContentsRequest,
@@ -2803,7 +2978,6 @@ export const LearningServiceDefinition = {
       responseStream: false,
       options: {},
     },
-    /** 사용자 학습 상태 */
     updateProgress: {
       name: "UpdateProgress",
       requestType: UpdateProgressRequest as typeof UpdateProgressRequest,
@@ -2828,7 +3002,6 @@ export const LearningServiceDefinition = {
       responseStream: false,
       options: {},
     },
-    /** 사용자 학습 현황 (대시보드용) */
     getUserLearningStats: {
       name: "GetUserLearningStats",
       requestType: GetUserLearningStatsRequest as typeof GetUserLearningStatsRequest,
@@ -2837,7 +3010,6 @@ export const LearningServiceDefinition = {
       responseStream: false,
       options: {},
     },
-    /** 즐겨찾기 목록 */
     listFavorites: {
       name: "ListFavorites",
       requestType: ListFavoritesRequest as typeof ListFavoritesRequest,
@@ -2850,7 +3022,6 @@ export const LearningServiceDefinition = {
 } as const;
 
 export interface LearningServiceImplementation<CallContextExt = {}> {
-  /** 콘텐츠 CRUD (관리자) */
   createContent(
     request: CreateContentRequest,
     context: CallContext & CallContextExt,
@@ -2863,7 +3034,6 @@ export interface LearningServiceImplementation<CallContextExt = {}> {
     request: DeleteContentRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<DeleteContentResponse>>;
-  /** 콘텐츠 조회 */
   getContent(
     request: GetContentRequest,
     context: CallContext & CallContextExt,
@@ -2876,12 +3046,10 @@ export interface LearningServiceImplementation<CallContextExt = {}> {
     request: SearchContentsRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<ListContentsResponse>>;
-  /** 추천 콘텐츠 */
   getRecommendedContents(
     request: GetRecommendedContentsRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<ListContentsResponse>>;
-  /** 사용자 학습 상태 */
   updateProgress(
     request: UpdateProgressRequest,
     context: CallContext & CallContextExt,
@@ -2894,12 +3062,10 @@ export interface LearningServiceImplementation<CallContextExt = {}> {
     request: ToggleFavoriteRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<UserContentStateResponse>>;
-  /** 사용자 학습 현황 (대시보드용) */
   getUserLearningStats(
     request: GetUserLearningStatsRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<UserLearningStatsResponse>>;
-  /** 즐겨찾기 목록 */
   listFavorites(
     request: ListFavoritesRequest,
     context: CallContext & CallContextExt,
@@ -2907,7 +3073,6 @@ export interface LearningServiceImplementation<CallContextExt = {}> {
 }
 
 export interface LearningServiceClient<CallOptionsExt = {}> {
-  /** 콘텐츠 CRUD (관리자) */
   createContent(
     request: DeepPartial<CreateContentRequest>,
     options?: CallOptions & CallOptionsExt,
@@ -2920,7 +3085,6 @@ export interface LearningServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<DeleteContentRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<DeleteContentResponse>;
-  /** 콘텐츠 조회 */
   getContent(
     request: DeepPartial<GetContentRequest>,
     options?: CallOptions & CallOptionsExt,
@@ -2933,12 +3097,10 @@ export interface LearningServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<SearchContentsRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<ListContentsResponse>;
-  /** 추천 콘텐츠 */
   getRecommendedContents(
     request: DeepPartial<GetRecommendedContentsRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<ListContentsResponse>;
-  /** 사용자 학습 상태 */
   updateProgress(
     request: DeepPartial<UpdateProgressRequest>,
     options?: CallOptions & CallOptionsExt,
@@ -2951,12 +3113,10 @@ export interface LearningServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<ToggleFavoriteRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<UserContentStateResponse>;
-  /** 사용자 학습 현황 (대시보드용) */
   getUserLearningStats(
     request: DeepPartial<GetUserLearningStatsRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<UserLearningStatsResponse>;
-  /** 즐겨찾기 목록 */
   listFavorites(
     request: DeepPartial<ListFavoritesRequest>,
     options?: CallOptions & CallOptionsExt,

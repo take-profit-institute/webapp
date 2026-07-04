@@ -25,7 +25,23 @@ import {
   UpsertChallengeBody,
   UpsertMissionBody,
 } from '@candle/shared';
-import { requireIdempotencyKey } from '../grpc';
+import { requireIdempotencyKey, mapGrpcError } from '../grpc';
+import { env } from '../config/env';
+import {
+  grpcListContents,
+  grpcListFavorites,
+  grpcGetRecommended,
+  grpcGetProgress,
+  grpcGetContent,
+  grpcCompleteContent,
+  grpcToggleFavorite,
+} from '../grpc/learning.grpc-client';
+
+/** 게이트웨이가 JWT 검증 후 주입한 X-Account-Id 헤더로 actor 추출. */
+function resolveActor(req: { headers: Record<string, unknown> }): string {
+  const header = req.headers['x-account-id'];
+  return typeof header === 'string' && header ? header : 'demo-user';
+}
 
 /** Ranking, missions and learning content — app-domain data (DB-backed later). */
 export const rankingRoutes: FastifyPluginAsyncTypebox = async (app) => {
@@ -289,8 +305,16 @@ export const missionRoutes: FastifyPluginAsyncTypebox = async (app) => {
 export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     '/',
-    { schema: { tags: ['learn'], summary: '학습 콘텐츠 목록', querystring: LearnQuery, response: { 200: Type.Array(LearnContent) } } },
-    async (req) => {
+    { schema: { tags: ['learn'], summary: '학습 콘텐츠 목록', querystring: LearnQuery, response: { 200: Type.Array(LearnContent), 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcListContents(resolveActor(req), req.query);
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
       let result = learnContents.filter((c) => c.published);
       if (req.query.level) result = result.filter((c) => c.level === req.query.level);
       if (req.query.category) result = result.filter((c) => c.category === req.query.category);
@@ -309,20 +333,48 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.get(
     '/progress',
-    { schema: { tags: ['learn'], summary: '내 학습 진도율 조회 (LEARN-010)', response: { 200: LearnProgressSummary } } },
-    async () => learnProgress(),
+    { schema: { tags: ['learn'], summary: '내 학습 진도율 조회 (LEARN-010)', response: { 200: LearnProgressSummary, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcGetProgress(resolveActor(req));
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+      return learnProgress();
+    },
   );
 
   app.get(
     '/favorites',
-    { schema: { tags: ['learn'], summary: '즐겨찾기 콘텐츠 조회 (LEARN-012)', response: { 200: Type.Array(LearnContent) } } },
-    async () => learnContents.filter((c) => c.published && c.favorite),
+    { schema: { tags: ['learn'], summary: '즐겨찾기 콘텐츠 조회 (LEARN-012)', response: { 200: Type.Array(LearnContent), 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcListFavorites(resolveActor(req));
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+      return learnContents.filter((c) => c.published && c.favorite);
+    },
   );
 
   app.get(
     '/recommended',
-    { schema: { tags: ['learn'], summary: '학습 기록 기반 콘텐츠 추천 (LEARN-013)', response: { 200: Type.Array(LearnContent) } } },
-    async () => {
+    { schema: { tags: ['learn'], summary: '학습 기록 기반 콘텐츠 추천 (LEARN-013)', response: { 200: Type.Array(LearnContent), 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcGetRecommended(resolveActor(req), 4);
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
       const completedCategories = new Set(learnContents.filter((c) => c.completed).map((c) => c.category));
       return learnContents
         .filter((c) => c.published && !c.completed)
@@ -333,8 +385,18 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.get(
     '/:id',
-    { schema: { tags: ['learn'], summary: '학습 콘텐츠 상세', params: LearnIdParams, response: { 200: LearnContent, 404: ErrorResponse } } },
+    { schema: { tags: ['learn'], summary: '학습 콘텐츠 상세', params: LearnIdParams, response: { 200: LearnContent, 404: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
     async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          const content = await grpcGetContent(resolveActor(req), req.params.id);
+          if (!content) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown content: ${req.params.id}` });
+          return content;
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 404 | 500 | 503 | 504).send(mapped);
+        }
+      }
       const content = learnContents.find((c) => c.id === req.params.id && c.published);
       if (!content) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown content: ${req.params.id}` });
       content.readCount += 1;
@@ -344,9 +406,19 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.post(
     '/:id/complete',
-    { schema: { tags: ['learn'], summary: '학습 콘텐츠 완독 처리', params: LearnIdParams, response: { 200: LearnProgressResult, 404: ErrorResponse } } },
+    { schema: { tags: ['learn'], summary: '학습 콘텐츠 완독 처리', params: LearnIdParams, response: { 200: LearnProgressResult, 404: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
     async (req, reply) => {
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcCompleteContent(resolveActor(req), req.params.id, idempotencyKey);
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 404 | 500 | 503 | 504).send(mapped);
+        }
+      }
+
       const content = learnContents.find((c) => c.id === req.params.id);
       if (!content) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown content: ${req.params.id}` });
       const completedAt = new Date().toISOString();
@@ -362,11 +434,21 @@ export const learnRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.post(
     '/:id/favorite',
-    { schema: { tags: ['learn'], summary: '즐겨찾기 등록/해제 (LEARN-011)', params: LearnIdParams, response: { 200: LearnFavoriteResult, 404: ErrorResponse } } },
+    { schema: { tags: ['learn'], summary: '즐겨찾기 등록/해제 (LEARN-011)', params: LearnIdParams, response: { 200: LearnFavoriteResult, 404: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
     async (req, reply) => {
+      const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcToggleFavorite(resolveActor(req), req.params.id, idempotencyKey);
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 404 | 500 | 503 | 504).send(mapped);
+        }
+      }
+
       const content = learnContents.find((c) => c.id === req.params.id && c.published);
       if (!content) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown content: ${req.params.id}` });
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       content.favorite = !content.favorite;
       return { content, favorite: content.favorite };
     },

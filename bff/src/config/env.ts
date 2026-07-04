@@ -54,6 +54,7 @@ export const env = {
     missionAddr: str('GRPC_MISSION_ADDR', 'localhost:50058'),
     learnAddr: str('GRPC_LEARN_ADDR', 'localhost:50059'),
     stockAddr: str('GRPC_STOCK_ADDR', 'localhost:50060'),
+    wishlistAddr: str('GRPC_WISHLIST_ADDR', 'localhost:50061'),
     deadlineMs: Number(str('GRPC_DEADLINE_MS', '5000')),
   },
 } as const;

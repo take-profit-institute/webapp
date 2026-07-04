@@ -35,6 +35,19 @@ import {
   grpcCancelReservation,
   grpcAmendReservation,
 } from '../grpc/trading.grpc-client';
+import {
+  grpcGetAccountSummary,
+  grpcListHoldings,
+  grpcGetHolding,
+  grpcGetPortfolioHistory,
+  grpcGetSectorAllocation,
+  type PriceResolver,
+} from '../grpc/portfolio.grpc-client';
+import {
+  grpcListWatchlist,
+  grpcAddWatchlist,
+  grpcRemoveWatchlist,
+} from '../grpc/wishlist.grpc-client';
 
 /** 게이트웨이가 JWT 검증 후 주입한 X-Account-Id 헤더로 actor 추출. */
 function resolveActor(req: { headers: Record<string, unknown> }): string {
@@ -73,10 +86,23 @@ import type { OrderKind } from '@candle/shared';
 const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
   const provider = getMarketProvider();
 
+  // 보유 종목 평가금액 계산용 현재가 resolver. grpc 모드에서 portfolio 보유목록과 머지한다.
+  const resolvePrice: PriceResolver = async (symbol) => (await provider.getStock(symbol))?.price;
+
   app.get(
     '/',
-    { schema: { tags: ['account'], summary: '계좌 요약 (대시보드 통계)', response: { 200: Account } } },
-    async () => getAccount(),
+    { schema: { tags: ['account'], summary: '계좌 요약 (대시보드 통계)', response: { 200: Account, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcGetAccountSummary(resolveActor(req));
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+      return getAccount();
+    },
   );
 
   app.get(
@@ -103,19 +129,39 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.get(
     '/holdings',
-    { schema: { tags: ['account'], summary: '보유 종목 조회 (HLD-002/HLD-010/HLD-012)', querystring: HoldingListQuery, response: { 200: Type.Array(Holding) } } },
-    async (req) => holdings
-      .filter((h) => req.query.includeInactive || h.isActive)
-      .map((h) => {
-        const quote = getQuote(h.symbol);
-        return recalcHolding(h, quote?.price ?? h.currentPrice);
-      }),
+    { schema: { tags: ['account'], summary: '보유 종목 조회 (HLD-002/HLD-010/HLD-012)', querystring: HoldingListQuery, response: { 200: Type.Array(Holding), 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcListHoldings(resolveActor(req), req.query.includeInactive ?? false, resolvePrice);
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+      return holdings
+        .filter((h) => req.query.includeInactive || h.isActive)
+        .map((h) => {
+          const quote = getQuote(h.symbol);
+          return recalcHolding(h, quote?.price ?? h.currentPrice);
+        });
+    },
   );
 
   app.get(
     '/holdings/:symbol',
-    { schema: { tags: ['account'], summary: '보유 종목 상세 조회 (HLD-003/HLD-011)', params: HoldingSymbolParams, response: { 200: Holding, 404: ErrorResponse } } },
+    { schema: { tags: ['account'], summary: '보유 종목 상세 조회 (HLD-003/HLD-011)', params: HoldingSymbolParams, response: { 200: Holding, 404: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
     async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          const holding = await grpcGetHolding(resolveActor(req), req.params.symbol, resolvePrice);
+          if (!holding) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown holding: ${req.params.symbol}` });
+          return holding;
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 404 | 500 | 503 | 504).send(mapped);
+        }
+      }
       const holding = holdings.find((h) => h.symbol === req.params.symbol);
       if (!holding) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown holding: ${req.params.symbol}` });
       const quote = getQuote(holding.symbol);
@@ -136,14 +182,34 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.get(
     '/portfolio-history',
-    { schema: { tags: ['account'], summary: '포트폴리오 자산 추이', querystring: PortfolioHistoryQuery, response: { 200: Type.Array(PortfolioPoint) } } },
-    async (req) => getPortfolioHistory(req.query.days ?? 30),
+    { schema: { tags: ['account'], summary: '포트폴리오 자산 추이', querystring: PortfolioHistoryQuery, response: { 200: Type.Array(PortfolioPoint), 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcGetPortfolioHistory(resolveActor(req), req.query.days ?? 30);
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+      return getPortfolioHistory(req.query.days ?? 30);
+    },
   );
 
   app.get(
     '/allocation',
-    { schema: { tags: ['account'], summary: '섹터별 자산 구성', response: { 200: Type.Array(SectorAllocation) } } },
-    async () => sectorAllocation,
+    { schema: { tags: ['account'], summary: '섹터별 자산 구성', response: { 200: Type.Array(SectorAllocation), 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcGetSectorAllocation(resolveActor(req));
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+      return sectorAllocation;
+    },
   );
 
   // 모든 주문 = 예약(pending) + 체결(filled). 목록/상세 조회용 합성 뷰.
@@ -642,8 +708,20 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.get(
     '/watchlist',
-    { schema: { tags: ['account'], summary: '관심종목 목록', response: { 200: Type.Array(Quote) } } },
-    async () => [...watchlistSymbols].map((s) => getQuote(s)).filter((q): q is NonNullable<typeof q> => Boolean(q)),
+    { schema: { tags: ['account'], summary: '관심종목 목록', response: { 200: Type.Array(Quote), 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      // 관심목록의 "소유"는 wishlist-service(grpc), 시세(Quote)는 market 경로에서 머지한다.
+      if (env.dataSource === 'grpc') {
+        try {
+          const entries = await grpcListWatchlist(resolveActor(req));
+          return entries.map((e) => getQuote(e.symbol)).filter((q): q is NonNullable<typeof q> => Boolean(q));
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+      return [...watchlistSymbols].map((s) => getQuote(s)).filter((q): q is NonNullable<typeof q> => Boolean(q));
+    },
   );
 
   app.post(
@@ -653,16 +731,34 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
         tags: ['account'],
         summary: '관심종목 추가',
         body: AddWatchlistBody,
-        response: { 201: WatchlistItem, 404: ErrorResponse, 409: ErrorResponse, 400: ErrorResponse },
+        response: { 201: WatchlistItem, 404: ErrorResponse, 409: ErrorResponse, 400: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse },
       },
     },
     async (req, reply) => {
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const { symbol } = req.body;
       const quote = getQuote(symbol);
       if (!quote) {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown symbol: ${symbol}` });
       }
+
+      // 실제 gRPC 경로 — WishlistService.AddWishlistItem. 중복/한도는 백엔드가 판정한다.
+      if (env.dataSource === 'grpc') {
+        try {
+          const entry = await grpcAddWatchlist({
+            userId: resolveActor(req),
+            symbol,
+            displayName: quote.name,
+            market: quote.exchange,
+            idempotencyKey,
+          });
+          return reply.status(201).send({ symbol: entry.symbol, name: entry.name, addedAt: entry.addedAt });
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 400 | 404 | 409 | 500 | 503 | 504).send(mapped);
+        }
+      }
+
       const result = addWatchlistSymbol(symbol);
       if (result === 'duplicate') {
         return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: '이미 관심종목에 등록된 종목입니다' });
@@ -676,9 +772,21 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.delete(
     '/watchlist/:symbol',
-    { schema: { tags: ['account'], summary: '관심종목 제거', params: WatchlistSymbolParams, response: { 204: Type.Null(), 404: ErrorResponse } } },
+    { schema: { tags: ['account'], summary: '관심종목 제거', params: WatchlistSymbolParams, response: { 204: Type.Null(), 404: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
     async (req, reply) => {
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+
+      // 실제 gRPC 경로 — WishlistService.RemoveWishlistItem. 미등록 종목은 백엔드가 NOT_FOUND.
+      if (env.dataSource === 'grpc') {
+        try {
+          await grpcRemoveWatchlist({ userId: resolveActor(req), symbol: req.params.symbol, idempotencyKey });
+          return reply.status(204).send(null);
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 404 | 500 | 503 | 504).send(mapped);
+        }
+      }
+
       const removed = removeWatchlistSymbol(req.params.symbol);
       if (!removed) {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: '관심종목에 등록되지 않은 종목입니다' });

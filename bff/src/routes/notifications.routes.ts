@@ -83,11 +83,23 @@ const notificationRoutes: FastifyPluginAsyncTypebox = async (app) => {
         tags: ['notification'],
         summary: '알림 목록 조회',
         querystring: NotificationListQuery,
-        response: { 200: Type.Array(Notification) },
+        response: { 200: Type.Array(Notification), 401: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse },
       },
     },
-    async (req) => {
+    async (req, reply) => {
       const { limit = 20, offset = 0, status } = req.query;
+
+      if (env.dataSource === 'grpc') {
+        const userId = extractUserId(req);
+        if (!userId) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
+        try {
+          return await req.server.grpc.notification.listNotifications({ userId, limit, offset, status }, { userId });
+        } catch (err) {
+          const mapped = mapGrpcError(err, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+
       let result = [...notifications].sort(
         (a, b) => new Date(b.triggeredAt).getTime() - new Date(a.triggeredAt).getTime(),
       );
@@ -102,10 +114,22 @@ const notificationRoutes: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ['notification'],
         summary: '읽지 않은 알림 수',
-        response: { 200: UnreadCountResult },
+        response: { 200: UnreadCountResult, 401: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse },
       },
     },
-    async () => ({ count: getUnreadCount() }),
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        const userId = extractUserId(req);
+        if (!userId) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
+        try {
+          return await req.server.grpc.notification.getUnreadCount({ userId }, { userId });
+        } catch (err) {
+          const mapped = mapGrpcError(err, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+      return { count: getUnreadCount() };
+    },
   );
 
   app.patch(
@@ -115,11 +139,24 @@ const notificationRoutes: FastifyPluginAsyncTypebox = async (app) => {
         tags: ['notification'],
         summary: '단건 읽음 처리',
         params: NotificationIdParams,
-        response: { 204: Type.Null(), 404: ErrorResponse },
+        response: { 204: Type.Null(), 401: ErrorResponse, 404: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse },
       },
     },
     async (req, reply) => {
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+
+      if (env.dataSource === 'grpc') {
+        const userId = extractUserId(req);
+        if (!userId) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
+        try {
+          await req.server.grpc.notification.markRead({ userId, notificationId: req.params.id }, { userId, idempotencyKey });
+          return reply.status(204).send(null);
+        } catch (err) {
+          const mapped = mapGrpcError(err, req.id);
+          return reply.code(mapped.statusCode as 404 | 500 | 503 | 504).send(mapped);
+        }
+      }
+
       const updated = markRead(req.params.id);
       if (!updated) {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: '알림을 찾을 수 없습니다' });

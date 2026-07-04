@@ -112,7 +112,7 @@ export interface ProcessOpenLimitReservationsResponse {
 
 /** 08:30 배치 트리거 — PREV_CLOSE 예약을 전일 종가로 즉시 체결 */
 export interface ProcessPrevCloseReservationsRequest {
-  /** YYYY-MM-DD (체결 대상 예약의 scheduled_date) */
+  /** YYYY-MM-DD */
   scheduledDate: string;
 }
 
@@ -125,7 +125,7 @@ export interface ProcessPrevCloseReservationsResponse {
  * 반드시 ChartService.CloseDailyCandles 완료 후 호출해야 한다.
  */
 export interface ProcessTodayCloseReservationsRequest {
-  /** YYYY-MM-DD (체결 대상 예약의 scheduled_date) */
+  /** YYYY-MM-DD */
   scheduledDate: string;
 }
 
@@ -144,6 +144,74 @@ export interface MarkReservationConvertedRequest {
 
 export interface MarkReservationConvertedResponse {
   reservation?: Reservation | undefined;
+}
+
+/**
+ * 15:30 배치 트리거 — 당일 CONVERTING 상태로 남은 예약을 FAILED 처리.
+ * ReservationDue 유실 또는 order_svc 처리 실패 케이스를 정리한다.
+ * ExpirePendingOrders와 같은 시점에 호출한다.
+ */
+export interface ListStaleConvertingReservationsRequest {
+  /** YYYY-MM-DD */
+  scheduledDate: string;
+}
+
+export interface ListStaleConvertingReservationsResponse {
+  reservationIds: string[];
+}
+
+export interface FailStaleConvertingReservationRequest {
+  reservationId: string;
+}
+
+export interface FailStaleConvertingReservationResponse {
+  /** false면 이미 CONVERTING 아님 (skip) */
+  failed: boolean;
+}
+
+/**
+ * 건별 처리 — order의 ExpirePendingOrders/cancelExpiredPendingOrder 패턴과 동일.
+ * 배치가 ListOpenLimitReservations로 대상 목록을 조회한 뒤 건별로 이 RPC를 호출한다.
+ */
+export interface ListOpenLimitReservationsRequest {
+  /** YYYY-MM-DD */
+  scheduledDate: string;
+}
+
+export interface ListOpenLimitReservationsResponse {
+  reservationIds: string[];
+}
+
+export interface ProcessSingleOpenLimitReservationRequest {
+  reservationId: string;
+}
+
+export interface ProcessSingleOpenLimitReservationResponse {
+  /** false면 이미 RESERVED 아님 (skip) */
+  processed: boolean;
+}
+
+/**
+ * EXPIRED 처리 — 배치가 ListExpirableReservations로 대상 목록을 조회한 뒤 건별로 호출.
+ * scheduled_date가 오늘이고 아직 RESERVED인 예약을 EXPIRED로 전이하고 잔고를 반환한다.
+ * 15:40 이후 (ProcessTodayCloseReservations 완료 후) 배치가 호출해야 한다.
+ */
+export interface ListExpirableReservationsRequest {
+  /** YYYY-MM-DD */
+  scheduledDate: string;
+}
+
+export interface ListExpirableReservationsResponse {
+  reservationIds: string[];
+}
+
+export interface ExpireReservationRequest {
+  reservationId: string;
+}
+
+export interface ExpireReservationResponse {
+  /** false면 이미 RESERVED 아님 (skip) */
+  expired: boolean;
 }
 
 function createBaseReservation(): Reservation {
@@ -1878,6 +1946,758 @@ export const MarkReservationConvertedResponse: MessageFns<MarkReservationConvert
   },
 };
 
+function createBaseListStaleConvertingReservationsRequest(): ListStaleConvertingReservationsRequest {
+  return { scheduledDate: "" };
+}
+
+export const ListStaleConvertingReservationsRequest: MessageFns<ListStaleConvertingReservationsRequest> = {
+  encode(message: ListStaleConvertingReservationsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.scheduledDate !== "") {
+      writer.uint32(10).string(message.scheduledDate);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListStaleConvertingReservationsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListStaleConvertingReservationsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.scheduledDate = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListStaleConvertingReservationsRequest {
+    return {
+      scheduledDate: isSet(object.scheduledDate)
+        ? globalThis.String(object.scheduledDate)
+        : isSet(object.scheduled_date)
+        ? globalThis.String(object.scheduled_date)
+        : "",
+    };
+  },
+
+  toJSON(message: ListStaleConvertingReservationsRequest): unknown {
+    const obj: any = {};
+    if (message.scheduledDate !== "") {
+      obj.scheduledDate = message.scheduledDate;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListStaleConvertingReservationsRequest>): ListStaleConvertingReservationsRequest {
+    return ListStaleConvertingReservationsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListStaleConvertingReservationsRequest>): ListStaleConvertingReservationsRequest {
+    const message = createBaseListStaleConvertingReservationsRequest();
+    message.scheduledDate = object.scheduledDate ?? "";
+    return message;
+  },
+};
+
+function createBaseListStaleConvertingReservationsResponse(): ListStaleConvertingReservationsResponse {
+  return { reservationIds: [] };
+}
+
+export const ListStaleConvertingReservationsResponse: MessageFns<ListStaleConvertingReservationsResponse> = {
+  encode(message: ListStaleConvertingReservationsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.reservationIds) {
+      writer.uint32(10).string(v!);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListStaleConvertingReservationsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListStaleConvertingReservationsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.reservationIds.push(reader.string());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListStaleConvertingReservationsResponse {
+    return {
+      reservationIds: globalThis.Array.isArray(object?.reservationIds)
+        ? object.reservationIds.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.reservation_ids)
+        ? object.reservation_ids.map((e: any) => globalThis.String(e))
+        : [],
+    };
+  },
+
+  toJSON(message: ListStaleConvertingReservationsResponse): unknown {
+    const obj: any = {};
+    if (message.reservationIds?.length) {
+      obj.reservationIds = message.reservationIds;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListStaleConvertingReservationsResponse>): ListStaleConvertingReservationsResponse {
+    return ListStaleConvertingReservationsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListStaleConvertingReservationsResponse>): ListStaleConvertingReservationsResponse {
+    const message = createBaseListStaleConvertingReservationsResponse();
+    message.reservationIds = object.reservationIds?.map((e) => e) || [];
+    return message;
+  },
+};
+
+function createBaseFailStaleConvertingReservationRequest(): FailStaleConvertingReservationRequest {
+  return { reservationId: "" };
+}
+
+export const FailStaleConvertingReservationRequest: MessageFns<FailStaleConvertingReservationRequest> = {
+  encode(message: FailStaleConvertingReservationRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.reservationId !== "") {
+      writer.uint32(10).string(message.reservationId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): FailStaleConvertingReservationRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseFailStaleConvertingReservationRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.reservationId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): FailStaleConvertingReservationRequest {
+    return {
+      reservationId: isSet(object.reservationId)
+        ? globalThis.String(object.reservationId)
+        : isSet(object.reservation_id)
+        ? globalThis.String(object.reservation_id)
+        : "",
+    };
+  },
+
+  toJSON(message: FailStaleConvertingReservationRequest): unknown {
+    const obj: any = {};
+    if (message.reservationId !== "") {
+      obj.reservationId = message.reservationId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<FailStaleConvertingReservationRequest>): FailStaleConvertingReservationRequest {
+    return FailStaleConvertingReservationRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<FailStaleConvertingReservationRequest>): FailStaleConvertingReservationRequest {
+    const message = createBaseFailStaleConvertingReservationRequest();
+    message.reservationId = object.reservationId ?? "";
+    return message;
+  },
+};
+
+function createBaseFailStaleConvertingReservationResponse(): FailStaleConvertingReservationResponse {
+  return { failed: false };
+}
+
+export const FailStaleConvertingReservationResponse: MessageFns<FailStaleConvertingReservationResponse> = {
+  encode(message: FailStaleConvertingReservationResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.failed !== false) {
+      writer.uint32(8).bool(message.failed);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): FailStaleConvertingReservationResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseFailStaleConvertingReservationResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.failed = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): FailStaleConvertingReservationResponse {
+    return { failed: isSet(object.failed) ? globalThis.Boolean(object.failed) : false };
+  },
+
+  toJSON(message: FailStaleConvertingReservationResponse): unknown {
+    const obj: any = {};
+    if (message.failed !== false) {
+      obj.failed = message.failed;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<FailStaleConvertingReservationResponse>): FailStaleConvertingReservationResponse {
+    return FailStaleConvertingReservationResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<FailStaleConvertingReservationResponse>): FailStaleConvertingReservationResponse {
+    const message = createBaseFailStaleConvertingReservationResponse();
+    message.failed = object.failed ?? false;
+    return message;
+  },
+};
+
+function createBaseListOpenLimitReservationsRequest(): ListOpenLimitReservationsRequest {
+  return { scheduledDate: "" };
+}
+
+export const ListOpenLimitReservationsRequest: MessageFns<ListOpenLimitReservationsRequest> = {
+  encode(message: ListOpenLimitReservationsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.scheduledDate !== "") {
+      writer.uint32(10).string(message.scheduledDate);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListOpenLimitReservationsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListOpenLimitReservationsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.scheduledDate = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListOpenLimitReservationsRequest {
+    return {
+      scheduledDate: isSet(object.scheduledDate)
+        ? globalThis.String(object.scheduledDate)
+        : isSet(object.scheduled_date)
+        ? globalThis.String(object.scheduled_date)
+        : "",
+    };
+  },
+
+  toJSON(message: ListOpenLimitReservationsRequest): unknown {
+    const obj: any = {};
+    if (message.scheduledDate !== "") {
+      obj.scheduledDate = message.scheduledDate;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListOpenLimitReservationsRequest>): ListOpenLimitReservationsRequest {
+    return ListOpenLimitReservationsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListOpenLimitReservationsRequest>): ListOpenLimitReservationsRequest {
+    const message = createBaseListOpenLimitReservationsRequest();
+    message.scheduledDate = object.scheduledDate ?? "";
+    return message;
+  },
+};
+
+function createBaseListOpenLimitReservationsResponse(): ListOpenLimitReservationsResponse {
+  return { reservationIds: [] };
+}
+
+export const ListOpenLimitReservationsResponse: MessageFns<ListOpenLimitReservationsResponse> = {
+  encode(message: ListOpenLimitReservationsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.reservationIds) {
+      writer.uint32(10).string(v!);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListOpenLimitReservationsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListOpenLimitReservationsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.reservationIds.push(reader.string());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListOpenLimitReservationsResponse {
+    return {
+      reservationIds: globalThis.Array.isArray(object?.reservationIds)
+        ? object.reservationIds.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.reservation_ids)
+        ? object.reservation_ids.map((e: any) => globalThis.String(e))
+        : [],
+    };
+  },
+
+  toJSON(message: ListOpenLimitReservationsResponse): unknown {
+    const obj: any = {};
+    if (message.reservationIds?.length) {
+      obj.reservationIds = message.reservationIds;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListOpenLimitReservationsResponse>): ListOpenLimitReservationsResponse {
+    return ListOpenLimitReservationsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListOpenLimitReservationsResponse>): ListOpenLimitReservationsResponse {
+    const message = createBaseListOpenLimitReservationsResponse();
+    message.reservationIds = object.reservationIds?.map((e) => e) || [];
+    return message;
+  },
+};
+
+function createBaseProcessSingleOpenLimitReservationRequest(): ProcessSingleOpenLimitReservationRequest {
+  return { reservationId: "" };
+}
+
+export const ProcessSingleOpenLimitReservationRequest: MessageFns<ProcessSingleOpenLimitReservationRequest> = {
+  encode(message: ProcessSingleOpenLimitReservationRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.reservationId !== "") {
+      writer.uint32(10).string(message.reservationId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ProcessSingleOpenLimitReservationRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseProcessSingleOpenLimitReservationRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.reservationId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ProcessSingleOpenLimitReservationRequest {
+    return {
+      reservationId: isSet(object.reservationId)
+        ? globalThis.String(object.reservationId)
+        : isSet(object.reservation_id)
+        ? globalThis.String(object.reservation_id)
+        : "",
+    };
+  },
+
+  toJSON(message: ProcessSingleOpenLimitReservationRequest): unknown {
+    const obj: any = {};
+    if (message.reservationId !== "") {
+      obj.reservationId = message.reservationId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ProcessSingleOpenLimitReservationRequest>): ProcessSingleOpenLimitReservationRequest {
+    return ProcessSingleOpenLimitReservationRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ProcessSingleOpenLimitReservationRequest>): ProcessSingleOpenLimitReservationRequest {
+    const message = createBaseProcessSingleOpenLimitReservationRequest();
+    message.reservationId = object.reservationId ?? "";
+    return message;
+  },
+};
+
+function createBaseProcessSingleOpenLimitReservationResponse(): ProcessSingleOpenLimitReservationResponse {
+  return { processed: false };
+}
+
+export const ProcessSingleOpenLimitReservationResponse: MessageFns<ProcessSingleOpenLimitReservationResponse> = {
+  encode(message: ProcessSingleOpenLimitReservationResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.processed !== false) {
+      writer.uint32(8).bool(message.processed);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ProcessSingleOpenLimitReservationResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseProcessSingleOpenLimitReservationResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.processed = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ProcessSingleOpenLimitReservationResponse {
+    return { processed: isSet(object.processed) ? globalThis.Boolean(object.processed) : false };
+  },
+
+  toJSON(message: ProcessSingleOpenLimitReservationResponse): unknown {
+    const obj: any = {};
+    if (message.processed !== false) {
+      obj.processed = message.processed;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ProcessSingleOpenLimitReservationResponse>): ProcessSingleOpenLimitReservationResponse {
+    return ProcessSingleOpenLimitReservationResponse.fromPartial(base ?? {});
+  },
+  fromPartial(
+    object: DeepPartial<ProcessSingleOpenLimitReservationResponse>,
+  ): ProcessSingleOpenLimitReservationResponse {
+    const message = createBaseProcessSingleOpenLimitReservationResponse();
+    message.processed = object.processed ?? false;
+    return message;
+  },
+};
+
+function createBaseListExpirableReservationsRequest(): ListExpirableReservationsRequest {
+  return { scheduledDate: "" };
+}
+
+export const ListExpirableReservationsRequest: MessageFns<ListExpirableReservationsRequest> = {
+  encode(message: ListExpirableReservationsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.scheduledDate !== "") {
+      writer.uint32(10).string(message.scheduledDate);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListExpirableReservationsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListExpirableReservationsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.scheduledDate = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListExpirableReservationsRequest {
+    return {
+      scheduledDate: isSet(object.scheduledDate)
+        ? globalThis.String(object.scheduledDate)
+        : isSet(object.scheduled_date)
+        ? globalThis.String(object.scheduled_date)
+        : "",
+    };
+  },
+
+  toJSON(message: ListExpirableReservationsRequest): unknown {
+    const obj: any = {};
+    if (message.scheduledDate !== "") {
+      obj.scheduledDate = message.scheduledDate;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListExpirableReservationsRequest>): ListExpirableReservationsRequest {
+    return ListExpirableReservationsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListExpirableReservationsRequest>): ListExpirableReservationsRequest {
+    const message = createBaseListExpirableReservationsRequest();
+    message.scheduledDate = object.scheduledDate ?? "";
+    return message;
+  },
+};
+
+function createBaseListExpirableReservationsResponse(): ListExpirableReservationsResponse {
+  return { reservationIds: [] };
+}
+
+export const ListExpirableReservationsResponse: MessageFns<ListExpirableReservationsResponse> = {
+  encode(message: ListExpirableReservationsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.reservationIds) {
+      writer.uint32(10).string(v!);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListExpirableReservationsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListExpirableReservationsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.reservationIds.push(reader.string());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListExpirableReservationsResponse {
+    return {
+      reservationIds: globalThis.Array.isArray(object?.reservationIds)
+        ? object.reservationIds.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.reservation_ids)
+        ? object.reservation_ids.map((e: any) => globalThis.String(e))
+        : [],
+    };
+  },
+
+  toJSON(message: ListExpirableReservationsResponse): unknown {
+    const obj: any = {};
+    if (message.reservationIds?.length) {
+      obj.reservationIds = message.reservationIds;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListExpirableReservationsResponse>): ListExpirableReservationsResponse {
+    return ListExpirableReservationsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListExpirableReservationsResponse>): ListExpirableReservationsResponse {
+    const message = createBaseListExpirableReservationsResponse();
+    message.reservationIds = object.reservationIds?.map((e) => e) || [];
+    return message;
+  },
+};
+
+function createBaseExpireReservationRequest(): ExpireReservationRequest {
+  return { reservationId: "" };
+}
+
+export const ExpireReservationRequest: MessageFns<ExpireReservationRequest> = {
+  encode(message: ExpireReservationRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.reservationId !== "") {
+      writer.uint32(10).string(message.reservationId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ExpireReservationRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseExpireReservationRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.reservationId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ExpireReservationRequest {
+    return {
+      reservationId: isSet(object.reservationId)
+        ? globalThis.String(object.reservationId)
+        : isSet(object.reservation_id)
+        ? globalThis.String(object.reservation_id)
+        : "",
+    };
+  },
+
+  toJSON(message: ExpireReservationRequest): unknown {
+    const obj: any = {};
+    if (message.reservationId !== "") {
+      obj.reservationId = message.reservationId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ExpireReservationRequest>): ExpireReservationRequest {
+    return ExpireReservationRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ExpireReservationRequest>): ExpireReservationRequest {
+    const message = createBaseExpireReservationRequest();
+    message.reservationId = object.reservationId ?? "";
+    return message;
+  },
+};
+
+function createBaseExpireReservationResponse(): ExpireReservationResponse {
+  return { expired: false };
+}
+
+export const ExpireReservationResponse: MessageFns<ExpireReservationResponse> = {
+  encode(message: ExpireReservationResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.expired !== false) {
+      writer.uint32(8).bool(message.expired);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ExpireReservationResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseExpireReservationResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.expired = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ExpireReservationResponse {
+    return { expired: isSet(object.expired) ? globalThis.Boolean(object.expired) : false };
+  },
+
+  toJSON(message: ExpireReservationResponse): unknown {
+    const obj: any = {};
+    if (message.expired !== false) {
+      obj.expired = message.expired;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ExpireReservationResponse>): ExpireReservationResponse {
+    return ExpireReservationResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ExpireReservationResponse>): ExpireReservationResponse {
+    const message = createBaseExpireReservationResponse();
+    message.expired = object.expired ?? false;
+    return message;
+  },
+};
+
 export type ReservationServiceDefinition = typeof ReservationServiceDefinition;
 export const ReservationServiceDefinition = {
   name: "ReservationService",
@@ -1915,7 +2735,7 @@ export const ReservationServiceDefinition = {
       responseStream: false,
       options: {},
     },
-    /** 배치 전용 */
+    /** 배치 전용 — 일별 */
     processOpenLimitReservations: {
       name: "ProcessOpenLimitReservations",
       requestType: ProcessOpenLimitReservationsRequest as typeof ProcessOpenLimitReservationsRequest,
@@ -1948,6 +2768,55 @@ export const ReservationServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    /** 배치 전용 — 건별 (order의 ExpirePendingOrders 패턴과 동일) */
+    listOpenLimitReservations: {
+      name: "ListOpenLimitReservations",
+      requestType: ListOpenLimitReservationsRequest as typeof ListOpenLimitReservationsRequest,
+      requestStream: false,
+      responseType: ListOpenLimitReservationsResponse as typeof ListOpenLimitReservationsResponse,
+      responseStream: false,
+      options: {},
+    },
+    processSingleOpenLimitReservation: {
+      name: "ProcessSingleOpenLimitReservation",
+      requestType: ProcessSingleOpenLimitReservationRequest as typeof ProcessSingleOpenLimitReservationRequest,
+      requestStream: false,
+      responseType: ProcessSingleOpenLimitReservationResponse as typeof ProcessSingleOpenLimitReservationResponse,
+      responseStream: false,
+      options: {},
+    },
+    listStaleConvertingReservations: {
+      name: "ListStaleConvertingReservations",
+      requestType: ListStaleConvertingReservationsRequest as typeof ListStaleConvertingReservationsRequest,
+      requestStream: false,
+      responseType: ListStaleConvertingReservationsResponse as typeof ListStaleConvertingReservationsResponse,
+      responseStream: false,
+      options: {},
+    },
+    failStaleConvertingReservation: {
+      name: "FailStaleConvertingReservation",
+      requestType: FailStaleConvertingReservationRequest as typeof FailStaleConvertingReservationRequest,
+      requestStream: false,
+      responseType: FailStaleConvertingReservationResponse as typeof FailStaleConvertingReservationResponse,
+      responseStream: false,
+      options: {},
+    },
+    listExpirableReservations: {
+      name: "ListExpirableReservations",
+      requestType: ListExpirableReservationsRequest as typeof ListExpirableReservationsRequest,
+      requestStream: false,
+      responseType: ListExpirableReservationsResponse as typeof ListExpirableReservationsResponse,
+      responseStream: false,
+      options: {},
+    },
+    expireReservation: {
+      name: "ExpireReservation",
+      requestType: ExpireReservationRequest as typeof ExpireReservationRequest,
+      requestStream: false,
+      responseType: ExpireReservationResponse as typeof ExpireReservationResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -1968,7 +2837,7 @@ export interface ReservationServiceImplementation<CallContextExt = {}> {
     request: AmendReservationRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<AmendReservationResponse>>;
-  /** 배치 전용 */
+  /** 배치 전용 — 일별 */
   processOpenLimitReservations(
     request: ProcessOpenLimitReservationsRequest,
     context: CallContext & CallContextExt,
@@ -1985,6 +2854,31 @@ export interface ReservationServiceImplementation<CallContextExt = {}> {
     request: MarkReservationConvertedRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<MarkReservationConvertedResponse>>;
+  /** 배치 전용 — 건별 (order의 ExpirePendingOrders 패턴과 동일) */
+  listOpenLimitReservations(
+    request: ListOpenLimitReservationsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ListOpenLimitReservationsResponse>>;
+  processSingleOpenLimitReservation(
+    request: ProcessSingleOpenLimitReservationRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ProcessSingleOpenLimitReservationResponse>>;
+  listStaleConvertingReservations(
+    request: ListStaleConvertingReservationsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ListStaleConvertingReservationsResponse>>;
+  failStaleConvertingReservation(
+    request: FailStaleConvertingReservationRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<FailStaleConvertingReservationResponse>>;
+  listExpirableReservations(
+    request: ListExpirableReservationsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ListExpirableReservationsResponse>>;
+  expireReservation(
+    request: ExpireReservationRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ExpireReservationResponse>>;
 }
 
 export interface ReservationServiceClient<CallOptionsExt = {}> {
@@ -2004,7 +2898,7 @@ export interface ReservationServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<AmendReservationRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<AmendReservationResponse>;
-  /** 배치 전용 */
+  /** 배치 전용 — 일별 */
   processOpenLimitReservations(
     request: DeepPartial<ProcessOpenLimitReservationsRequest>,
     options?: CallOptions & CallOptionsExt,
@@ -2021,6 +2915,31 @@ export interface ReservationServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<MarkReservationConvertedRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<MarkReservationConvertedResponse>;
+  /** 배치 전용 — 건별 (order의 ExpirePendingOrders 패턴과 동일) */
+  listOpenLimitReservations(
+    request: DeepPartial<ListOpenLimitReservationsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ListOpenLimitReservationsResponse>;
+  processSingleOpenLimitReservation(
+    request: DeepPartial<ProcessSingleOpenLimitReservationRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ProcessSingleOpenLimitReservationResponse>;
+  listStaleConvertingReservations(
+    request: DeepPartial<ListStaleConvertingReservationsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ListStaleConvertingReservationsResponse>;
+  failStaleConvertingReservation(
+    request: DeepPartial<FailStaleConvertingReservationRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<FailStaleConvertingReservationResponse>;
+  listExpirableReservations(
+    request: DeepPartial<ListExpirableReservationsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ListExpirableReservationsResponse>;
+  expireReservation(
+    request: DeepPartial<ExpireReservationRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ExpireReservationResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
