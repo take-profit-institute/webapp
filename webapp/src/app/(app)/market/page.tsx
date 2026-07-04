@@ -10,8 +10,10 @@ import {
   ChevronsRight,
 } from 'lucide-react';
 import MarketIndexWidget from '@/components/MarketIndexWidget';
-import { getLiveMarketStocks, useApi } from '@/apis';
+import MiniSparkline from '@/components/MiniSparkline';
+import { getLiveMarketStocks, getSparklines, useApi } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
+import { generateSparkline, symbolSeed } from '@/lib/chart-utils';
 import { formatMarketCap } from '@/lib/format';
 import { marketDetailHref } from '@/lib/market-routes';
 import type { StockMarket } from '@/lib/api-types';
@@ -33,6 +35,14 @@ export default function MarketPage() {
     }),
     [activeExchange, page],
   );
+
+  // 2주 종가 스파크라인. 종목코드 → 종가 배열. 한 번만 조회하고, 없는 종목은 시드 기반으로 생성.
+  const { data: sparklines } = useApi(() => getSparklines(14), []);
+  const sparklinesMap = sparklines ?? {};
+  function getStockSpark(symbol: string, fallbackPrice: number): number[] {
+    const closes = sparklinesMap[symbol] ?? [];
+    return closes.length >= 2 ? closes : generateSparkline(fallbackPrice || 1, 12, symbolSeed(symbol));
+  }
 
   const normalizedQuery = query.trim().toLocaleLowerCase('ko-KR');
   const stockList = (data?.items ?? []).filter((stock) =>
@@ -130,6 +140,7 @@ export default function MarketPage() {
                       <span className="badge-amber" style={{ fontSize: 9, padding: '1px 4px' }}>{s.market}</span>
                     </div>
                   </div>
+                  <MiniSparkline data={getStockSpark(s.code, s.price)} width={44} height={22} positive={isUp} />
                   <div className="text-right shrink-0 w-24">
                     <p className="text-sm font-mono font-semibold" style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>
                       {s.price.toLocaleString('ko-KR')}원
@@ -145,7 +156,7 @@ export default function MarketPage() {
 
           <div className="hidden lg:block card overflow-hidden">
             <div className="grid text-xs px-4 py-3" style={{
-              gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr',
+              gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 90px',
               color: 'var(--text-muted)',
               borderBottom: '1px solid var(--border-subtle)',
               fontFamily: 'Noto Sans KR',
@@ -155,13 +166,14 @@ export default function MarketPage() {
               <span className="text-right">전일 대비</span>
               <span className="text-right">시가총액</span>
               <span className="text-right">거래량</span>
+              <span className="text-right">2주 추이</span>
             </div>
             {stockList.map((s, i) => {
               const isUp = s.changePercent >= 0;
               return (
                 <Link key={s.code} href={marketDetailHref(s.code)}
                   className="grid px-4 py-3 transition-colors hover:bg-[var(--bg-elevated)]"
-                  style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', borderBottom: i < stockList.length - 1 ? '1px solid var(--border-subtle)' : 'none', textDecoration: 'none' }}
+                  style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 90px', borderBottom: i < stockList.length - 1 ? '1px solid var(--border-subtle)' : 'none', textDecoration: 'none' }}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
@@ -190,6 +202,9 @@ export default function MarketPage() {
                   </div>
                   <div className="flex items-center justify-end">
                     <span className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{s.volume.toLocaleString('ko-KR')}</span>
+                  </div>
+                  <div className="flex items-center justify-end">
+                    <MiniSparkline data={getStockSpark(s.code, s.price)} width={64} height={28} positive={isUp} />
                   </div>
                 </Link>
               );
