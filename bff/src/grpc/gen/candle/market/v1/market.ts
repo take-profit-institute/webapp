@@ -105,6 +105,23 @@ export interface StreamQuotesRequest {
   symbol: string;
 }
 
+/**
+ * 거래일/장 운영 상태. 주말·공휴일·정규장 시간(09:00~15:30 KST)을 모두 반영한
+ * 권위 소스다. trading(즉시 주문 거래시간 검증)과 BFF(장마감 예약 전환)가 이 값을
+ * 단일 소스로 사용한다. 휴장일은 batch가 채우는 market_holidays 테이블이 소유한다.
+ */
+export interface GetMarketStatusRequest {
+}
+
+export interface GetMarketStatusResponse {
+  /** 지금 정규장 체결 가능 시간인가 (거래일 && 09:00~15:30 KST) */
+  open: boolean;
+  /** 오늘이 거래일인가 (주말·휴장일 제외) */
+  tradingDay: boolean;
+  /** "OPEN" | "CLOSED" */
+  session: string;
+}
+
 function createBaseStock(): Stock {
   return { symbol: "", name: "", market: "" };
 }
@@ -1198,6 +1215,145 @@ export const StreamQuotesRequest: MessageFns<StreamQuotesRequest> = {
   },
 };
 
+function createBaseGetMarketStatusRequest(): GetMarketStatusRequest {
+  return {};
+}
+
+export const GetMarketStatusRequest: MessageFns<GetMarketStatusRequest> = {
+  encode(_: GetMarketStatusRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetMarketStatusRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetMarketStatusRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): GetMarketStatusRequest {
+    return {};
+  },
+
+  toJSON(_: GetMarketStatusRequest): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetMarketStatusRequest>): GetMarketStatusRequest {
+    return GetMarketStatusRequest.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<GetMarketStatusRequest>): GetMarketStatusRequest {
+    const message = createBaseGetMarketStatusRequest();
+    return message;
+  },
+};
+
+function createBaseGetMarketStatusResponse(): GetMarketStatusResponse {
+  return { open: false, tradingDay: false, session: "" };
+}
+
+export const GetMarketStatusResponse: MessageFns<GetMarketStatusResponse> = {
+  encode(message: GetMarketStatusResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.open !== false) {
+      writer.uint32(8).bool(message.open);
+    }
+    if (message.tradingDay !== false) {
+      writer.uint32(16).bool(message.tradingDay);
+    }
+    if (message.session !== "") {
+      writer.uint32(26).string(message.session);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetMarketStatusResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetMarketStatusResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.open = reader.bool();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.tradingDay = reader.bool();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.session = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetMarketStatusResponse {
+    return {
+      open: isSet(object.open) ? globalThis.Boolean(object.open) : false,
+      tradingDay: isSet(object.tradingDay)
+        ? globalThis.Boolean(object.tradingDay)
+        : isSet(object.trading_day)
+        ? globalThis.Boolean(object.trading_day)
+        : false,
+      session: isSet(object.session) ? globalThis.String(object.session) : "",
+    };
+  },
+
+  toJSON(message: GetMarketStatusResponse): unknown {
+    const obj: any = {};
+    if (message.open !== false) {
+      obj.open = message.open;
+    }
+    if (message.tradingDay !== false) {
+      obj.tradingDay = message.tradingDay;
+    }
+    if (message.session !== "") {
+      obj.session = message.session;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetMarketStatusResponse>): GetMarketStatusResponse {
+    return GetMarketStatusResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetMarketStatusResponse>): GetMarketStatusResponse {
+    const message = createBaseGetMarketStatusResponse();
+    message.open = object.open ?? false;
+    message.tradingDay = object.tradingDay ?? false;
+    message.session = object.session ?? "";
+    return message;
+  },
+};
+
 export type MarketServiceDefinition = typeof MarketServiceDefinition;
 export const MarketServiceDefinition = {
   name: "MarketService",
@@ -1243,6 +1399,14 @@ export const MarketServiceDefinition = {
       responseStream: true,
       options: {},
     },
+    getMarketStatus: {
+      name: "GetMarketStatus",
+      requestType: GetMarketStatusRequest as typeof GetMarketStatusRequest,
+      requestStream: false,
+      responseType: GetMarketStatusResponse as typeof GetMarketStatusResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -1264,6 +1428,10 @@ export interface MarketServiceImplementation<CallContextExt = {}> {
     request: StreamQuotesRequest,
     context: CallContext & CallContextExt,
   ): ServerStreamingMethodResult<DeepPartial<LiveQuote>>;
+  getMarketStatus(
+    request: GetMarketStatusRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<GetMarketStatusResponse>>;
 }
 
 export interface MarketServiceClient<CallOptionsExt = {}> {
@@ -1284,6 +1452,10 @@ export interface MarketServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<StreamQuotesRequest>,
     options?: CallOptions & CallOptionsExt,
   ): AsyncIterable<LiveQuote>;
+  getMarketStatus(
+    request: DeepPartial<GetMarketStatusRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<GetMarketStatusResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

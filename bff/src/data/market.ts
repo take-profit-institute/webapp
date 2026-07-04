@@ -1,8 +1,13 @@
 import type { Candle, MarketStatus, NewsItem, Quote, StockDetail, StockFinancials } from '@candle/shared';
 import type { Currency, Exchange } from '@candle/shared';
+import { env } from '../config/env';
+import { grpcGetMarketStatus } from '../grpc/market.grpc-client';
 
-/** 장 운영 상태 (ORD-012). 평일 09:00~15:30 KST를 정규장으로 본다. */
-export function getMarketStatus(): MarketStatus {
+/**
+ * 로컬 계산 폴백 — mock 데이터 소스이거나 market-service 미가용 시 사용.
+ * 평일 09:00~15:30 KST를 정규장으로 본다(공휴일은 반영하지 못한다).
+ */
+export function computeLocalMarketStatus(): MarketStatus {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST = UTC+9
   const day = kst.getUTCDay(); // 0=일 .. 6=토
@@ -14,6 +19,19 @@ export function getMarketStatus(): MarketStatus {
     asOf: now.toISOString(),
     message: open ? undefined : '정규장 시간이 아닙니다 (평일 09:00~15:30 KST). 시장가 주문은 예약 주문으로 접수됩니다.',
   };
+}
+
+/**
+ * 장 운영 상태 (ORD-012). grpc 모드에선 권위 소스(market-service MarketSession)에
+ * 위임해 주말·공휴일까지 반영한다. market-service 미가용 시 로컬 계산으로 폴백한다.
+ */
+export async function getMarketStatus(): Promise<MarketStatus> {
+  if (env.dataSource !== 'grpc') return computeLocalMarketStatus();
+  try {
+    return await grpcGetMarketStatus();
+  } catch {
+    return computeLocalMarketStatus();
+  }
 }
 
 /** Deterministic PRNG so mock data is stable across requests (mirrors the frontend). */

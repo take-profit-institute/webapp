@@ -379,7 +379,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
           // 장 마감 중 즉시 주문은 시장가·지정가 모두 다음 개장(09:00) 예약으로 접수한다.
           // 프론트가 이 경우 버튼을 "예약"으로 표기하므로 지정가도 동일하게 변환해야 한다.
           // (지정가만 즉시 PlaceOrder로 보내면 trading이 OUTSIDE_TRADING_HOURS → 422로 거부.)
-          if (!getMarketStatus().open) {
+          if (!(await getMarketStatus()).open) {
             const reservation = await grpcPlaceReservation({
               userId: resolveActor(req),
               symbol: req.body.symbol,
@@ -449,7 +449,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
       }
 
       // ORD-012: 지정가이거나 장 마감이면 예약(pending), 정규장 시장가면 즉시 체결(filled).
-      const status = orderKind === 'limit' || !getMarketStatus().open ? 'pending' : 'filled';
+      const status = orderKind === 'limit' || !(await getMarketStatus()).open ? 'pending' : 'filled';
 
       const order: Transaction = {
         id: `t_${Date.now()}`,

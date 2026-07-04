@@ -24,7 +24,7 @@ const marketRoutes: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     '/status',
     { schema: { tags: ['market'], summary: '장 운영 상태 (정규장/마감)', response: { 200: MarketStatus } } },
-    async () => getMarketStatus(),
+    async () => await getMarketStatus(),
   );
 
   app.get(
