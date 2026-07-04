@@ -7,7 +7,7 @@
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 import type { CallContext, CallOptions } from "nice-grpc-common";
-import { PageRequest, PageResponse } from "../../common/v1/common";
+import { CommandMetadata, PageRequest, PageResponse } from "../../common/v1/common";
 
 export const protobufPackage = "candle.ranking.v1";
 
@@ -16,9 +16,23 @@ export interface RankingEntry {
   userId: string;
   nickname: string;
   returnRate: string;
+  totalAsset: string;
+  tradeCount: number;
+  rankingDate: string;
+}
+
+export interface FinalizeDailyRankingRequest {
+  rankingDate: string;
+  commandMetadata?: CommandMetadata | undefined;
+}
+
+export interface FinalizeDailyRankingResponse {
+  rankingDate: string;
+  rankedUserCount: number;
 }
 
 export interface ListRankingsRequest {
+  /** 서버 기본값은 20, 최대값은 100이다. */
   page?: PageRequest | undefined;
 }
 
@@ -28,6 +42,7 @@ export interface ListRankingsResponse {
 }
 
 export interface GetMyRankingRequest {
+  /** 인증 metadata의 x-user-id와 일치해야 한다. */
   userId: string;
 }
 
@@ -36,7 +51,7 @@ export interface GetMyRankingResponse {
 }
 
 function createBaseRankingEntry(): RankingEntry {
-  return { rank: "0", userId: "", nickname: "", returnRate: "" };
+  return { rank: "0", userId: "", nickname: "", returnRate: "", totalAsset: "0", tradeCount: 0, rankingDate: "" };
 }
 
 export const RankingEntry: MessageFns<RankingEntry> = {
@@ -52,6 +67,15 @@ export const RankingEntry: MessageFns<RankingEntry> = {
     }
     if (message.returnRate !== "") {
       writer.uint32(34).string(message.returnRate);
+    }
+    if (message.totalAsset !== "0") {
+      writer.uint32(40).int64(message.totalAsset);
+    }
+    if (message.tradeCount !== 0) {
+      writer.uint32(48).int32(message.tradeCount);
+    }
+    if (message.rankingDate !== "") {
+      writer.uint32(58).string(message.rankingDate);
     }
     return writer;
   },
@@ -95,6 +119,30 @@ export const RankingEntry: MessageFns<RankingEntry> = {
           message.returnRate = reader.string();
           continue;
         }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.totalAsset = reader.int64().toString();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.tradeCount = reader.int32();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.rankingDate = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -118,6 +166,21 @@ export const RankingEntry: MessageFns<RankingEntry> = {
         : isSet(object.return_rate)
         ? globalThis.String(object.return_rate)
         : "",
+      totalAsset: isSet(object.totalAsset)
+        ? globalThis.String(object.totalAsset)
+        : isSet(object.total_asset)
+        ? globalThis.String(object.total_asset)
+        : "0",
+      tradeCount: isSet(object.tradeCount)
+        ? globalThis.Number(object.tradeCount)
+        : isSet(object.trade_count)
+        ? globalThis.Number(object.trade_count)
+        : 0,
+      rankingDate: isSet(object.rankingDate)
+        ? globalThis.String(object.rankingDate)
+        : isSet(object.ranking_date)
+        ? globalThis.String(object.ranking_date)
+        : "",
     };
   },
 
@@ -135,6 +198,15 @@ export const RankingEntry: MessageFns<RankingEntry> = {
     if (message.returnRate !== "") {
       obj.returnRate = message.returnRate;
     }
+    if (message.totalAsset !== "0") {
+      obj.totalAsset = message.totalAsset;
+    }
+    if (message.tradeCount !== 0) {
+      obj.tradeCount = Math.round(message.tradeCount);
+    }
+    if (message.rankingDate !== "") {
+      obj.rankingDate = message.rankingDate;
+    }
     return obj;
   },
 
@@ -147,6 +219,179 @@ export const RankingEntry: MessageFns<RankingEntry> = {
     message.userId = object.userId ?? "";
     message.nickname = object.nickname ?? "";
     message.returnRate = object.returnRate ?? "";
+    message.totalAsset = object.totalAsset ?? "0";
+    message.tradeCount = object.tradeCount ?? 0;
+    message.rankingDate = object.rankingDate ?? "";
+    return message;
+  },
+};
+
+function createBaseFinalizeDailyRankingRequest(): FinalizeDailyRankingRequest {
+  return { rankingDate: "", commandMetadata: undefined };
+}
+
+export const FinalizeDailyRankingRequest: MessageFns<FinalizeDailyRankingRequest> = {
+  encode(message: FinalizeDailyRankingRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.rankingDate !== "") {
+      writer.uint32(10).string(message.rankingDate);
+    }
+    if (message.commandMetadata !== undefined) {
+      CommandMetadata.encode(message.commandMetadata, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): FinalizeDailyRankingRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseFinalizeDailyRankingRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.rankingDate = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.commandMetadata = CommandMetadata.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): FinalizeDailyRankingRequest {
+    return {
+      rankingDate: isSet(object.rankingDate)
+        ? globalThis.String(object.rankingDate)
+        : isSet(object.ranking_date)
+        ? globalThis.String(object.ranking_date)
+        : "",
+      commandMetadata: isSet(object.commandMetadata)
+        ? CommandMetadata.fromJSON(object.commandMetadata)
+        : isSet(object.command_metadata)
+        ? CommandMetadata.fromJSON(object.command_metadata)
+        : undefined,
+    };
+  },
+
+  toJSON(message: FinalizeDailyRankingRequest): unknown {
+    const obj: any = {};
+    if (message.rankingDate !== "") {
+      obj.rankingDate = message.rankingDate;
+    }
+    if (message.commandMetadata !== undefined) {
+      obj.commandMetadata = CommandMetadata.toJSON(message.commandMetadata);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<FinalizeDailyRankingRequest>): FinalizeDailyRankingRequest {
+    return FinalizeDailyRankingRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<FinalizeDailyRankingRequest>): FinalizeDailyRankingRequest {
+    const message = createBaseFinalizeDailyRankingRequest();
+    message.rankingDate = object.rankingDate ?? "";
+    message.commandMetadata = (object.commandMetadata !== undefined && object.commandMetadata !== null)
+      ? CommandMetadata.fromPartial(object.commandMetadata)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseFinalizeDailyRankingResponse(): FinalizeDailyRankingResponse {
+  return { rankingDate: "", rankedUserCount: 0 };
+}
+
+export const FinalizeDailyRankingResponse: MessageFns<FinalizeDailyRankingResponse> = {
+  encode(message: FinalizeDailyRankingResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.rankingDate !== "") {
+      writer.uint32(10).string(message.rankingDate);
+    }
+    if (message.rankedUserCount !== 0) {
+      writer.uint32(16).int32(message.rankedUserCount);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): FinalizeDailyRankingResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseFinalizeDailyRankingResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.rankingDate = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.rankedUserCount = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): FinalizeDailyRankingResponse {
+    return {
+      rankingDate: isSet(object.rankingDate)
+        ? globalThis.String(object.rankingDate)
+        : isSet(object.ranking_date)
+        ? globalThis.String(object.ranking_date)
+        : "",
+      rankedUserCount: isSet(object.rankedUserCount)
+        ? globalThis.Number(object.rankedUserCount)
+        : isSet(object.ranked_user_count)
+        ? globalThis.Number(object.ranked_user_count)
+        : 0,
+    };
+  },
+
+  toJSON(message: FinalizeDailyRankingResponse): unknown {
+    const obj: any = {};
+    if (message.rankingDate !== "") {
+      obj.rankingDate = message.rankingDate;
+    }
+    if (message.rankedUserCount !== 0) {
+      obj.rankedUserCount = Math.round(message.rankedUserCount);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<FinalizeDailyRankingResponse>): FinalizeDailyRankingResponse {
+    return FinalizeDailyRankingResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<FinalizeDailyRankingResponse>): FinalizeDailyRankingResponse {
+    const message = createBaseFinalizeDailyRankingResponse();
+    message.rankingDate = object.rankingDate ?? "";
+    message.rankedUserCount = object.rankedUserCount ?? 0;
     return message;
   },
 };
@@ -420,6 +665,14 @@ export const RankingServiceDefinition = {
   name: "RankingService",
   fullName: "candle.ranking.v1.RankingService",
   methods: {
+    finalizeDailyRanking: {
+      name: "FinalizeDailyRanking",
+      requestType: FinalizeDailyRankingRequest as typeof FinalizeDailyRankingRequest,
+      requestStream: false,
+      responseType: FinalizeDailyRankingResponse as typeof FinalizeDailyRankingResponse,
+      responseStream: false,
+      options: {},
+    },
     listRankings: {
       name: "ListRankings",
       requestType: ListRankingsRequest as typeof ListRankingsRequest,
@@ -440,6 +693,10 @@ export const RankingServiceDefinition = {
 } as const;
 
 export interface RankingServiceImplementation<CallContextExt = {}> {
+  finalizeDailyRanking(
+    request: FinalizeDailyRankingRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<FinalizeDailyRankingResponse>>;
   listRankings(
     request: ListRankingsRequest,
     context: CallContext & CallContextExt,
@@ -451,6 +708,10 @@ export interface RankingServiceImplementation<CallContextExt = {}> {
 }
 
 export interface RankingServiceClient<CallOptionsExt = {}> {
+  finalizeDailyRanking(
+    request: DeepPartial<FinalizeDailyRankingRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<FinalizeDailyRankingResponse>;
   listRankings(
     request: DeepPartial<ListRankingsRequest>,
     options?: CallOptions & CallOptionsExt,

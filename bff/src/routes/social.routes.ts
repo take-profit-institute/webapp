@@ -36,8 +36,10 @@ import {
   grpcCompleteContent,
   grpcToggleFavorite,
 } from '../grpc/learning.grpc-client';
+import { grpcGetMyRanking, grpcListRankings } from '../grpc/ranking.grpc-client';
 
 const DEV_LEARNING_USER_ID = '00000000-0000-0000-0000-000000000001';
+const DEV_RANKING_USER_ID = DEV_LEARNING_USER_ID;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /** learning-service는 user_id를 UUID로 파싱하므로 gRPC 호출 전 UUID 계약을 보장한다. */
@@ -46,18 +48,44 @@ function resolveLearningActor(req: { headers: Record<string, unknown> }): string
   return typeof header === 'string' && UUID_RE.test(header) ? header : DEV_LEARNING_USER_ID;
 }
 
+/** ranking-service도 request user_id와 x-user-id metadata가 같은 UUID여야 한다. */
+function resolveRankingActor(req: { headers: Record<string, unknown> }): string {
+  const header = req.headers['x-account-id'];
+  return typeof header === 'string' && UUID_RE.test(header) ? header : DEV_RANKING_USER_ID;
+}
+
 /** Ranking, missions and learning content — app-domain data (DB-backed later). */
 export const rankingRoutes: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     '/',
-    { schema: { tags: ['ranking'], summary: '투자 랭킹', response: { 200: Type.Array(RankingEntry) } } },
-    async () => rankings,
+    { schema: { tags: ['ranking'], summary: '투자 랭킹', response: { 200: Type.Array(RankingEntry), 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcListRankings(20);
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+      return rankings;
+    },
   );
 
   app.get(
     '/me',
-    { schema: { tags: ['ranking'], summary: '내 랭킹', response: { 200: RankingEntry, 404: ErrorResponse } } },
-    async (_req, reply) => {
+    { schema: { tags: ['ranking'], summary: '내 랭킹', response: { 200: RankingEntry, 404: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          const me = await grpcGetMyRanking(resolveRankingActor(req));
+          if (!me) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'No ranking for current user' });
+          return me;
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 404 | 500 | 503 | 504).send(mapped);
+        }
+      }
       const me = rankings.find((r) => r.userId === DEMO_USER_ID);
       if (!me) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'No ranking for current user' });
       return me;
