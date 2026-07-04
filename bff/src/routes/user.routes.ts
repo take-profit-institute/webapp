@@ -2,6 +2,7 @@ import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import { DEMO_USER_ID, getAccount } from '../data/account';
 import { missions, rankings } from '../data/social';
 import { demoUser, isNicknameAvailable } from '../data/user';
+import { env } from '../config/env';
 import {
   ErrorResponse,
   MyPageSummary,
@@ -14,6 +15,9 @@ import type { UserProfile as SharedUserProfile } from '@candle/shared';
 import type { UserProfile as GrpcUserProfile } from '../grpc/gen/candle/user/v1/user';
 import { mapGrpcError, requireIdempotencyKey } from '../grpc';
 import { parallelFetch } from '../grpc/parallel';
+import { grpcGetAccountSummary } from '../grpc/portfolio.grpc-client';
+import { grpcGetMissionSummary } from '../grpc/mission.grpc-client';
+import { grpcGetMyRankingSummary } from '../grpc/ranking.grpc-client';
 
 function toSharedProfile(grpc: GrpcUserProfile): SharedUserProfile {
   return {
@@ -114,13 +118,31 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
       const userId = extractUserId(req);
       if (!userId) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
       try {
-        const res = await req.server.grpc.user.getMe({ userId }, { userId });
-        if (!res.profile) return reply.code(404).send({ statusCode: 404, error: 'Not Found', message: '사용자를 찾을 수 없습니다.' });
-        const profile = toSharedProfile(res.profile);
+        if (env.dataSource === 'grpc') {
+          const { userMe, account } = await parallelFetch({
+            userMe: req.server.grpc.user.getMe({ userId }, { userId }),
+            account: grpcGetAccountSummary(userId),
+          });
+          if (!userMe.profile) return reply.code(404).send({ statusCode: 404, error: 'Not Found', message: '사용자를 찾을 수 없습니다.' });
+          const [rankingResult, missionResult] = await Promise.allSettled([
+            grpcGetMyRankingSummary(userId),
+            grpcGetMissionSummary(userId),
+          ]);
+          const ranking = rankingResult.status === 'fulfilled' ? rankingResult.value : undefined;
+          const missionSummary = missionResult.status === 'fulfilled' ? missionResult.value : { active: 0, completed: 0 };
+          return {
+            profile: toSharedProfile(userMe.profile),
+            performance: { totalReturnPercent: account.totalReturnPercent, totalProfitLoss: account.totalProfitLoss },
+            assets: { totalAsset: account.totalAsset, cash: account.cash, investedAmount: account.investedAmount },
+            ranking,
+            challenges: missionSummary,
+          };
+        }
+
         const account = getAccount();
         const myRanking = rankings.find((r) => r.userId === DEMO_USER_ID);
         return {
-          profile,
+          profile: demoUser,
           performance: { totalReturnPercent: account.totalReturnPercent, totalProfitLoss: account.totalProfitLoss },
           assets: { totalAsset: account.totalAsset, cash: account.cash, investedAmount: account.investedAmount },
           ranking: myRanking ? { rank: myRanking.rank, returnPercent: myRanking.returnPercent } : undefined,

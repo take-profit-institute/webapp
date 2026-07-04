@@ -3,7 +3,21 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Camera, Bell, Shield, HelpCircle, ChevronRight, TrendingUp, Award, Zap, BookOpen, Target, LogOut, Check, X, Pencil, UserMinus, Sun, Moon } from 'lucide-react';
 import Link from 'next/link';
-import { checkNickname, getAccount, getMyPageSummary, logout, resetAccount, updateMyProfile, withdraw, useApi } from '@/apis';
+import {
+  checkNickname,
+  getAccount,
+  getHoldings,
+  getLearnProgress,
+  getMissions,
+  getMyPageSummary,
+  getPortfolioHistory,
+  getTransactions,
+  logout,
+  resetAccount,
+  updateMyProfile,
+  withdraw,
+  useApi,
+} from '@/apis';
 import { useAuthStore, useUIStore } from '@/store/useStore';
 import { secureTokenStore } from '@/lib/secure-token-store';
 import type { InvestStyle } from '@/lib/api-types';
@@ -19,25 +33,28 @@ const STYLE_TO_ENUM: Record<string, InvestStyle> = {
   '공격형': 'aggressive',
   '모멘텀형': 'momentum',
 };
-
-const achievements = [
-  { emoji: '🎯', label: '첫 거래', earned: true },
-  { emoji: '🌏', label: '해외 개척자', earned: true },
-  { emoji: '🏆', label: 'TOP 10', earned: true },
-  { emoji: '💎', label: '다이아', earned: false },
-  { emoji: '🚀', label: '로켓', earned: false },
-  { emoji: '👑', label: '랭킹왕', earned: false },
-];
+const ENUM_TO_STYLE: Record<InvestStyle, string> = {
+  conservative: '안정형',
+  balanced: '균형형',
+  aggressive: '공격형',
+  momentum: '모멘텀형',
+};
 
 export default function MyPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('프로필');
-  const [investStyle, setInvestStyle] = useState('균형형');
+  const [investStyleOverride, setInvestStyleOverride] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const { data: account } = useApi(() => getAccount(), []);
-  const { data: summary } = useApi(() => getMyPageSummary(), []);
-  const isActive = account?.status !== 'inactive';
+  const { data: summary, loading: summaryLoading, error: summaryError } = useApi(() => getMyPageSummary(), []);
+  const { data: transactions } = useApi(() => getTransactions({ limit: 100 }), []);
+  const { data: holdings } = useApi(() => getHoldings({ includeInactive: true }), []);
+  const { data: portfolioHistory } = useApi(() => getPortfolioHistory(180), []);
+  const { data: learnProgress } = useApi(() => getLearnProgress(), []);
+  const { data: missions } = useApi(() => getMissions(), []);
+  const isActive = account?.status === 'active';
+  const accountStatusLabel = account ? (isActive ? '활성 계좌' : '비활성 계좌') : '계좌 확인 중';
   const clearSession = useAuthStore((s) => s.clearSession);
   const { theme, toggleTheme } = useUIStore();
 
@@ -45,9 +62,41 @@ export default function MyPage() {
   // Optimistic overrides (BFF is stateless, so edits don't survive a refetch).
   const [avatarOverride, setAvatarOverride] = useState<string | null>(null);
   const [nameOverride, setNameOverride] = useState<string | null>(null);
-  const avatar = avatarOverride ?? profile?.avatar ?? '🐯';
-  const displayName = nameOverride ?? profile?.username ?? '박유빈';
-  const role = profile?.role ?? 'USER';
+  const avatar = avatarOverride ?? profile?.avatar ?? '';
+  const displayName = nameOverride ?? profile?.username ?? (summaryLoading ? '불러오는 중' : '사용자 정보 없음');
+  const role = profile?.role;
+  const investStyle = investStyleOverride ?? (profile?.investStyle ? ENUM_TO_STYLE[profile.investStyle] : '미설정');
+
+  const filledTransactions = (transactions ?? []).filter((tx) => tx.status === 'filled');
+  const activeHoldings = (holdings ?? []).filter((h) => h.isActive);
+  const bestHolding = [...activeHoldings].sort((a, b) => b.profitLossPercent - a.profitLossPercent)[0];
+  const worstHolding = [...activeHoldings].sort((a, b) => a.profitLossPercent - b.profitLossPercent)[0];
+  const winningHoldings = activeHoldings.filter((h) => h.profitLoss > 0).length;
+  const losingHoldings = activeHoldings.filter((h) => h.profitLoss < 0).length;
+  const winRate = activeHoldings.length > 0 ? (winningHoldings / activeHoldings.length) * 100 : null;
+  const monthlyReturns = (() => {
+    const byMonth = new Map<string, { first: number; last: number }>();
+    for (const point of portfolioHistory ?? []) {
+      const month = point.date.slice(0, 7);
+      const current = byMonth.get(month);
+      byMonth.set(month, current ? { first: current.first, last: point.value } : { first: point.value, last: point.value });
+    }
+    return [...byMonth.entries()].slice(-6).map(([month, values]) => ({
+      month: `${Number(month.slice(5))}월`,
+      pct: values.first > 0 ? ((values.last - values.first) / values.first) * 100 : 0,
+    }));
+  })();
+  const activeMissionCount = summary?.challenges.active ?? missions?.filter((m) => !m.completed).length;
+  const learnTotal = learnProgress?.total;
+  const achievements = [
+    { emoji: '🎯', label: '첫 거래', earned: filledTransactions.length > 0 },
+    { emoji: '📈', label: '수익 보유', earned: winningHoldings > 0 },
+    { emoji: '🏆', label: 'TOP 10', earned: (summary?.ranking?.rank ?? Infinity) <= 10 },
+    { emoji: '💎', label: '5종목 보유', earned: activeHoldings.length >= 5 },
+    { emoji: '🚀', label: '10% 수익', earned: (summary?.performance.totalReturnPercent ?? 0) >= 10 },
+    { emoji: '👑', label: '랭킹 1위', earned: summary?.ranking?.rank === 1 },
+  ];
+  const earnedAchievements = achievements.filter((a) => a.earned).length;
 
   // Avatar picker (USER-010)
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
@@ -60,7 +109,7 @@ export default function MyPage() {
   const [withdrawing, setWithdrawing] = useState(false);
 
   const handleSelectStyle = (label: string) => {
-    setInvestStyle(label);
+    setInvestStyleOverride(label);
     // Fire-and-forget — UI updates immediately, BFF echoes the change.
     void updateMyProfile({ investStyle: STYLE_TO_ENUM[label] }).catch(() => {});
   };
@@ -146,7 +195,7 @@ export default function MyPage() {
         <div className="flex items-center gap-4">
           <div className="relative shrink-0">
             <div className="w-14 h-14 md:w-20 md:h-20 rounded-2xl flex items-center justify-center text-3xl md:text-4xl"
-              style={{ background: 'var(--bg-elevated)', border: '2px solid var(--border-normal)' }}>{avatar}</div>
+              style={{ background: 'var(--bg-elevated)', border: '2px solid var(--border-normal)' }}>{avatar || '?'}</div>
             <button onClick={() => setShowAvatarPicker(v => !v)} title="프로필 이미지 변경"
               className="absolute -bottom-1 -right-1 w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center"
               style={{ background: 'var(--amber)', color: '#000' }}>
@@ -190,7 +239,7 @@ export default function MyPage() {
                   <button onClick={startEditNick} className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ color: 'var(--text-muted)' }} title="닉네임 변경"><Pencil size={12} /></button>
                 </>
               )}
-              <span className="badge-amber text-xs">균형형</span>
+              <span className="badge-amber text-xs">{investStyle}</span>
               {/* 사용자 권한 (AUTH-011/012) */}
               <span className="text-xs px-2 py-0.5 rounded-full font-bold"
                 style={{
@@ -199,21 +248,21 @@ export default function MyPage() {
                   border: '1px solid var(--border-subtle)',
                   fontFamily: 'JetBrains Mono',
                 }}>
-                {role === 'ADMIN' ? '👑 ADMIN' : 'USER'}
+                {role === 'ADMIN' ? 'ADMIN' : role ?? '-'}
               </span>
               {/* 계좌 상태 (ACC-005/006) */}
               <span className="text-xs px-2 py-0.5 rounded-full"
                 style={{
-                  background: isActive ? 'var(--gain-dim)' : 'var(--loss-dim)',
-                  color: isActive ? 'var(--gain)' : 'var(--loss)',
+                  background: account ? (isActive ? 'var(--gain-dim)' : 'var(--loss-dim)') : 'var(--bg-surface)',
+                  color: account ? (isActive ? 'var(--gain)' : 'var(--loss)') : 'var(--text-secondary)',
                   fontFamily: 'Noto Sans KR',
                 }}>
-                {isActive ? '활성 계좌' : '비활성 계좌'}
+                {accountStatusLabel}
               </span>
             </div>
             {/* 이메일(USER-011) · 가입일(USER-022) */}
             <p className="text-xs mb-2 truncate" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
-              {profile?.email ?? 'demo@candle.app'}
+              {profile?.email ?? (summaryError ? '사용자 정보를 불러오지 못했습니다' : '이메일 정보 없음')}
               {profile?.createdAt && <span> · 가입일 {profile.createdAt.slice(0, 10).replace(/-/g, '.')}</span>}
             </p>
             <div className="flex items-center gap-3 flex-wrap">
@@ -265,7 +314,9 @@ export default function MyPage() {
           </div>
           <div>
             <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>미션</p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>5개 진행 중</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+              {activeMissionCount != null ? `${activeMissionCount}개 진행 중` : '불러오는 중'}
+            </p>
           </div>
         </Link>
         <Link href="/learn" className="card p-3 flex items-center gap-2.5" style={{ textDecoration: 'none' }}>
@@ -274,7 +325,9 @@ export default function MyPage() {
           </div>
           <div>
             <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>학습</p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>9개 콘텐츠</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+              {learnTotal != null ? `${learnTotal}개 콘텐츠` : '불러오는 중'}
+            </p>
           </div>
         </Link>
       </div>
@@ -301,7 +354,7 @@ export default function MyPage() {
             <div className="flex items-center gap-2 mb-3">
               <Award size={15} style={{ color: 'var(--amber)' }} />
               <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>업적</h3>
-              <span className="badge-amber ml-auto">3/6 달성</span>
+              <span className="badge-amber ml-auto">{earnedAchievements}/6 달성</span>
             </div>
             <div className="grid grid-cols-3 md:grid-cols-6 gap-2 md:gap-3">
               {achievements.map(a => (
@@ -347,10 +400,30 @@ export default function MyPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: '승률', value: '66.7%', sub: '16승 8패', color: 'var(--gain)' },
-              { label: '평균 보유기간', value: '12.4일', sub: '단기 성향', color: 'var(--amber)' },
-              { label: '최대 수익 종목', value: '엔비디아', sub: '+34.2%', color: 'var(--gain)' },
-              { label: '최대 손실 종목', value: '카카오', sub: '-8.3%', color: 'var(--loss)' },
+              {
+                label: '보유 승률',
+                value: winRate == null ? '-' : `${winRate.toFixed(1)}%`,
+                sub: `${winningHoldings}승 ${losingHoldings}패`,
+                color: 'var(--gain)',
+              },
+              {
+                label: '거래 건수',
+                value: `${filledTransactions.length}`,
+                sub: `보유 ${activeHoldings.length}종목`,
+                color: 'var(--amber)',
+              },
+              {
+                label: '최대 수익 종목',
+                value: bestHolding?.name ?? '-',
+                sub: bestHolding ? `${bestHolding.profitLossPercent >= 0 ? '+' : ''}${bestHolding.profitLossPercent.toFixed(1)}%` : '보유 없음',
+                color: 'var(--gain)',
+              },
+              {
+                label: '최대 손실 종목',
+                value: worstHolding?.name ?? '-',
+                sub: worstHolding ? `${worstHolding.profitLossPercent >= 0 ? '+' : ''}${worstHolding.profitLossPercent.toFixed(1)}%` : '보유 없음',
+                color: 'var(--loss)',
+              },
             ].map(({ label, value, sub, color }) => (
               <div key={label} className="card p-4">
                 <p className="text-xs mb-1" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</p>
@@ -367,14 +440,14 @@ export default function MyPage() {
               <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>월별 수익률</h3>
             </div>
             <div className="flex items-end gap-2 h-24">
-              {[{ month: '1월', pct: 3.2 }, { month: '2월', pct: -1.4 }, { month: '3월', pct: 5.8 }, { month: '4월', pct: 2.1 }, { month: '5월', pct: -0.8 }, { month: '6월', pct: 4.7 }].map(({ month, pct }) => {
+              {(monthlyReturns.length > 0 ? monthlyReturns : [{ month: '-', pct: 0 }]).map(({ month, pct }) => {
                 const isPos = pct >= 0;
                 return (
                   <div key={month} className="flex-1 flex flex-col items-center justify-end gap-1">
                     <span className="text-[9px] md:text-xs font-mono" style={{ color: isPos ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
-                      {isPos ? '+' : ''}{pct}%
+                      {month === '-' ? '-' : `${isPos ? '+' : ''}${pct.toFixed(1)}%`}
                     </span>
-                    <div className="w-full rounded-t-sm" style={{ height: `${Math.abs(pct) * 8}px`, background: isPos ? 'var(--gain)' : 'var(--loss)', opacity: 0.8 }} />
+                    <div className="w-full rounded-t-sm" style={{ height: `${Math.max(4, Math.min(Math.abs(pct) * 8, 88))}px`, background: isPos ? 'var(--gain)' : 'var(--loss)', opacity: 0.8 }} />
                     <span className="text-[9px] md:text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{month}</span>
                   </div>
                 );

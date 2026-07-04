@@ -40,8 +40,8 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
   const { data: myOrders, refetch: refetchOrders } = useApi(() => getOrders({ symbol }), [symbol]);
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
 
-  // 실시간 시세 — WebSocket 연결 후 해당 종목 구독, REST 데이터가 fallback
-  useMarketSocket([symbol]);
+  // 실시간 시세 — 정규장일 때만 WebSocket 구독, REST 데이터가 fallback
+  useMarketSocket([symbol], marketStatus?.open === true);
   const liveQuote = useMarketStore((s) => s.liveQuotes[symbol]);
 
   // 당일 틱 히스토리 (선언을 useEffect 앞에)

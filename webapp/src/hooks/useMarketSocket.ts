@@ -9,18 +9,29 @@ import { API_BASE_URL } from '@/apis';
 // 핸드셰이크에서 401이 나므로 dev/prod 모두 이 값을 설정해야 한다. http→ws / https→wss 자동 변환.
 const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE_URL ?? API_BASE_URL.replace(/^http/, 'ws');
 
-export function useMarketSocket(symbols: string[]) {
+export function useMarketSocket(symbols: string[], enabled = true) {
   const wsRef = useRef<WebSocket | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryRef = useRef(0);
+  const connectRef = useRef<() => void>(() => {});
   // Keep a stable ref to the latest symbols so reconnect picks them up
   const symbolsRef = useRef<string[]>(symbols);
   const setLiveQuote = useMarketStore((s) => s.setLiveQuote);
 
   useEffect(() => { symbolsRef.current = symbols; }, [symbols]);
 
+  const clearConnection = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    wsRef.current?.close();
+    wsRef.current = null;
+    retryRef.current = 0;
+  }, []);
+
   const connect = useCallback(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !enabled || symbolsRef.current.length === 0) return;
 
     const ws = new WebSocket(`${WS_BASE}/ws`);
     wsRef.current = ws;
@@ -43,43 +54,54 @@ export function useMarketSocket(symbols: string[]) {
     };
 
     ws.onclose = () => {
+      if (!enabled) return;
       // Exponential backoff: 1 s → 2 s → 4 s … capped at 30 s
       const delay = Math.min(1000 * 2 ** retryRef.current, 30_000);
       retryRef.current += 1;
-      timerRef.current = setTimeout(connect, delay);
+      timerRef.current = setTimeout(() => connectRef.current(), delay);
     };
 
     ws.onerror = () => ws.close();
-  }, [setLiveQuote]);
+  }, [enabled, setLiveQuote]);
 
   useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
+
+  useEffect(() => {
+    if (!enabled || symbols.length === 0) {
+      clearConnection();
+      return;
+    }
+
     connect();
     return () => {
-      timerRef.current && clearTimeout(timerRef.current);
-      wsRef.current?.close();
-      wsRef.current = null;
+      clearConnection();
     };
-  }, [connect]);
+  }, [clearConnection, connect, enabled, symbols.length]);
 
   // Sync new symbols to an already-open socket
   useEffect(() => {
+    if (!enabled) return;
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN || symbols.length === 0) return;
     const msg: WsClientMessage = { type: 'subscribe', symbols };
     ws.send(JSON.stringify(msg));
-  }, [symbols]);
+  }, [enabled, symbols]);
 
   const subscribe = useCallback((syms: string[]) => {
+    if (!enabled) return;
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify({ type: 'subscribe', symbols: syms } satisfies WsClientMessage));
-  }, []);
+  }, [enabled]);
 
   const unsubscribe = useCallback((syms: string[]) => {
+    if (!enabled) return;
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify({ type: 'unsubscribe', symbols: syms } satisfies WsClientMessage));
-  }, []);
+  }, [enabled]);
 
   return { subscribe, unsubscribe };
 }
