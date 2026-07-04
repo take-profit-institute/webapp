@@ -81,13 +81,105 @@ import {
   WatchlistItem,
   WatchlistSymbolParams,
 } from '@candle/shared';
-import type { OrderKind } from '@candle/shared';
+import type { OrderKind, Reservation as SharedReservation } from '@candle/shared';
+
+const ORDER_PRICE_TICK_MAX_AGE_MS = 10 * 60 * 1000;
 
 const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
   const provider = getMarketProvider();
 
   // 보유 종목 평가금액 계산용 현재가 resolver. grpc 모드에서 portfolio 보유목록과 머지한다.
   const resolvePrice: PriceResolver = async (symbol) => (await provider.getStock(symbol))?.price;
+
+  async function resolveOrderPrice(
+    symbol: string,
+    orderKind: OrderKind,
+    clientPrice: number | undefined,
+  ): Promise<{ price: number } | { error: { statusCode: 400 | 404 | 503; error: string; message: string } }> {
+    if (orderKind === 'limit') {
+      if (clientPrice == null) {
+        return { error: { statusCode: 400, error: 'Bad Request', message: '지정가 주문은 가격이 필요합니다.' } };
+      }
+      if (!Number.isInteger(clientPrice) || clientPrice < 1) {
+        return { error: { statusCode: 400, error: 'Bad Request', message: '지정가는 1원 단위(정수)만 가능합니다.' } };
+      }
+      return { price: clientPrice };
+    }
+
+    const latestTick = app.tickStore.getLatest(symbol);
+    if (latestTick) {
+      const tickAge = Date.now() - Date.parse(latestTick.timestamp);
+      if (Number.isFinite(latestTick.price) && latestTick.price >= 1 && tickAge >= 0 && tickAge <= ORDER_PRICE_TICK_MAX_AGE_MS) {
+        return { price: latestTick.price };
+      }
+    }
+
+    const stock = await provider.getStock(symbol);
+    if (!stock) {
+      return { error: { statusCode: 404, error: 'Not Found', message: `Unknown symbol: ${symbol}` } };
+    }
+    if (!Number.isFinite(stock.price) || stock.price < 1) {
+      return {
+        error: {
+          statusCode: 503,
+          error: 'Service Unavailable',
+          message: '현재가를 조회할 수 없습니다. 잠시 후 다시 시도해주세요.',
+        },
+      };
+    }
+    return { price: stock.price };
+  }
+
+  function nextScheduledDate(): string {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  }
+
+  function reservationToPendingTransaction(reservation: SharedReservation, fallbackPrice: number): Transaction {
+    const price = reservation.price ?? fallbackPrice;
+    const amount = price * reservation.quantity;
+    return {
+      id: reservation.id,
+      type: reservation.type,
+      orderKind: reservation.orderKind === 'limit' ? 'limit' : 'market',
+      symbol: reservation.symbol,
+      name: reservation.name,
+      quantity: reservation.quantity,
+      price,
+      amount,
+      fee: reservation.fee,
+      status: 'pending',
+      executedAt: reservation.createdAt,
+    };
+  }
+
+  async function resolveReservationPrice(
+    symbol: string,
+    timing: 'open' | 'prev_close' | 'today_close',
+    orderKind: 'market' | 'limit' | 'after_hours_close',
+    clientPrice: number | undefined,
+  ): Promise<{ price: number } | { error: { statusCode: 400 | 404 | 503; error: string; message: string } }> {
+    if (orderKind === 'limit') return resolveOrderPrice(symbol, 'limit', clientPrice);
+
+    const stock = await provider.getStock(symbol);
+    if (!stock) {
+      return { error: { statusCode: 404, error: 'Not Found', message: `Unknown symbol: ${symbol}` } };
+    }
+    const price = timing === 'prev_close' ? stock.prevClose : stock.price;
+    if (!Number.isFinite(price) || price < 1) {
+      return {
+        error: {
+          statusCode: 503,
+          error: 'Service Unavailable',
+          message: timing === 'prev_close'
+            ? '전일종가를 조회할 수 없습니다. 잠시 후 다시 시도해주세요.'
+            : '시간외종가를 조회할 수 없습니다. 잠시 후 다시 시도해주세요.',
+        },
+      };
+    }
+    return { price };
+  }
 
   app.get(
     '/',
@@ -280,13 +372,30 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
       // 실제 gRPC 경로 — TradingService.PlaceOrder (멱등성 키를 metadata+command_metadata로 전파).
       if (env.dataSource === 'grpc') {
         try {
+          const orderKind: OrderKind = req.body.orderKind ?? 'market';
+          const resolved = await resolveOrderPrice(req.body.symbol, orderKind, req.body.price);
+          if ('error' in resolved) return reply.code(resolved.error.statusCode).send(resolved.error);
+          if (orderKind === 'market' && !getMarketStatus().open) {
+            const reservation = await grpcPlaceReservation({
+              userId: resolveActor(req),
+              symbol: req.body.symbol,
+              type: req.body.type,
+              timing: 'open',
+              orderKind: 'market',
+              quantity: req.body.quantity,
+              price: resolved.price,
+              scheduledDate: nextScheduledDate(),
+              idempotencyKey,
+            });
+            return reply.status(201).send(reservationToPendingTransaction(reservation, resolved.price));
+          }
           const tx = await grpcPlaceOrder({
             userId: resolveActor(req),
             symbol: req.body.symbol,
             type: req.body.type,
-            orderKind: req.body.orderKind ?? 'market',
+            orderKind,
             quantity: req.body.quantity,
-            price: req.body.price ?? 0,
+            price: resolved.price,
             idempotencyKey,
           });
           return reply.status(201).send(tx);
@@ -505,6 +614,8 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
           return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '실행 예정일은 내일부터 7일 이내여야 합니다.' });
         }
         try {
+          const resolved = await resolveReservationPrice(req.body.symbol, timing, orderKind, req.body.price);
+          if ('error' in resolved) return reply.code(resolved.error.statusCode).send(resolved.error);
           const r = await grpcPlaceReservation({
             userId: resolveActor(req),
             symbol: req.body.symbol,
@@ -512,7 +623,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
             timing,
             orderKind,
             quantity,
-            price: orderKind === 'limit' ? req.body.price! : 0,
+            price: resolved.price,
             scheduledDate,
             idempotencyKey,
           });

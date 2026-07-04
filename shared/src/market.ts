@@ -66,6 +66,7 @@ export const StockDetail = Type.Composite(
     Type.Object({
       high52w: Type.Number(),
       low52w: Type.Number(),
+      afterHoursClose: Type.Optional(Type.Number({ description: '시간외종가/최근 확정 종가. 없으면 price 사용' })),
       description: Type.String(),
       financials: StockFinancials,
     }),

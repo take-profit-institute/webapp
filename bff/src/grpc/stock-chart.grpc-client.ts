@@ -44,6 +44,7 @@ export interface PriceStats {
   low52w: number;
   latestClose: number;
   latestVolume: number;
+  asOf?: string;
 }
 
 export async function grpcGetPriceStats(symbol: string, windowDays = 0): Promise<PriceStats> {
@@ -54,6 +55,16 @@ export async function grpcGetPriceStats(symbol: string, windowDays = 0): Promise
     low52w: Number(res.low),
     latestClose: Number(res.latestClose),
     latestVolume: Number(res.latestVolume),
+    asOf: res.asOf?.toISOString(),
+  };
+}
+
+/** 기준 시각 직전의 마지막 확정 일봉 종가. 주말/휴일이면 직전 거래일 종가가 온다. */
+export async function grpcGetPreviousClose(symbol: string, date = new Date()): Promise<{ prevClose: number; prevOpenTime?: string }> {
+  const res = await getClient().getPreviousClose({ code: symbol, date });
+  return {
+    prevClose: Number(res.prevClose),
+    prevOpenTime: res.prevOpenTime?.toISOString(),
   };
 }
 

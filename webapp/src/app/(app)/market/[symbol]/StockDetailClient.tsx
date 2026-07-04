@@ -188,12 +188,13 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
   const rsvDateFixed = timing === 'prev_close'; // 전일종가는 내일 고정 (RSV-004)
   const rsvScheduledDate = rsvDateFixed ? tomorrow : rsvDate;
   const rsvPriceNum = parseInt(rsvPrice) || 0;
+  const afterHoursClose = stock.afterHoursClose ?? stock.price;
   const rsvEffectivePrice =
     timing === 'open' && openKind === 'limit'
       ? rsvPriceNum
       : timing === 'prev_close'
         ? stock.prevClose
-        : stock.price;
+        : afterHoursClose;
   const rsvTotal = qty * rsvEffectivePrice;
   const rsvFee = Math.round(rsvTotal * 0.00015);
   const TIMING_LABEL: Record<string, string> = {

@@ -4,6 +4,7 @@ import { BFF_QUOTES_CHANNEL } from './market-channels';
 
 interface TickStoreService {
   getHistory(symbol: string): IntradayTick[];
+  getLatest(symbol: string): IntradayTick | undefined;
 }
 
 declare module 'fastify' {
@@ -32,5 +33,6 @@ export default fp(async (app) => {
 
   app.decorate('tickStore', {
     getHistory: (symbol: string) => store.get(symbol) ?? [],
+    getLatest: (symbol: string) => store.get(symbol)?.at(-1),
   });
 });
