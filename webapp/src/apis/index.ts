@@ -52,6 +52,7 @@ export {
   amendReservation,
   getHoldings,
   getHolding,
+  getPositions,
   getTransactions,
   getPortfolioHistory,
   getAllocation,

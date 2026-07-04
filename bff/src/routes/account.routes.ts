@@ -58,6 +58,7 @@ import { ErrorResponse } from '@candle/shared';
 import {
   Account,
   AccountBalance,
+  AccountPositions,
   AddWatchlistBody,
   AmendOrderBody,
   AmendReservationBody,
@@ -238,6 +239,71 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
           const quote = getQuote(h.symbol);
           return recalcHolding(h, quote?.price ?? h.currentPrice);
         });
+    },
+  );
+
+  // 포트폴리오 화면 조립(BFF): 실보유 + 예약(대기) 포지션을 함께 내려준다.
+  // 예약은 TradingService가 소유하므로 여기서 복제하지 않고 ListReservations(RESERVED)를
+  // 병합만 한다. 시장가 예약은 체결가 미정이라 현재가로 예상금액을 추정한다(표시 전용).
+  app.get(
+    '/positions',
+    { schema: { tags: ['account'], summary: '포트폴리오 포지션(보유+예약 대기) 조립', response: { 200: AccountPositions, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          const userId = resolveActor(req);
+          const [holdingsList, reservations] = await Promise.all([
+            grpcListHoldings(userId, false, resolvePrice),
+            grpcListReservations({ userId, status: 'reserved' }),
+          ]);
+          const reserved = await Promise.all(
+            reservations.map(async (r) => {
+              const stock = await provider.getStock(r.symbol);
+              const unitPrice = r.price ?? stock?.price ?? 0;
+              return {
+                reservationId: r.id,
+                symbol: r.symbol,
+                name: stock?.name ?? r.symbol,
+                side: r.type,
+                timing: r.timing,
+                orderKind: r.orderKind,
+                quantity: r.quantity,
+                price: r.price,
+                estimatedAmount: Math.round(unitPrice * r.quantity),
+                scheduledDate: r.scheduledDate,
+                status: 'reserved' as const,
+              };
+            }),
+          );
+          return { holdings: holdingsList, reserved };
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+      // mock: 활성 보유 + reserved 예약
+      const mockHoldings = holdings
+        .filter((h) => h.isActive)
+        .map((h) => recalcHolding(h, getQuote(h.symbol)?.price ?? h.currentPrice));
+      const mockReserved = demoReservations
+        .filter((r) => r.status === 'reserved')
+        .map((r) => {
+          const unitPrice = r.price ?? getQuote(r.symbol)?.price ?? 0;
+          return {
+            reservationId: r.id,
+            symbol: r.symbol,
+            name: r.name,
+            side: r.type,
+            timing: r.timing,
+            orderKind: r.orderKind,
+            quantity: r.quantity,
+            price: r.price,
+            estimatedAmount: Math.round(unitPrice * r.quantity),
+            scheduledDate: r.scheduledDate,
+            status: 'reserved' as const,
+          };
+        });
+      return { holdings: mockHoldings, reserved: mockReserved };
     },
   );
 

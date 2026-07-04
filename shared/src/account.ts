@@ -196,6 +196,29 @@ export const Reservation = Type.Object(
 );
 export type Reservation = Static<typeof Reservation>;
 
+/** 포트폴리오 화면의 예약(대기) 포지션 — 아직 체결 전이라 손익 없이 표시 전용. */
+export const ReservedPosition = Type.Object({
+  reservationId: Type.String(),
+  symbol: Type.String(),
+  name: Type.String(),
+  side: TransactionType,
+  timing: ReservationTiming,
+  orderKind: ReservationKind,
+  quantity: Type.Number(),
+  price: Type.Optional(Type.Number({ description: '지정가일 때만' })),
+  estimatedAmount: Type.Number({ description: '현재가(지정가면 지정가) 기준 예상 체결금액' }),
+  scheduledDate: Type.String({ description: '실행 예정일 (YYYY-MM-DD)' }),
+  status: Type.Literal('reserved'),
+});
+export type ReservedPosition = Static<typeof ReservedPosition>;
+
+/** 포트폴리오 화면 조립 DTO: 실보유(holdings) + 예약 대기(reserved) 포지션. */
+export const AccountPositions = Type.Object({
+  holdings: Type.Array(Holding),
+  reserved: Type.Array(ReservedPosition),
+});
+export type AccountPositions = Static<typeof AccountPositions>;
+
 export const CreateReservationBody = Type.Object({
   symbol: Type.String(),
   type: TransactionType,

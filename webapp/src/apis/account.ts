@@ -2,6 +2,7 @@
 import type {
   Account,
   AccountBalance,
+  AccountPositions,
   AmendOrderBody,
   AmendReservationBody,
   CreateReservationBody,
@@ -73,6 +74,11 @@ export function getHoldings(params: { includeInactive?: boolean } = {}): Promise
 /** 보유 종목 상세 조회 (HLD-003). */
 export function getHolding(symbol: string): Promise<Holding> {
   return apiClient.get<Holding>(`/api/account/holdings/${encodeURIComponent(symbol)}`);
+}
+
+/** 포트폴리오 포지션 조립: 실보유 + 예약(대기) 포지션. */
+export function getPositions(): Promise<AccountPositions> {
+  return apiClient.get<AccountPositions>('/api/account/positions');
 }
 
 /** 거래 내역. */

@@ -9,6 +9,7 @@ import {
   getHoldings,
   getOrders,
   getPortfolioHistory,
+  getPositions,
   useApi,
 } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
@@ -21,6 +22,13 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   filled: { label: '체결', color: 'var(--gain)', bg: 'var(--gain-dim)' },
   pending: { label: '대기', color: 'var(--amber)', bg: 'var(--amber-subtle)' },
   cancelled: { label: '취소', color: 'var(--text-muted)', bg: 'var(--bg-surface)' },
+};
+
+const RSV_TIMING_LABEL: Record<string, string> = {
+  open: '시가(09:00)', prev_close: '전일종가(08:30)', today_close: '당일종가(15:40)',
+};
+const RSV_KIND_LABEL: Record<string, string> = {
+  market: '시장가', limit: '지정가', after_hours_close: '시간외종가',
 };
 
 export default function PortfolioPage() {
@@ -38,6 +46,7 @@ export default function PortfolioPage() {
   const { data: orders, refetch: refetchOrders } = useApi(() => getOrders(), []);
   const { data: history } = useApi(() => getPortfolioHistory(30), []);
   const { data: allocation } = useApi(() => getAllocation(), []);
+  const { data: positions } = useApi(() => getPositions(), []);
 
   if (loading) {
     return (
@@ -56,6 +65,7 @@ export default function PortfolioPage() {
 
   const myHoldings = holdings.filter((h) => h.isActive);
   const inactiveHoldings = holdings.filter((h) => !h.isActive);
+  const reserved = positions?.reserved ?? [];
   const orderList = orders ?? [];
   const portfolioHistory = history ?? [];
   const sectorAllocation = allocation ?? [];
@@ -332,6 +342,36 @@ export default function PortfolioPage() {
                 )}
               </div>
             ))}
+
+            {/* 예약 대기 — 아직 체결 전 예약 포지션 (BFF /positions 조립) */}
+            {reserved.length > 0 && (
+              <div className="mt-5">
+                <div className="px-5 py-2 flex items-center gap-2">
+                  <span className="text-xs font-bold" style={{ color: 'var(--amber)', fontFamily: 'Noto Sans KR' }}>예약 대기</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--amber-subtle)', color: 'var(--amber)', fontFamily: 'JetBrains Mono' }}>{reserved.length}</span>
+                </div>
+                {reserved.map((r) => (
+                  <div key={r.reservationId} className="px-5 py-3 flex items-center justify-between"
+                    style={{ borderBottom: '1px solid var(--border-subtle)', borderLeft: '2px dashed var(--amber)', background: 'var(--amber-subtle)' }}>
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{r.name}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--bg-surface)', color: r.side === 'buy' ? 'var(--gain)' : 'var(--loss)', fontFamily: 'Noto Sans KR' }}>
+                          {r.side === 'buy' ? '매수' : '매도'} 예약
+                        </span>
+                      </div>
+                      <span className="text-[11px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+                        {RSV_TIMING_LABEL[r.timing] ?? r.timing} · {RSV_KIND_LABEL[r.orderKind] ?? r.orderKind} · {r.scheduledDate}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="text-sm font-mono font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono' }}>{r.quantity}주</span>
+                      <span className="text-[11px] font-mono" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>예상 {r.estimatedAmount.toLocaleString()}원</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

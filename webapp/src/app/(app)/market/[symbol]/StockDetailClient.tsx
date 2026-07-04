@@ -73,7 +73,16 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
   const [activeTab, setActiveTab] = useState('차트');
   const [orderStatus, setOrderStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [placing, setPlacing] = useState(false);
+  // 접수 성공 직후 버튼을 "완료" 상태로 잠깐 바꿔 피드백을 준다(2.5초 후 원래대로).
+  const [placedOk, setPlacedOk] = useState(false);
   const { isWatching, add: storeAdd, remove: storeRemove } = useWatchlistStore();
+
+  // 접수 완료 표시는 2.5초 후 자동 해제.
+  useEffect(() => {
+    if (!placedOk) return;
+    const t = setTimeout(() => setPlacedOk(false), 2500);
+    return () => clearTimeout(t);
+  }, [placedOk]);
   const watched = isWatching(symbol);
 
   // 의도 단위 멱등성 키 — 재시도·이중탭·앱 재시작 재전송에 같은 키, 주문 내용이 바뀌면 새 키.
@@ -147,6 +156,7 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
     }
     if (qty < 1 || validationError) return;
     setPlacing(true);
+    setPlacedOk(false);
     setOrderStatus(null);
     try {
       const tx = await placeOrder(
@@ -166,6 +176,7 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
           ? `${label} 체결 완료 · ${tx.amount.toLocaleString()}원`
           : `${label} 예약 접수됨 (${orderKind === 'limit' ? '지정가' : '시장가·장마감'}) · ${tx.amount.toLocaleString()}원`;
       setOrderStatus({ ok: true, message });
+      setPlacedOk(true);
       setQuantity('');
       setLimitPrice('');
       refetchOrders();
@@ -225,6 +236,7 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
     }
     if (qty < 1 || rsvError) return;
     setPlacing(true);
+    setPlacedOk(false);
     setOrderStatus(null);
     try {
       const r = await createReservation(
@@ -241,6 +253,7 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
       );
       reserveKey.reset(); // 성공 — 다음 예약은 새 키
       setOrderStatus({ ok: true, message: `예약 접수됨 · ${TIMING_LABEL[timing]} · ${r.scheduledDate}` });
+      setPlacedOk(true);
       setQuantity('');
       setRsvPrice('');
     } catch (e) {
@@ -553,12 +566,14 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
                     로그인 후 주문 가능
                   </button>
                 ) : (
-                  <button onClick={handleOrder} disabled={!canSubmit}
-                    className={`${tradeType === 'buy' ? 'btn-gain' : 'btn-loss'} text-sm`}
-                    style={{ opacity: canSubmit ? 1 : 0.5 }}>
+                  <button onClick={handleOrder} disabled={!canSubmit || placedOk}
+                    className={`${placedOk ? 'btn-outline' : tradeType === 'buy' ? 'btn-gain' : 'btn-loss'} text-sm`}
+                    style={{ opacity: canSubmit || placedOk ? 1 : 0.5, ...(placedOk ? { color: 'var(--gain)', borderColor: 'var(--gain)' } : {}) }}>
                     {placing
                       ? '처리 중...'
-                      : `${tradeType === 'buy' ? '매수' : '매도'} ${orderKind === 'limit' || marketClosed ? '예약' : '주문'}`}
+                      : placedOk
+                        ? '✓ 접수 완료'
+                        : `${tradeType === 'buy' ? '매수' : '매도'} ${orderKind === 'limit' || marketClosed ? '예약' : '주문'}`}
                   </button>
                 )}
               </>
@@ -661,10 +676,10 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
                     로그인 후 예약 가능
                   </button>
                 ) : (
-                  <button onClick={handleReserve} disabled={!canReserve}
-                    className={`${tradeType === 'buy' ? 'btn-gain' : 'btn-loss'} text-sm`}
-                    style={{ opacity: canReserve ? 1 : 0.5 }}>
-                    {placing ? '처리 중...' : `${tradeType === 'buy' ? '매수' : '매도'} 예약`}
+                  <button onClick={handleReserve} disabled={!canReserve || placedOk}
+                    className={`${placedOk ? 'btn-outline' : tradeType === 'buy' ? 'btn-gain' : 'btn-loss'} text-sm`}
+                    style={{ opacity: canReserve || placedOk ? 1 : 0.5, ...(placedOk ? { color: 'var(--gain)', borderColor: 'var(--gain)' } : {}) }}>
+                    {placing ? '처리 중...' : placedOk ? '✓ 예약 완료' : `${tradeType === 'buy' ? '매수' : '매도'} 예약`}
                   </button>
                 )}
               </>

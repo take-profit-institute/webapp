@@ -44,6 +44,8 @@ export type {
   ReservationTiming,
   ReservationKind,
   ReservationStatus,
+  ReservedPosition,
+  AccountPositions,
   CreateReservationBody,
   AmendReservationBody,
   WatchlistItem,
