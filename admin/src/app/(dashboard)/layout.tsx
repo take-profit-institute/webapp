@@ -7,7 +7,7 @@ import { useAdminStore } from '@/store/useAdminStore';
 import { setTokenGetter } from '@/apis/client';
 
 const navItems = [
-  { icon: Users, label: '사용자 관리', href: '/users' },
+  { icon: Users, label: '관리자 계정', href: '/users' },
   { icon: BookOpen, label: '학습 콘텐츠', href: '/learn' },
   { icon: Bell, label: '알림 발송', href: '/notifications' },
   { icon: PlayCircle, label: '배치 실행', href: '/batch' },

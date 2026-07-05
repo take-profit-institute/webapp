@@ -1,33 +1,40 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { Search, UserX, UserCheck, RefreshCw } from 'lucide-react';
-import { getAdminUsers, updateUserStatus } from '@/apis/admin';
+import { Search, UserX, UserCheck, RefreshCw, Shield } from 'lucide-react';
+import { getAdminUsers, updateUserStatus, type AdminUserRow, type AdminUserStatus } from '@/apis/admin';
 import { ApiError } from '@/apis/client';
 import Pagination from '@/components/Pagination';
-import type { PaginatedResult, UserProfile, UserStatus } from '@candle/shared';
+import type { PaginatedResult } from '@candle/shared';
 
 const LIMIT = 10;
 
-const statusFilters: { label: string; value: UserStatus | 'all' }[] = [
+const statusFilters: { label: string; value: AdminUserStatus | 'all' }[] = [
   { label: '전체', value: 'all' },
   { label: '활성', value: 'active' },
   { label: '정지', value: 'suspended' },
-  { label: '탈퇴', value: 'withdrawn' },
 ];
 
-const statusMeta: Record<UserStatus, { label: string; className: string }> = {
+const statusMeta: Record<AdminUserStatus, { label: string; className: string }> = {
   active: { label: '활성', className: 'badge-active' },
   suspended: { label: '정지', className: 'badge-suspended' },
-  withdrawn: { label: '탈퇴', className: 'badge-withdrawn' },
 };
 
-const providerLabel: Record<string, string> = { google: 'Google', kakao: '카카오', naver: '네이버' };
-const styleLabel: Record<string, string> = { conservative: '안정형', balanced: '균형형', aggressive: '공격형', momentum: '모멘텀형' };
+const roleLabel: Record<AdminUserRow['role'], string> = {
+  SUPER_ADMIN: '슈퍼관리자',
+  ADMIN: '관리자',
+};
+
+function formatLastLogin(iso: string | null): string {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' });
+}
 
 export default function UsersPage() {
-  const [result, setResult] = useState<PaginatedResult<UserProfile> | null>(null);
+  const [result, setResult] = useState<PaginatedResult<AdminUserRow> | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<UserStatus | 'all'>('all');
+  const [filter, setFilter] = useState<AdminUserStatus | 'all'>('all');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [mutatingId, setMutatingId] = useState<string | null>(null);
@@ -60,11 +67,11 @@ export default function UsersPage() {
     load(p);
   }
 
-  async function toggleStatus(user: UserProfile) {
-    const next: UserStatus = user.status === 'active' ? 'suspended' : 'active';
+  async function toggleStatus(user: AdminUserRow) {
+    const next: AdminUserStatus = user.status === 'active' ? 'suspended' : 'active';
     setMutatingId(user.id);
     try {
-      const updated = await updateUserStatus(user.id, { status: next });
+      const updated = await updateUserStatus(user.id, next);
       setResult((prev) => prev ? { ...prev, items: prev.items.map((u) => u.id === user.id ? updated : u) } : prev);
       showToast(true, next === 'suspended' ? `${user.username} 계정을 정지했습니다.` : `${user.username} 계정을 활성화했습니다.`);
     } catch (e) {
@@ -75,13 +82,12 @@ export default function UsersPage() {
   }
 
   const users = result?.items ?? [];
-  const totalActive = result ? result.total : 0; // filtered total from server
 
   return (
     <div className="p-6 max-w-5xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-black mb-1" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-primary)' }}>사용자 관리</h1>
-        <p className="text-sm" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>USER-019 · USER-020</p>
+        <h1 className="text-2xl font-black mb-1" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-primary)' }}>관리자 계정 관리</h1>
+        <p className="text-sm" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>관리자 계정 목록 · 활성/정지</p>
       </div>
 
       {/* Filters */}
@@ -108,7 +114,7 @@ export default function UsersPage() {
           <input
             className="input-dark"
             style={{ paddingLeft: 36, paddingTop: 7, paddingBottom: 7 }}
-            placeholder="이름 또는 이메일 검색"
+            placeholder="이름 검색"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -129,12 +135,12 @@ export default function UsersPage() {
         {loading ? (
           <div className="p-12 text-center text-sm" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>불러오는 중...</div>
         ) : users.length === 0 ? (
-          <div className="p-12 text-center text-sm" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>사용자가 없습니다.</div>
+          <div className="p-12 text-center text-sm" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>관리자 계정이 없습니다.</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                {['사용자', '이메일', '가입일', '투자성향', '프로바이더', '상태', ''].map((h) => (
+                {['관리자', '역할', '마지막 로그인', '가입일', '상태', ''].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{h}</th>
                 ))}
               </tr>
@@ -143,43 +149,37 @@ export default function UsersPage() {
               {users.map((user) => {
                 const meta = statusMeta[user.status];
                 const isMutating = mutatingId === user.id;
-                const canToggle = user.status !== 'withdrawn';
                 return (
                   <tr key={user.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-elevated)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = '')}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-base">{user.avatar}</span>
+                        <Shield size={15} style={{ color: 'var(--amber)' }} />
                         <span className="font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{user.username}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs" style={{ color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono' }}>{user.email}</span>
+                      <span className="text-xs" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>{roleLabel[user.role]}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>{formatLastLogin(user.lastLoginAt)}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>{user.createdAt.slice(0, 10)}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>{user.investStyle ? styleLabel[user.investStyle] ?? user.investStyle : '-'}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{user.provider ? providerLabel[user.provider] ?? user.provider : '-'}</span>
-                    </td>
-                    <td className="px-4 py-3">
                       <span className={meta.className}>{meta.label}</span>
                     </td>
                     <td className="px-4 py-3">
-                      {canToggle && (
-                        <button
-                          onClick={() => toggleStatus(user)}
-                          disabled={isMutating}
-                          className={`flex items-center gap-1 text-xs ${user.status === 'active' ? 'btn-danger' : 'btn-success'}`}
-                          style={{ padding: '4px 10px' }}
-                        >
-                          {isMutating ? '...' : user.status === 'active' ? <><UserX size={12} /> 정지</> : <><UserCheck size={12} /> 활성화</>}
-                        </button>
-                      )}
+                      <button
+                        onClick={() => toggleStatus(user)}
+                        disabled={isMutating}
+                        className={`flex items-center gap-1 text-xs ${user.status === 'active' ? 'btn-danger' : 'btn-success'}`}
+                        style={{ padding: '4px 10px' }}
+                      >
+                        {isMutating ? '...' : user.status === 'active' ? <><UserX size={12} /> 정지</> : <><UserCheck size={12} /> 활성화</>}
+                      </button>
                     </td>
                   </tr>
                 );
