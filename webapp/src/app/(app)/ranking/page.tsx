@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { ArrowUpRight, ArrowDownRight, Crown } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Crown, Trophy } from 'lucide-react';
 import { getRankings, getMyRanking, useApi } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
 
@@ -23,7 +23,24 @@ export default function RankingPage() {
       {loading && <Loader />}
       {error && <ErrorState error={error} onRetry={refetch} />}
 
-      {!loading && !error && rankings.length >= 3 && (
+      {!loading && !error && rankings.length === 0 && (
+        <div className="card p-6 md:p-8 text-center">
+          <div
+            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
+            style={{ background: 'var(--amber-subtle)', color: 'var(--amber)' }}
+          >
+            <Trophy size={26} />
+          </div>
+          <p className="text-base font-bold mb-1" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>
+            아직 랭킹 데이터가 없습니다
+          </p>
+          <p className="text-xs md:text-sm max-w-sm mx-auto" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+            랭킹 집계가 완료되면 순위와 수익률이 여기에 표시됩니다.
+          </p>
+        </div>
+      )}
+
+      {!loading && !error && rankings.length > 0 && (
       <>
       {/* My rank banner */}
       {myRanking && (
@@ -66,6 +83,7 @@ export default function RankingPage() {
       </div>
 
       {/* Podium — compact on mobile */}
+      {rankings.length >= 3 && (
       <div className="flex items-end justify-center gap-3 md:gap-4 mb-5 py-4">
         <div className="flex flex-col items-center">
           <div className="text-2xl md:text-3xl mb-1">{rankings[1].avatar}</div>
@@ -95,6 +113,7 @@ export default function RankingPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Rankings list */}
       <div className="card overflow-hidden">
