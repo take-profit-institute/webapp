@@ -1,4 +1,7 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
+// 로컬 개발 기본값은 API 게이트웨이(:8000). 게이트웨이가 JWT 검증 후 BFF(:8080)로 프록시한다.
+// (BFF를 직접 :4000으로 치면 게이트웨이 인증/헤더 주입을 우회하고, 로컬에서 4000이 안 떠 있으면
+//  브라우저에 CORS 실패로 표시된다.)
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public body?: unknown) {
