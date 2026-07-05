@@ -24,6 +24,21 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
+function idempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return `admin-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function writeOptions(method: 'POST' | 'PATCH' | 'DELETE', body?: unknown): RequestInit {
+  return {
+    method,
+    body: body != null ? JSON.stringify(body) : undefined,
+    headers: { 'Idempotency-Key': idempotencyKey() },
+  };
+}
+
 export const apiClient = {
   get: <T>(path: string, query?: Record<string, string | undefined>) => {
     const params = new URLSearchParams();
@@ -31,7 +46,7 @@ export const apiClient = {
     const qs = params.toString();
     return request<T>(`${path}${qs ? `?${qs}` : ''}`);
   },
-  post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body: body != null ? JSON.stringify(body) : undefined }),
-  patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body: body != null ? JSON.stringify(body) : undefined }),
-  del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  post: <T>(path: string, body?: unknown) => request<T>(path, writeOptions('POST', body)),
+  patch: <T>(path: string, body?: unknown) => request<T>(path, writeOptions('PATCH', body)),
+  del: <T>(path: string) => request<T>(path, writeOptions('DELETE')),
 };

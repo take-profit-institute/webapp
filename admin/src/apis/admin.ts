@@ -1,9 +1,15 @@
 import { apiClient } from './client';
 import type {
   AdminLearnStats,
+  AdminSendNotificationBody,
+  AdminSendNotificationResult,
   AdminUpdateLearnVisibilityBody,
   AdminUpdateMissionRewardBody,
   AdminUpdateUserStatusBody,
+  AdminUpsertLearnContentBody,
+  BatchExecution,
+  BatchJob,
+  TriggerBatchJobBody,
   LearnContent,
   Mission,
   MissionCategory,
@@ -60,8 +66,48 @@ export function setLearnVisibility(id: string, body: AdminUpdateLearnVisibilityB
   return apiClient.patch<LearnContent>(`/api/admin/learn/${id}/visibility`, body);
 }
 
+export function createLearnContent(body: AdminUpsertLearnContentBody) {
+  return apiClient.post<LearnContent>('/api/admin/learn', body);
+}
+
+export function updateLearnContent(id: string, body: AdminUpsertLearnContentBody) {
+  return apiClient.patch<LearnContent>(`/api/admin/learn/${id}`, body);
+}
+
+export function deleteLearnContent(id: string) {
+  return apiClient.del<{ success: boolean }>(`/api/admin/learn/${id}`);
+}
+
 export function getLearnStats(id: string) {
   return apiClient.get<AdminLearnStats>(`/api/admin/learn/${id}/stats`);
+}
+
+// ── Notifications ───────────────────────────────────────────────────
+export function sendAdminNotification(body: AdminSendNotificationBody) {
+  return apiClient.post<AdminSendNotificationResult>('/api/admin/notifications/send', body);
+}
+
+// ── Batch ───────────────────────────────────────────────────────────
+export interface BatchExecutionListParams {
+  limit?: number;
+}
+
+export function getBatchJobs() {
+  return apiClient.get<BatchJob[]>('/api/admin/batch/jobs');
+}
+
+export function triggerBatchJob(jobName: string, body: TriggerBatchJobBody) {
+  return apiClient.post<BatchExecution>(`/api/admin/batch/jobs/${jobName}/trigger`, body);
+}
+
+export function getBatchExecutions(jobName: string, params?: BatchExecutionListParams) {
+  return apiClient.get<BatchExecution[]>(`/api/admin/batch/jobs/${jobName}/executions`, {
+    limit: params?.limit?.toString(),
+  });
+}
+
+export function getBatchExecution(executionId: number | string) {
+  return apiClient.get<BatchExecution>(`/api/admin/batch/executions/${executionId}`);
 }
 
 // ── Missions ─────────────────────────────────────────────────────────

@@ -71,3 +71,23 @@ export type NotificationIdParams = Static<typeof NotificationIdParams>;
 
 export const UnreadCountResult = Type.Object({ count: Type.Integer() });
 export type UnreadCountResult = Static<typeof UnreadCountResult>;
+
+export const AdminNotificationTarget = Type.Union([
+  Type.Literal('user'),
+]);
+export type AdminNotificationTarget = Static<typeof AdminNotificationTarget>;
+
+export const AdminSendNotificationBody = Type.Object({
+  target: AdminNotificationTarget,
+  userId: Type.String({ minLength: 1 }),
+  type: NotificationType,
+  title: Type.String({ minLength: 1 }),
+  message: Type.String({ minLength: 1 }),
+  meta: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+});
+export type AdminSendNotificationBody = Static<typeof AdminSendNotificationBody>;
+
+export const AdminSendNotificationResult = Type.Object({
+  notification: Notification,
+});
+export type AdminSendNotificationResult = Static<typeof AdminSendNotificationResult>;

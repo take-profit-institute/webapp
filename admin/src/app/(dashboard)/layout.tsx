@@ -2,13 +2,15 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Users, BookOpen, Target, LogOut, Shield } from 'lucide-react';
+import { Users, BookOpen, Target, LogOut, Shield, Bell, PlayCircle } from 'lucide-react';
 import { useAdminStore } from '@/store/useAdminStore';
 import { setTokenGetter } from '@/apis/client';
 
 const navItems = [
   { icon: Users, label: '사용자 관리', href: '/users' },
   { icon: BookOpen, label: '학습 콘텐츠', href: '/learn' },
+  { icon: Bell, label: '알림 발송', href: '/notifications' },
+  { icon: PlayCircle, label: '배치 실행', href: '/batch' },
   { icon: Target, label: '미션 관리', href: '/missions' },
 ];
 

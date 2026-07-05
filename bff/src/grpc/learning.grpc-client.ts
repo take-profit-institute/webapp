@@ -12,6 +12,7 @@
  */
 import { createClient, Metadata, type Client } from 'nice-grpc';
 import type {
+  AdminUpsertLearnContentBody,
   LearnContent,
   LearnFavoriteResult,
   LearnLevel,
@@ -85,6 +86,10 @@ function toShared(c: ContentResponse, state: UserContentStateResponse | undefine
     favorite: state?.isFavorite ?? false,
     ...(state?.completedAt ? { completedAt: state.completedAt.toISOString() } : {}),
   };
+}
+
+function toSharedAdmin(c: ContentResponse, body = ''): LearnContent {
+  return toShared(c, undefined, body);
 }
 
 const fromWithState = (cs: ContentWithStateResponse): LearnContent =>
@@ -207,4 +212,81 @@ export async function grpcToggleFavorite(
   const state = await learning().toggleFavorite({ userId, contentId }, { metadata: callMeta(userId, idempotencyKey) });
   const detail = await learning().getContent({ userId, contentId }, { metadata: userMeta(userId) });
   return { content: fromDetail(detail), favorite: state.isFavorite };
+}
+
+// ── 관리자 ───────────────────────────────────────────────────────────
+export interface AdminLearnListResult {
+  items: LearnContent[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export async function grpcAdminListContents(input: {
+  published?: boolean;
+  page: number;
+  limit: number;
+}): Promise<AdminLearnListResult> {
+  const zeroBasedPage = Math.max(input.page - 1, 0);
+  const res = await learning().listAdminContents({
+    published: input.published,
+    page: zeroBasedPage,
+    size: input.limit,
+  });
+  return {
+    items: res.contents.map((content) => toSharedAdmin(content)),
+    total: res.totalCount,
+    page: res.page + 1,
+    limit: res.size,
+    totalPages: Math.max(1, Math.ceil(res.totalCount / Math.max(res.size, 1))),
+  };
+}
+
+function levelToContentLevel(level: LearnLevel): ContentLevel {
+  return levelToProto(level) ?? ContentLevel.CONTENT_LEVEL_BEGINNER;
+}
+
+export async function grpcAdminCreateContent(body: AdminUpsertLearnContentBody): Promise<LearnContent> {
+  const res = await learning().createContent({
+    title: body.title,
+    description: body.description,
+    category: body.category,
+    level: levelToContentLevel(body.level),
+    body: body.body,
+    durationMin: body.durationMin,
+    xpReward: String(body.xpReward),
+    keywords: body.keywords,
+    isPublished: body.published,
+  });
+  return toSharedAdmin(res, body.body);
+}
+
+export async function grpcAdminUpdateContent(
+  contentId: string,
+  body: AdminUpsertLearnContentBody,
+): Promise<LearnContent> {
+  const res = await learning().updateContent({
+    contentId,
+    title: body.title,
+    description: body.description,
+    category: body.category,
+    level: levelToContentLevel(body.level),
+    body: body.body,
+    durationMin: body.durationMin,
+    xpReward: String(body.xpReward),
+    keywords: body.keywords,
+    isPublished: body.published,
+  });
+  return toSharedAdmin(res, body.body);
+}
+
+export async function grpcAdminSetContentVisibility(contentId: string, published: boolean): Promise<LearnContent> {
+  const res = await learning().updateContent({ contentId, isPublished: published });
+  return toSharedAdmin(res);
+}
+
+export async function grpcAdminDeleteContent(contentId: string): Promise<{ success: boolean }> {
+  const res = await learning().deleteContent({ contentId });
+  return { success: res.success };
 }

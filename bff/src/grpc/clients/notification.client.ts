@@ -32,6 +32,10 @@ export interface RegisterDeviceTokenRequest {
 
 export interface NotificationServiceClient {
   registerDeviceToken(req: RegisterDeviceTokenRequest, opts: GrpcCallOptions): Promise<{ deviceTokenId: string }>;
+  sendNotification(
+    req: { userId: string; type: SharedNotificationType; title: string; message: string; meta?: Record<string, unknown> },
+    opts: GrpcCallOptions,
+  ): Promise<Notification>;
   listNotifications(req: ListNotificationsRequest, opts?: GrpcCallOptions): Promise<Notification[]>;
   getUnreadCount(req: { userId: string }, opts?: GrpcCallOptions): Promise<{ count: number }>;
   markRead(req: { userId: string; notificationId: string }, opts?: GrpcCallOptions): Promise<void>;
@@ -67,6 +71,19 @@ function toSharedType(t: ProtoNotificationType): SharedNotificationType | null {
       return 'market_close';
     default:
       return null;
+  }
+}
+
+function toProtoType(type: SharedNotificationType): ProtoNotificationType {
+  switch (type) {
+    case 'surge':
+      return ProtoNotificationType.NOTIFICATION_TYPE_PRICE_RISE;
+    case 'crash':
+      return ProtoNotificationType.NOTIFICATION_TYPE_PRICE_FALL;
+    case 'market_open':
+      return ProtoNotificationType.NOTIFICATION_TYPE_MARKET_OPEN;
+    case 'market_close':
+      return ProtoNotificationType.NOTIFICATION_TYPE_MARKET_CLOSE;
   }
 }
 
@@ -116,6 +133,28 @@ class GrpcNotificationServiceClient implements NotificationServiceClient {
       opts,
     );
     return { deviceTokenId: res.deviceTokenId };
+  }
+
+  async sendNotification(
+    req: { userId: string; type: SharedNotificationType; title: string; message: string; meta?: Record<string, unknown> },
+    opts: GrpcCallOptions,
+  ): Promise<Notification> {
+    const res = await this.client.createNotification(
+      {
+        userId: req.userId,
+        type: toProtoType(req.type),
+        title: req.title,
+        body: req.message,
+        metaJson: JSON.stringify(req.meta ?? {}),
+        commandMetadata: buildCommandMetadata(opts),
+      },
+      opts,
+    );
+    const mapped = res.notification ? toShared(res.notification) : null;
+    if (!mapped) {
+      throw new Error('Notification create response did not include a supported notification.');
+    }
+    return mapped;
   }
 
   async listNotifications(req: ListNotificationsRequest, opts?: GrpcCallOptions): Promise<Notification[]> {

@@ -1,14 +1,30 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { Eye, EyeOff, BarChart2, X } from 'lucide-react';
-import { getAdminLearnContents, getLearnStats, setLearnVisibility } from '@/apis/admin';
+import { Eye, EyeOff, BarChart2, X, Plus, Edit2, Trash2, Check } from 'lucide-react';
+import { createLearnContent, deleteLearnContent, getAdminLearnContents, getLearnStats, setLearnVisibility, updateLearnContent } from '@/apis/admin';
 import { ApiError } from '@/apis/client';
 import Pagination from '@/components/Pagination';
-import type { AdminLearnStats, LearnContent, PaginatedResult } from '@candle/shared';
+import type { AdminLearnStats, AdminUpsertLearnContentBody, LearnContent, LearnLevel, PaginatedResult } from '@candle/shared';
 
 const LIMIT = 10;
 const levelLabel: Record<string, string> = { beginner: '입문', intermediate: '중급', advanced: '고급' };
 const levelColor: Record<string, string> = { beginner: 'var(--gain)', intermediate: 'var(--amber)', advanced: 'var(--loss)' };
+const emptyDraft: AdminUpsertLearnContentBody = {
+  title: '',
+  description: '',
+  category: '',
+  level: 'beginner',
+  body: '',
+  durationMin: 5,
+  xpReward: 0,
+  keywords: [],
+  published: false,
+};
+
+function durationToMin(duration: string): number {
+  const matched = duration.match(/\d+/);
+  return matched ? Number(matched[0]) : 5;
+}
 
 export default function LearnPage() {
   const [result, setResult] = useState<PaginatedResult<LearnContent> | null>(null);
@@ -18,6 +34,7 @@ export default function LearnPage() {
   const [mutatingId, setMutatingId] = useState<string | null>(null);
   const [statsPanel, setStatsPanel] = useState<AdminLearnStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [editing, setEditing] = useState<{ id?: string; draft: AdminUpsertLearnContentBody; keywordsText: string } | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
 
   const publishedParam = filter === 'published' ? true : filter === 'draft' ? false : undefined;
@@ -72,13 +89,85 @@ export default function LearnPage() {
     }
   }
 
+  function startCreate() {
+    setStatsPanel(null);
+    setEditing({ draft: emptyDraft, keywordsText: '' });
+  }
+
+  function startEdit(content: LearnContent) {
+    setStatsPanel(null);
+    setEditing({
+      id: content.id,
+      draft: {
+        title: content.title,
+        description: content.description,
+        category: content.category,
+        level: content.level,
+        body: content.body,
+        durationMin: durationToMin(content.duration),
+        xpReward: 0,
+        keywords: content.keywords,
+        published: content.published,
+      },
+      keywordsText: content.keywords.join(', '),
+    });
+  }
+
+  function updateDraft(patch: Partial<AdminUpsertLearnContentBody>) {
+    setEditing((prev) => prev ? { ...prev, draft: { ...prev.draft, ...patch } } : prev);
+  }
+
+  async function saveContent() {
+    if (!editing) return;
+    const keywords = editing.keywordsText.split(',').map((v) => v.trim()).filter(Boolean);
+    const body = { ...editing.draft, keywords };
+    if (!body.title || !body.category || !body.body) {
+      showToast(false, '제목, 카테고리, 본문을 입력하세요');
+      return;
+    }
+    setMutatingId(editing.id ?? 'new');
+    try {
+      const saved = editing.id ? await updateLearnContent(editing.id, body) : await createLearnContent(body);
+      setResult((prev) => {
+        if (!prev) return prev;
+        if (editing.id) return { ...prev, items: prev.items.map((c) => c.id === editing.id ? saved : c) };
+        return { ...prev, items: [saved, ...prev.items].slice(0, prev.limit), total: prev.total + 1 };
+      });
+      setEditing(null);
+      showToast(true, editing.id ? '콘텐츠가 수정되었습니다.' : '콘텐츠가 생성되었습니다.');
+    } catch (e) {
+      showToast(false, e instanceof ApiError ? e.message : '저장 실패');
+    } finally {
+      setMutatingId(null);
+    }
+  }
+
+  async function removeContent(content: LearnContent) {
+    if (!confirm(`"${content.title}" 콘텐츠를 삭제할까요?`)) return;
+    setMutatingId(content.id);
+    try {
+      await deleteLearnContent(content.id);
+      setResult((prev) => prev ? { ...prev, items: prev.items.filter((c) => c.id !== content.id), total: Math.max(0, prev.total - 1) } : prev);
+      showToast(true, '콘텐츠가 삭제되었습니다.');
+    } catch (e) {
+      showToast(false, e instanceof ApiError ? e.message : '삭제 실패');
+    } finally {
+      setMutatingId(null);
+    }
+  }
+
   const contents = result?.items ?? [];
 
   return (
-    <div className="p-6 max-w-5xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-black mb-1" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-primary)' }}>학습 콘텐츠 관리</h1>
-        <p className="text-sm" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>LEARN-014 · LEARN-015</p>
+    <div className="p-6 max-w-6xl">
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black mb-1" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-primary)' }}>학습 콘텐츠 관리</h1>
+          <p className="text-sm" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>LEARN-014 · LEARN-015 · 콘텐츠 업로드</p>
+        </div>
+        <button onClick={startCreate} className="btn-amber flex items-center gap-2 text-xs" style={{ padding: '8px 12px' }}>
+          <Plus size={14} /> 새 콘텐츠
+        </button>
       </div>
 
       {/* Filter tabs */}
@@ -173,6 +262,21 @@ export default function LearnPage() {
                             >
                               <BarChart2 size={11} /> 통계
                             </button>
+                            <button
+                              onClick={() => startEdit(c)}
+                              className="btn-outline flex items-center gap-1 text-xs"
+                              style={{ padding: '4px 8px' }}
+                            >
+                              <Edit2 size={11} /> 수정
+                            </button>
+                            <button
+                              onClick={() => removeContent(c)}
+                              disabled={isMutating}
+                              className="btn-danger flex items-center gap-1 text-xs"
+                              style={{ padding: '4px 8px' }}
+                            >
+                              <Trash2 size={11} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -194,8 +298,44 @@ export default function LearnPage() {
           )}
         </div>
 
+        {editing && (
+          <div className="w-80 shrink-0 animate-fade-up">
+            <div className="card p-4">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{editing.id ? '콘텐츠 수정' : '콘텐츠 생성'}</p>
+                <button onClick={() => setEditing(null)} style={{ color: 'var(--text-muted)' }}><X size={14} /></button>
+              </div>
+              <div className="space-y-3">
+                <input className="input-dark text-xs" value={editing.draft.title} onChange={(e) => updateDraft({ title: e.target.value })} placeholder="제목" />
+                <input className="input-dark text-xs" value={editing.draft.description} onChange={(e) => updateDraft({ description: e.target.value })} placeholder="설명" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input className="input-dark text-xs" value={editing.draft.category} onChange={(e) => updateDraft({ category: e.target.value })} placeholder="카테고리" />
+                  <select className="input-dark text-xs" value={editing.draft.level} onChange={(e) => updateDraft({ level: e.target.value as LearnLevel })}>
+                    <option value="beginner">입문</option>
+                    <option value="intermediate">중급</option>
+                    <option value="advanced">고급</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input className="input-dark text-xs" type="number" min={1} value={editing.draft.durationMin} onChange={(e) => updateDraft({ durationMin: Number(e.target.value) })} placeholder="분" />
+                  <input className="input-dark text-xs" type="number" min={0} value={editing.draft.xpReward} onChange={(e) => updateDraft({ xpReward: Number(e.target.value) })} placeholder="XP" />
+                </div>
+                <input className="input-dark text-xs" value={editing.keywordsText} onChange={(e) => setEditing((prev) => prev ? { ...prev, keywordsText: e.target.value } : prev)} placeholder="키워드, 쉼표 구분" />
+                <textarea className="input-dark text-xs min-h-40" value={editing.draft.body} onChange={(e) => updateDraft({ body: e.target.value })} placeholder="본문" />
+                <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>
+                  <input type="checkbox" checked={editing.draft.published} onChange={(e) => updateDraft({ published: e.target.checked })} />
+                  공개 상태로 저장
+                </label>
+                <button onClick={saveContent} disabled={mutatingId === (editing.id ?? 'new')} className="btn-amber w-full flex items-center justify-center gap-2 text-xs">
+                  <Check size={13} /> {mutatingId === (editing.id ?? 'new') ? '저장 중...' : '저장'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Stats panel */}
-        {(statsLoading || statsPanel) && (
+        {!editing && (statsLoading || statsPanel) && (
           <div className="w-64 shrink-0 animate-fade-up">
             <div className="card p-4">
               <div className="flex items-center justify-between mb-4">

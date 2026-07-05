@@ -241,6 +241,19 @@ export const AdminUpdateLearnVisibilityBody = Type.Object({
 });
 export type AdminUpdateLearnVisibilityBody = Static<typeof AdminUpdateLearnVisibilityBody>;
 
+export const AdminUpsertLearnContentBody = Type.Object({
+  title: Type.String({ minLength: 1 }),
+  description: Type.String({ default: '' }),
+  category: Type.String({ minLength: 1 }),
+  level: LearnLevel,
+  body: Type.String({ default: '' }),
+  durationMin: Type.Integer({ minimum: 1 }),
+  xpReward: Type.Integer({ minimum: 0, default: 0 }),
+  keywords: Type.Array(Type.String()),
+  published: Type.Boolean(),
+});
+export type AdminUpsertLearnContentBody = Static<typeof AdminUpsertLearnContentBody>;
+
 export const AdminLearnStats = Type.Object({
   contentId: Type.String(),
   title: Type.String(),
@@ -258,3 +271,59 @@ export const AdminUpdateMissionRewardBody = Type.Object({
   achievementReward: Type.Optional(Type.String()),
 });
 export type AdminUpdateMissionRewardBody = Static<typeof AdminUpdateMissionRewardBody>;
+
+// ── Admin: Batch control ───────────────────────────────────────────
+export const BatchExecutionStatus = Type.Union([
+  Type.Literal('starting'),
+  Type.Literal('started'),
+  Type.Literal('stopping'),
+  Type.Literal('stopped'),
+  Type.Literal('failed'),
+  Type.Literal('completed'),
+  Type.Literal('abandoned'),
+  Type.Literal('unknown'),
+]);
+export type BatchExecutionStatus = Static<typeof BatchExecutionStatus>;
+
+export const BatchJob = Type.Object({
+  name: Type.String(),
+  description: Type.String(),
+  supportedParameters: Type.Array(Type.String()),
+  triggerable: Type.Boolean(),
+});
+export type BatchJob = Static<typeof BatchJob>;
+
+export const BatchExecution = Type.Object({
+  executionId: Type.Number(),
+  instanceId: Type.Number(),
+  jobName: Type.String(),
+  status: BatchExecutionStatus,
+  parameters: Type.Record(Type.String(), Type.String()),
+  createTime: Type.String({ format: 'date-time' }),
+  startTime: Type.Optional(Type.String({ format: 'date-time' })),
+  endTime: Type.Optional(Type.String({ format: 'date-time' })),
+  lastUpdated: Type.Optional(Type.String({ format: 'date-time' })),
+  exitCode: Type.String(),
+  exitDescription: Type.String(),
+});
+export type BatchExecution = Static<typeof BatchExecution>;
+
+export const BatchJobNameParams = Type.Object({
+  jobName: Type.String(),
+});
+export type BatchJobNameParams = Static<typeof BatchJobNameParams>;
+
+export const BatchExecutionIdParams = Type.Object({
+  executionId: Type.String(),
+});
+export type BatchExecutionIdParams = Static<typeof BatchExecutionIdParams>;
+
+export const BatchExecutionListQuery = Type.Object({
+  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
+});
+export type BatchExecutionListQuery = Static<typeof BatchExecutionListQuery>;
+
+export const TriggerBatchJobBody = Type.Object({
+  parameters: Type.Optional(Type.Record(Type.String(), Type.String())),
+});
+export type TriggerBatchJobBody = Static<typeof TriggerBatchJobBody>;

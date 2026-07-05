@@ -134,6 +134,19 @@ export interface DeleteContentResponse {
   success: boolean;
 }
 
+export interface ListAdminContentsRequest {
+  published?: boolean | undefined;
+  page: number;
+  size: number;
+}
+
+export interface ListAdminContentsResponse {
+  contents: ContentResponse[];
+  totalCount: number;
+  page: number;
+  size: number;
+}
+
 export interface GetContentRequest {
   userId: string;
   contentId: string;
@@ -817,6 +830,212 @@ export const DeleteContentResponse: MessageFns<DeleteContentResponse> = {
   fromPartial(object: DeepPartial<DeleteContentResponse>): DeleteContentResponse {
     const message = createBaseDeleteContentResponse();
     message.success = object.success ?? false;
+    return message;
+  },
+};
+
+function createBaseListAdminContentsRequest(): ListAdminContentsRequest {
+  return { published: undefined, page: 0, size: 0 };
+}
+
+export const ListAdminContentsRequest: MessageFns<ListAdminContentsRequest> = {
+  encode(message: ListAdminContentsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.published !== undefined) {
+      writer.uint32(8).bool(message.published);
+    }
+    if (message.page !== 0) {
+      writer.uint32(16).int32(message.page);
+    }
+    if (message.size !== 0) {
+      writer.uint32(24).int32(message.size);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAdminContentsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListAdminContentsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.published = reader.bool();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.page = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.size = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListAdminContentsRequest {
+    return {
+      published: isSet(object.published) ? globalThis.Boolean(object.published) : undefined,
+      page: isSet(object.page) ? globalThis.Number(object.page) : 0,
+      size: isSet(object.size) ? globalThis.Number(object.size) : 0,
+    };
+  },
+
+  toJSON(message: ListAdminContentsRequest): unknown {
+    const obj: any = {};
+    if (message.published !== undefined) {
+      obj.published = message.published;
+    }
+    if (message.page !== 0) {
+      obj.page = Math.round(message.page);
+    }
+    if (message.size !== 0) {
+      obj.size = Math.round(message.size);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListAdminContentsRequest>): ListAdminContentsRequest {
+    return ListAdminContentsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListAdminContentsRequest>): ListAdminContentsRequest {
+    const message = createBaseListAdminContentsRequest();
+    message.published = object.published ?? undefined;
+    message.page = object.page ?? 0;
+    message.size = object.size ?? 0;
+    return message;
+  },
+};
+
+function createBaseListAdminContentsResponse(): ListAdminContentsResponse {
+  return { contents: [], totalCount: 0, page: 0, size: 0 };
+}
+
+export const ListAdminContentsResponse: MessageFns<ListAdminContentsResponse> = {
+  encode(message: ListAdminContentsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.contents) {
+      ContentResponse.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.totalCount !== 0) {
+      writer.uint32(16).int32(message.totalCount);
+    }
+    if (message.page !== 0) {
+      writer.uint32(24).int32(message.page);
+    }
+    if (message.size !== 0) {
+      writer.uint32(32).int32(message.size);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAdminContentsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListAdminContentsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.contents.push(ContentResponse.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.totalCount = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.page = reader.int32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.size = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListAdminContentsResponse {
+    return {
+      contents: globalThis.Array.isArray(object?.contents)
+        ? object.contents.map((e: any) => ContentResponse.fromJSON(e))
+        : [],
+      totalCount: isSet(object.totalCount)
+        ? globalThis.Number(object.totalCount)
+        : isSet(object.total_count)
+        ? globalThis.Number(object.total_count)
+        : 0,
+      page: isSet(object.page) ? globalThis.Number(object.page) : 0,
+      size: isSet(object.size) ? globalThis.Number(object.size) : 0,
+    };
+  },
+
+  toJSON(message: ListAdminContentsResponse): unknown {
+    const obj: any = {};
+    if (message.contents?.length) {
+      obj.contents = message.contents.map((e) => ContentResponse.toJSON(e));
+    }
+    if (message.totalCount !== 0) {
+      obj.totalCount = Math.round(message.totalCount);
+    }
+    if (message.page !== 0) {
+      obj.page = Math.round(message.page);
+    }
+    if (message.size !== 0) {
+      obj.size = Math.round(message.size);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListAdminContentsResponse>): ListAdminContentsResponse {
+    return ListAdminContentsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListAdminContentsResponse>): ListAdminContentsResponse {
+    const message = createBaseListAdminContentsResponse();
+    message.contents = object.contents?.map((e) => ContentResponse.fromPartial(e)) || [];
+    message.totalCount = object.totalCount ?? 0;
+    message.page = object.page ?? 0;
+    message.size = object.size ?? 0;
     return message;
   },
 };
@@ -2946,6 +3165,14 @@ export const LearningServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    listAdminContents: {
+      name: "ListAdminContents",
+      requestType: ListAdminContentsRequest as typeof ListAdminContentsRequest,
+      requestStream: false,
+      responseType: ListAdminContentsResponse as typeof ListAdminContentsResponse,
+      responseStream: false,
+      options: {},
+    },
     getContent: {
       name: "GetContent",
       requestType: GetContentRequest as typeof GetContentRequest,
@@ -3034,6 +3261,10 @@ export interface LearningServiceImplementation<CallContextExt = {}> {
     request: DeleteContentRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<DeleteContentResponse>>;
+  listAdminContents(
+    request: ListAdminContentsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ListAdminContentsResponse>>;
   getContent(
     request: GetContentRequest,
     context: CallContext & CallContextExt,
@@ -3085,6 +3316,10 @@ export interface LearningServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<DeleteContentRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<DeleteContentResponse>;
+  listAdminContents(
+    request: DeepPartial<ListAdminContentsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ListAdminContentsResponse>;
   getContent(
     request: DeepPartial<GetContentRequest>,
     options?: CallOptions & CallOptionsExt,

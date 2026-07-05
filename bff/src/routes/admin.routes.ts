@@ -6,8 +6,16 @@ import { DEMO_USER_ID } from '../data/account';
 import {
   AdminLearnStats,
   AdminUpdateLearnVisibilityBody,
+  AdminUpsertLearnContentBody,
+  AdminSendNotificationBody,
+  AdminSendNotificationResult,
   AdminUpdateMissionRewardBody,
   AdminUpdateUserStatusBody,
+  BatchExecution,
+  BatchExecutionIdParams,
+  BatchExecutionListQuery,
+  BatchJob,
+  BatchJobNameParams,
   AdminUserIdParams,
   AdminUserListQuery,
   ErrorResponse,
@@ -18,11 +26,27 @@ import {
   MissionIdParams,
   MissionParticipant,
   MissionStats,
+  Notification,
   OAuthLoginResult,
   Paginated,
+  TriggerBatchJobBody,
   UserProfile,
 } from '@candle/shared';
-import { requireIdempotencyKey } from '../grpc';
+import { env } from '../config/env';
+import { mapGrpcError, requireIdempotencyKey } from '../grpc';
+import {
+  grpcGetBatchExecution,
+  grpcListBatchExecutions,
+  grpcListBatchJobs,
+  grpcTriggerBatchJob,
+} from '../grpc/batch.grpc-client';
+import {
+  grpcAdminCreateContent,
+  grpcAdminDeleteContent,
+  grpcAdminListContents,
+  grpcAdminSetContentVisibility,
+  grpcAdminUpdateContent,
+} from '../grpc/learning.grpc-client';
 
 const ADMIN_EMAIL = 'admin@candle.app';
 const ADMIN_PASSWORD = 'admin1234';
@@ -71,6 +95,10 @@ const MissionListQuery = Type.Object({
   limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
 });
 
+const EmptyResult = Type.Object({
+  success: Type.Boolean(),
+});
+
 export const adminRoutes: FastifyPluginAsyncTypebox = async (app) => {
   // ── Auth ────────────────────────────────────────────────────────────
   app.post(
@@ -81,6 +109,96 @@ export const adminRoutes: FastifyPluginAsyncTypebox = async (app) => {
         return reply.status(401).send({ statusCode: 401, error: 'Unauthorized', message: '관리자 계정 정보가 올바르지 않습니다.' });
       }
       return { tokens: issueTokens(adminUser.id, 'ADMIN'), user: adminUser, isNewUser: false };
+    },
+  );
+
+  // ── Batch control ──────────────────────────────────────────────────
+  app.get(
+    '/batch/jobs',
+    {
+      schema: {
+        tags: ['admin'],
+        summary: '배치 잡 목록 조회',
+        response: { 200: Type.Array(BatchJob), 500: ErrorResponse, 503: ErrorResponse },
+      },
+    },
+    async (req, reply) => {
+      try {
+        return await grpcListBatchJobs();
+      } catch (err) {
+        const mapped = mapGrpcError(err, req.id);
+        return reply.code(mapped.statusCode as 500 | 503).send(mapped);
+      }
+    },
+  );
+
+  app.post(
+    '/batch/jobs/:jobName/trigger',
+    {
+      schema: {
+        tags: ['admin'],
+        summary: '배치 잡 수동 실행',
+        params: BatchJobNameParams,
+        body: TriggerBatchJobBody,
+        response: {
+          200: BatchExecution,
+          400: ErrorResponse,
+          409: ErrorResponse,
+          422: ErrorResponse,
+          500: ErrorResponse,
+          503: ErrorResponse,
+        },
+      },
+    },
+    async (req, reply) => {
+      const idempotencyKey = requireIdempotencyKey(req);
+      try {
+        return await grpcTriggerBatchJob(req.params.jobName, req.body.parameters ?? {}, idempotencyKey);
+      } catch (err) {
+        const mapped = mapGrpcError(err, req.id);
+        return reply.code(mapped.statusCode as 400 | 409 | 422 | 500 | 503).send(mapped);
+      }
+    },
+  );
+
+  app.get(
+    '/batch/jobs/:jobName/executions',
+    {
+      schema: {
+        tags: ['admin'],
+        summary: '배치 잡 실행 이력 조회',
+        params: BatchJobNameParams,
+        querystring: BatchExecutionListQuery,
+        response: { 200: Type.Array(BatchExecution), 400: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse },
+      },
+    },
+    async (req, reply) => {
+      try {
+        return await grpcListBatchExecutions(req.params.jobName, req.query.limit ?? 20);
+      } catch (err) {
+        const mapped = mapGrpcError(err, req.id);
+        return reply.code(mapped.statusCode as 400 | 500 | 503).send(mapped);
+      }
+    },
+  );
+
+  app.get(
+    '/batch/executions/:executionId',
+    {
+      schema: {
+        tags: ['admin'],
+        summary: '배치 실행 상세 조회',
+        params: BatchExecutionIdParams,
+        response: { 200: BatchExecution, 404: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse },
+      },
+    },
+    async (req, reply) => {
+      try {
+        return await grpcGetBatchExecution(req.params.executionId);
+      } catch (err) {
+        const mapped = mapGrpcError(err, req.id);
+        return reply.code(mapped.statusCode as 404 | 500 | 503).send(mapped);
+      }
     },
   );
 
@@ -127,26 +245,136 @@ export const adminRoutes: FastifyPluginAsyncTypebox = async (app) => {
         tags: ['admin'],
         summary: '전체 학습 콘텐츠 목록 (관리자)',
         querystring: LearnListQuery,
-        response: { 200: Paginated(LearnContent) },
+        response: { 200: Paginated(LearnContent), 400: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse },
       },
     },
-    async (req) => {
+    async (req, reply) => {
       const { page = 1, limit = 20, published } = req.query;
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcAdminListContents({ published, page, limit });
+        } catch (err) {
+          const mapped = mapGrpcError(err, req.id);
+          return reply.code(mapped.statusCode as 400 | 500 | 503).send(mapped);
+        }
+      }
       let result = [...learnContents];
       if (published !== undefined) result = result.filter((c) => c.published === published);
       return paginate(result, page, limit);
     },
   );
 
+  app.post(
+    '/learn',
+    {
+      schema: {
+        tags: ['admin'],
+        summary: '학습 콘텐츠 생성',
+        body: AdminUpsertLearnContentBody,
+        response: { 200: LearnContent, 400: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse },
+      },
+    },
+    async (req, reply) => {
+      requireIdempotencyKey(req);
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcAdminCreateContent(req.body);
+        } catch (err) {
+          const mapped = mapGrpcError(err, req.id);
+          return reply.code(mapped.statusCode as 400 | 500 | 503).send(mapped);
+        }
+      }
+      const content = {
+        id: `learn-${Date.now()}`,
+        emoji: '',
+        readCount: 0,
+        completed: false,
+        favorite: false,
+        duration: `${req.body.durationMin}분`,
+        ...req.body,
+      };
+      learnContents.unshift(content);
+      return content;
+    },
+  );
+
+  app.patch(
+    '/learn/:id',
+    {
+      schema: {
+        tags: ['admin'],
+        summary: '학습 콘텐츠 수정',
+        params: LearnIdParams,
+        body: AdminUpsertLearnContentBody,
+        response: { 200: LearnContent, 400: ErrorResponse, 404: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse },
+      },
+    },
+    async (req, reply) => {
+      requireIdempotencyKey(req);
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcAdminUpdateContent(req.params.id, req.body);
+        } catch (err) {
+          const mapped = mapGrpcError(err, req.id);
+          return reply.code(mapped.statusCode as 400 | 404 | 500 | 503).send(mapped);
+        }
+      }
+      const idx = learnContents.findIndex((c) => c.id === req.params.id);
+      if (idx < 0) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `콘텐츠를 찾을 수 없습니다: ${req.params.id}` });
+      const updated = {
+        ...learnContents[idx],
+        ...req.body,
+        duration: `${req.body.durationMin}분`,
+      };
+      learnContents[idx] = updated;
+      return updated;
+    },
+  );
+
   app.patch(
     '/learn/:id/visibility',
-    { schema: { tags: ['admin'], summary: '콘텐츠 공개 설정 (LEARN-014)', params: LearnIdParams, body: AdminUpdateLearnVisibilityBody, response: { 200: LearnContent, 404: ErrorResponse } } },
+    { schema: { tags: ['admin'], summary: '콘텐츠 공개 설정 (LEARN-014)', params: LearnIdParams, body: AdminUpdateLearnVisibilityBody, response: { 200: LearnContent, 400: ErrorResponse, 404: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse } } },
     async (req, reply) => {
       requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcAdminSetContentVisibility(req.params.id, req.body.published);
+        } catch (err) {
+          const mapped = mapGrpcError(err, req.id);
+          return reply.code(mapped.statusCode as 400 | 404 | 500 | 503).send(mapped);
+        }
+      }
       const content = learnContents.find((c) => c.id === req.params.id);
       if (!content) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `콘텐츠를 찾을 수 없습니다: ${req.params.id}` });
       content.published = req.body.published;
       return content;
+    },
+  );
+
+  app.delete(
+    '/learn/:id',
+    {
+      schema: {
+        tags: ['admin'],
+        summary: '학습 콘텐츠 삭제',
+        params: LearnIdParams,
+        response: { 200: EmptyResult, 404: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse },
+      },
+    },
+    async (req, reply) => {
+      requireIdempotencyKey(req);
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcAdminDeleteContent(req.params.id);
+        } catch (err) {
+          const mapped = mapGrpcError(err, req.id);
+          return reply.code(mapped.statusCode as 404 | 500 | 503).send(mapped);
+        }
+      }
+      const idx = learnContents.findIndex((c) => c.id === req.params.id);
+      if (idx < 0) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `콘텐츠를 찾을 수 없습니다: ${req.params.id}` });
+      learnContents.splice(idx, 1);
+      return { success: true };
     },
   );
 
@@ -166,6 +394,60 @@ export const adminRoutes: FastifyPluginAsyncTypebox = async (app) => {
         completionRate: content.readCount ? Math.round((completedCount / content.readCount) * 100) : 0,
         favoriteCount,
       };
+    },
+  );
+
+  // ── Notifications ──────────────────────────────────────────────────
+  app.post(
+    '/notifications/send',
+    {
+      schema: {
+        tags: ['admin'],
+        summary: '관리자 알림 발송',
+        body: AdminSendNotificationBody,
+        response: {
+          200: AdminSendNotificationResult,
+          400: ErrorResponse,
+          404: ErrorResponse,
+          500: ErrorResponse,
+          503: ErrorResponse,
+        },
+      },
+    },
+    async (req, reply) => {
+      const idempotencyKey = requireIdempotencyKey(req);
+      if (req.body.target !== 'user') {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '현재는 단일 사용자 발송만 지원합니다.' });
+      }
+      if (env.dataSource !== 'grpc') {
+        const notification = {
+          id: `notification-${Date.now()}`,
+          symbol: typeof req.body.meta?.symbol === 'string' ? req.body.meta.symbol : '',
+          name: typeof req.body.meta?.name === 'string' ? req.body.meta.name : req.body.title,
+          type: req.body.type,
+          status: 'UNREAD' as const,
+          message: req.body.message,
+          meta: req.body.meta,
+          triggeredAt: new Date().toISOString(),
+        };
+        return { notification };
+      }
+      try {
+        const notification = await req.server.grpc.notification.sendNotification(
+          {
+            userId: req.body.userId,
+            type: req.body.type,
+            title: req.body.title,
+            message: req.body.message,
+            meta: req.body.meta,
+          },
+          { userId: req.body.userId, idempotencyKey },
+        );
+        return { notification };
+      } catch (err) {
+        const mapped = mapGrpcError(err, req.id);
+        return reply.code(mapped.statusCode as 400 | 404 | 500 | 503).send(mapped);
+      }
     },
   );
 
