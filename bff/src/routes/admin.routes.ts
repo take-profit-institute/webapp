@@ -1,6 +1,6 @@
 import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import { Type } from '@sinclair/typebox';
-import { adminUser, mockUsers } from '../data/user';
+import { adminUser } from '../data/user';
 import { learnContents, missions } from '../data/social';
 import { DEMO_USER_ID } from '../data/account';
 import {
@@ -10,14 +10,11 @@ import {
   AdminSendNotificationBody,
   AdminSendNotificationResult,
   AdminUpdateMissionRewardBody,
-  AdminUpdateUserStatusBody,
   BatchExecution,
   BatchExecutionIdParams,
   BatchExecutionListQuery,
   BatchJob,
   BatchJobNameParams,
-  AdminUserIdParams,
-  AdminUserListQuery,
   ErrorResponse,
   LearnContent,
   LearnIdParams,
@@ -230,40 +227,10 @@ export const adminRoutes: FastifyPluginAsyncTypebox = async (app) => {
     },
   );
 
-  // ── Users (USER-019, USER-020) ──────────────────────────────────────
-  app.get(
-    '/users',
-    {
-      schema: {
-        tags: ['admin'],
-        summary: '사용자 목록 조회 (USER-019)',
-        querystring: AdminUserListQuery,
-        response: { 200: Paginated(UserProfile) },
-      },
-    },
-    async (req) => {
-      const { page = 1, limit = 20, status, q } = req.query;
-      let result = [...mockUsers];
-      if (status) result = result.filter((u) => u.status === status);
-      if (q) {
-        const lq = q.toLowerCase();
-        result = result.filter((u) => u.username.toLowerCase().includes(lq) || u.email.toLowerCase().includes(lq));
-      }
-      return paginate(result, page, limit);
-    },
-  );
-
-  app.patch(
-    '/users/:id/status',
-    { schema: { tags: ['admin'], summary: '사용자 상태 변경 (USER-020)', params: AdminUserIdParams, body: AdminUpdateUserStatusBody, response: { 200: UserProfile, 404: ErrorResponse } } },
-    async (req, reply) => {
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
-      const user = mockUsers.find((u) => u.id === req.params.id);
-      if (!user) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `사용자를 찾을 수 없습니다: ${req.params.id}` });
-      user.status = req.body.status;
-      return user;
-    },
-  );
+  // ── Users ───────────────────────────────────────────────────────────
+  // 앱 일반 유저 목록/정지 백엔드는 아직 없다. admin 콘솔의 "사용자 관리"는
+  // auth-service의 관리자 계정 API(/api/v1/admin/accounts)를 게이트웨이로 직접
+  // 호출하므로(BFF 경유 아님), 여기에 mock 라우트를 두지 않는다.
 
   // ── Learn (LEARN-014, LEARN-015) ────────────────────────────────────
   app.get(

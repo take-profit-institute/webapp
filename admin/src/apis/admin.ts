@@ -26,7 +26,11 @@ export function adminLogin(username: string, password: string) {
   return apiClient.post<OAuthLoginResult>('/api/admin/login', { username, password });
 }
 
-// ── Users ───────────────────────────────────────────────────────────
+// ── Users (관리자 계정) ─────────────────────────────────────────────
+// 앱 일반 유저용 목록/정지 백엔드는 아직 없어, "사용자 관리"는 auth-service의
+// 관리자 계정 관리 API(/api/v1/admin/accounts, SUPER_ADMIN 전용)에 연결한다.
+// 게이트웨이가 JWT 검증 후 X-Account-Role을 주입하므로 게이트웨이로 직접 호출한다.
+// 목록은 페이지네이션/필터를 서버가 지원하지 않아 클라이언트에서 처리한다.
 export interface UserListParams {
   status?: UserStatus;
   q?: string;
@@ -34,17 +38,52 @@ export interface UserListParams {
   limit?: number;
 }
 
-export function getAdminUsers(params?: UserListParams) {
-  return apiClient.get<PaginatedResult<UserProfile>>('/api/admin/users', {
-    status: params?.status,
-    q: params?.q,
-    page: params?.page?.toString(),
-    limit: params?.limit?.toString(),
-  });
+/** auth-service AdminAccountResponse */
+interface AdminAccount {
+  id: string;
+  username: string;
+  displayName: string;
+  role: 'ADMIN' | 'SUPER_ADMIN';
+  status: 'ACTIVE' | 'DISABLED';
+  lastLoginAt?: string | null;
+  createdAt: string;
 }
 
-export function updateUserStatus(id: string, body: AdminUpdateUserStatusBody) {
-  return apiClient.patch<UserProfile>(`/api/admin/users/${id}/status`, body);
+// 관리자 계정 → 화면용 UserProfile. 계정은 이메일/프로바이더/투자성향이 없어 비운다.
+// 상태는 ACTIVE→활성, DISABLED→정지로 매핑한다(탈퇴 개념 없음).
+function accountToUser(a: AdminAccount): UserProfile {
+  return {
+    id: a.id,
+    username: a.displayName || a.username,
+    email: '',
+    avatar: '🛡️',
+    role: a.role,
+    status: a.status === 'ACTIVE' ? 'active' : 'suspended',
+    createdAt: a.createdAt,
+  };
+}
+
+export async function getAdminUsers(params?: UserListParams): Promise<PaginatedResult<UserProfile>> {
+  const accounts = await apiClient.get<AdminAccount[]>('/api/v1/admin/accounts');
+  let items = accounts.map(accountToUser);
+  if (params?.status) items = items.filter((u) => u.status === params.status);
+  if (params?.q) {
+    const lq = params.q.toLowerCase();
+    items = items.filter((u) => u.username.toLowerCase().includes(lq));
+  }
+  const page = params?.page ?? 1;
+  const limit = params?.limit ?? 20;
+  const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const start = (page - 1) * limit;
+  return { items: items.slice(start, start + limit), total, page, limit, totalPages };
+}
+
+export async function updateUserStatus(id: string, body: AdminUpdateUserStatusBody): Promise<UserProfile> {
+  // 화면 상태(active/suspended/withdrawn) → 계정 상태(ACTIVE/DISABLED).
+  const status = body.status === 'active' ? 'ACTIVE' : 'DISABLED';
+  const updated = await apiClient.patch<AdminAccount>(`/api/v1/admin/accounts/${id}/status`, { status });
+  return accountToUser(updated);
 }
 
 // ── Learn ────────────────────────────────────────────────────────────

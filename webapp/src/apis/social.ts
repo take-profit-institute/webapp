@@ -14,7 +14,7 @@ import type {
   MissionStatus,
   RankingEntry,
 } from '@/lib/api-types';
-import { apiClient } from './client';
+import { ApiError, apiClient } from './client';
 
 export const CHALLENGE_IDS = ['c1', 'c2', 'c3'];
 
@@ -24,8 +24,13 @@ export function getRankings(): Promise<RankingEntry[]> {
 }
 
 /** 내 랭킹. */
-export function getMyRanking(): Promise<RankingEntry> {
-  return apiClient.get<RankingEntry>('/api/rankings/me');
+export async function getMyRanking(): Promise<RankingEntry | undefined> {
+  try {
+    return await apiClient.get<RankingEntry>('/api/rankings/me');
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return undefined;
+    throw error;
+  }
 }
 
 /** 미션/챌린지 목록. */
