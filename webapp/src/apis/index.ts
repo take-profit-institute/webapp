@@ -25,6 +25,7 @@ export {
   MARKET_SYMBOLS,
   getStocks,
   getMovers,
+  getTrendingRankings,
   getStock,
   getCandles,
   getStockNews,

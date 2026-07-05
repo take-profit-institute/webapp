@@ -16,6 +16,9 @@ export type {
   NewsItem,
   MarketMovers,
   MarketStatus,
+  RankingType,
+  RankingItem,
+  Ranking,
   // stock catalog (stock-service)
   StockSummary,
   StockCatalogDetail,

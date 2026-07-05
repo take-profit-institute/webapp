@@ -96,6 +96,43 @@ export const MarketMovers = Type.Object(
 );
 export type MarketMovers = Static<typeof MarketMovers>;
 
+// ── Trending rankings (마켓 랜딩 탭) ────────────────────────────────
+// 트렌딩 랭킹의 유일 소유자는 market-service proto 의 RankingType enum. BFF·프론트는 라벨/렌더만
+// 하고 자기 문자열을 새로 정의하지 않는다. 6종은 실제 캐시 키(rising/falling/...)와 1:1.
+export const RankingType = Type.Union([
+  Type.Literal('RISING'),
+  Type.Literal('FALLING'),
+  Type.Literal('VOLUME_SPIKE'),
+  Type.Literal('POPULAR'),
+  Type.Literal('RATE_UP'),
+  Type.Literal('RATE_DOWN'),
+]);
+export type RankingType = Static<typeof RankingType>;
+
+export const RankingItem = Type.Object({
+  rank: Type.Integer(),
+  symbol: Type.String(),
+  name: Type.String(),
+  price: Type.Number({ description: '현재가(원)' }),
+  change: Type.Number({ description: '전일 대비' }),
+  changePercent: Type.Number({ description: '등락률 %' }),
+  volume: Type.Number({ description: '거래량' }),
+});
+export type RankingItem = Static<typeof RankingItem>;
+
+export const Ranking = Type.Object({
+  type: RankingType,
+  asOf: Type.String({ format: 'date-time', description: '캐시 기준 시각(신선도)' }),
+  items: Type.Array(RankingItem),
+});
+export type Ranking = Static<typeof Ranking>;
+
+export const RankingQuery = Type.Object({
+  type: RankingType,
+  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+});
+export type RankingQuery = Static<typeof RankingQuery>;
+
 // ── Request schemas ────────────────────────────────────────────────
 export const StockListQuery = Type.Object({
   q: Type.Optional(Type.String({ description: 'Search by name or symbol' })),

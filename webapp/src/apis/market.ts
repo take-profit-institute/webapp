@@ -8,6 +8,8 @@ import type {
   MarketStatus,
   NewsItem,
   Quote,
+  Ranking,
+  RankingType,
   StockDetail,
 } from '@/lib/api-types';
 import { apiClient } from './client';
@@ -39,6 +41,12 @@ export function getStocks(params: StockListParams = {}): Promise<Quote[]> {
 /** 시장 동향 (상승/하락/거래상위). */
 export function getMovers(): Promise<MarketMovers> {
   return apiClient.get<MarketMovers>('/api/market/movers');
+}
+
+/** 트렌딩 랭킹 (급상승/급하락/거래량/인기/등락상하위) top-N.
+ *  이름이 social 의 getRankings(유저 게임 랭킹)와 충돌하지 않도록 Trending 접두. */
+export function getTrendingRankings(type: RankingType, limit?: number): Promise<Ranking> {
+  return apiClient.get<Ranking>('/api/market/rankings', { type, ...(limit ? { limit } : {}) });
 }
 
 /** 종목 상세. */

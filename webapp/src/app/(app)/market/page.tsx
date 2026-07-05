@@ -10,6 +10,7 @@ import {
   ChevronsRight,
 } from 'lucide-react';
 import MarketIndexWidget from '@/components/MarketIndexWidget';
+import MarketRankingSection from '@/components/MarketRankingSection';
 import MiniSparkline from '@/components/MiniSparkline';
 import { getLiveMarketStocks, getSparklines, useApi } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
@@ -81,6 +82,8 @@ export default function MarketPage() {
       </div>
 
       <MarketIndexWidget />
+
+      <MarketRankingSection />
 
       <div className="card p-3 md:p-4 mb-3">
         <div className="flex gap-2 mb-3">

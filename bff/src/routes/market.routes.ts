@@ -3,7 +3,7 @@ import { Type } from '@sinclair/typebox';
 import { getMarketProvider } from '../providers';
 import { getMarketStatus } from '../data/market';
 import { env } from '../config/env';
-import { grpcGetIntradayTicks } from '../grpc/market.grpc-client';
+import { grpcGetIntradayTicks, grpcGetRankings } from '../grpc/market.grpc-client';
 import { ErrorResponse } from '@candle/shared';
 import {
   Candle,
@@ -13,6 +13,8 @@ import {
   MarketStatus,
   NewsItem,
   Quote,
+  Ranking,
+  RankingQuery,
   StockDetail,
   StockListQuery,
   SymbolParams,
@@ -37,6 +39,20 @@ const marketRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/movers',
     { schema: { tags: ['market'], summary: '시장 동향 (상승/하락/거래상위)', response: { 200: MarketMovers } } },
     async () => provider.getMovers(),
+  );
+
+  app.get(
+    '/rankings',
+    { schema: { tags: ['market'], summary: '트렌딩 랭킹 (급상승/급하락/거래량/인기/등락상하위)', querystring: RankingQuery, response: { 200: Ranking } } },
+    async (req) => {
+      // 캐시 miss(UNAVAILABLE) 등 상류 장애 시 화면을 막지 않도록 빈 결과로 폴백한다.
+      try {
+        return await grpcGetRankings(req.query.type, req.query.limit ?? 0);
+      } catch (err) {
+        req.log.warn({ err, type: req.query.type }, 'ranking fetch failed; returning empty');
+        return { type: req.query.type, asOf: new Date().toISOString(), items: [] };
+      }
+    },
   );
 
   app.get(

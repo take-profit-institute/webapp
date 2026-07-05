@@ -5,10 +5,14 @@
  * 주소는 env.grpc.marketAddr(기본 localhost:50053).
  */
 import { createClient, type Client } from 'nice-grpc';
-import type { IntradayTick, MarketStatus } from '@candle/shared';
+import type { IntradayTick, MarketStatus, Ranking, RankingType } from '@candle/shared';
 import { env } from '../config/env';
 import { getChannel } from './channel';
-import { MarketServiceDefinition } from './gen/candle/market/v1/market';
+import {
+  MarketServiceDefinition,
+  RankingType as GenRankingType,
+  type RankingItem as GenRankingItem,
+} from './gen/candle/market/v1/market';
 
 type MarketServiceClient = Client<typeof MarketServiceDefinition>;
 
@@ -24,6 +28,35 @@ export async function grpcGetIntradayTicks(symbol: string, limit = 0): Promise<I
   return res.ticks
     .filter((t) => t.ts)
     .map((t) => ({ price: Number(t.price), timestamp: (t.ts as Date).toISOString() }));
+}
+
+/**
+ * 트렌딩 랭킹 top-N. market-service 가 Redis 캐시(스케줄러 write-through)만 읽어 돌려준다 —
+ * 키움 API 를 유저 요청마다 타지 않는다. 캐시 miss 시 UNAVAILABLE 로 throw 되므로 호출부가
+ * 빈 결과로 폴백한다. limit=0 이면 캐시 전체.
+ */
+export async function grpcGetRankings(type: RankingType, limit = 0): Promise<Ranking> {
+  const res = await getClient().getRankings(
+    { type: GenRankingType[type], limit },
+    { signal: AbortSignal.timeout(1000) },
+  );
+  return {
+    type,
+    asOf: (res.asOf as Date | undefined)?.toISOString() ?? new Date().toISOString(),
+    items: res.items.map(toRankingItem),
+  };
+}
+
+function toRankingItem(item: GenRankingItem): Ranking['items'][number] {
+  return {
+    rank: item.rank,
+    symbol: item.symbol,
+    name: item.name,
+    price: Number(item.currentPrice),
+    change: Number(item.priceChange),
+    changePercent: item.priceChangeRate,
+    volume: Number(item.tradingVolume),
+  };
 }
 
 /**

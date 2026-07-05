@@ -12,6 +12,81 @@ import { PageRequest, PageResponse } from "../../common/v1/common";
 
 export const protobufPackage = "candle.market.v1";
 
+/**
+ * 마켓 트렌딩 랭킹. market-service 가 키움 랭킹 API 를 스케줄러로 당겨 Redis 에 top-N 캐시로
+ * 써두고(write-through), 읽기(GetRankings)는 절대 키움을 타지 않고 캐시만 읽는다. 유저 트래픽이
+ * 몰려도 upstream 호출은 스케줄러 1주체뿐. 6종은 실제 캐시 키(rising/falling/volume-spike/
+ * popular/rate-up/rate-down)와 1:1 로 대응한다.
+ */
+export enum RankingType {
+  RANKING_TYPE_UNSPECIFIED = 0,
+  /** RISING - 급상승(가격) */
+  RISING = 1,
+  /** FALLING - 급하락(가격) */
+  FALLING = 2,
+  /** VOLUME_SPIKE - 거래량 급증 */
+  VOLUME_SPIKE = 3,
+  /** POPULAR - 인기(검색 상위) */
+  POPULAR = 4,
+  /** RATE_UP - 등락률 상위 */
+  RATE_UP = 5,
+  /** RATE_DOWN - 등락률 하위 */
+  RATE_DOWN = 6,
+  UNRECOGNIZED = -1,
+}
+
+export function rankingTypeFromJSON(object: any): RankingType {
+  switch (object) {
+    case 0:
+    case "RANKING_TYPE_UNSPECIFIED":
+      return RankingType.RANKING_TYPE_UNSPECIFIED;
+    case 1:
+    case "RISING":
+      return RankingType.RISING;
+    case 2:
+    case "FALLING":
+      return RankingType.FALLING;
+    case 3:
+    case "VOLUME_SPIKE":
+      return RankingType.VOLUME_SPIKE;
+    case 4:
+    case "POPULAR":
+      return RankingType.POPULAR;
+    case 5:
+    case "RATE_UP":
+      return RankingType.RATE_UP;
+    case 6:
+    case "RATE_DOWN":
+      return RankingType.RATE_DOWN;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return RankingType.UNRECOGNIZED;
+  }
+}
+
+export function rankingTypeToJSON(object: RankingType): string {
+  switch (object) {
+    case RankingType.RANKING_TYPE_UNSPECIFIED:
+      return "RANKING_TYPE_UNSPECIFIED";
+    case RankingType.RISING:
+      return "RISING";
+    case RankingType.FALLING:
+      return "FALLING";
+    case RankingType.VOLUME_SPIKE:
+      return "VOLUME_SPIKE";
+    case RankingType.POPULAR:
+      return "POPULAR";
+    case RankingType.RATE_UP:
+      return "RATE_UP";
+    case RankingType.RATE_DOWN:
+      return "RATE_DOWN";
+    case RankingType.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
 export interface Stock {
   symbol: string;
   name: string;
@@ -103,6 +178,39 @@ export interface LiveQuote {
  */
 export interface StreamQuotesRequest {
   symbol: string;
+}
+
+/** 캐시 스냅샷의 한 항목. StockRankingCacheItem 과 1:1. 종목명이 이미 들어있어 카탈로그 조인 불필요. */
+export interface RankingItem {
+  rank: number;
+  /** 종목코드 */
+  symbol: string;
+  /** 종목명 */
+  name: string;
+  /** 현재가(원) */
+  currentPrice: string;
+  /** 전일 대비 */
+  priceChange: string;
+  /** 등락률 % */
+  priceChangeRate: number;
+  /** 키움 부호코드 */
+  priceChangeSign: string;
+  /** 거래량 */
+  tradingVolume: string;
+}
+
+export interface GetRankingsRequest {
+  type: RankingType;
+  /** 최근 N개(0 이면 서버 기본값 = 캐시 전체) */
+  limit: number;
+}
+
+export interface GetRankingsResponse {
+  type: RankingType;
+  /** rank 오름차순 */
+  items: RankingItem[];
+  /** 캐시 기준 시각(신선도 표시용) */
+  asOf?: Date | undefined;
 }
 
 /**
@@ -1229,6 +1337,379 @@ export const StreamQuotesRequest: MessageFns<StreamQuotesRequest> = {
   },
 };
 
+function createBaseRankingItem(): RankingItem {
+  return {
+    rank: 0,
+    symbol: "",
+    name: "",
+    currentPrice: "0",
+    priceChange: "0",
+    priceChangeRate: 0,
+    priceChangeSign: "",
+    tradingVolume: "0",
+  };
+}
+
+export const RankingItem: MessageFns<RankingItem> = {
+  encode(message: RankingItem, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.rank !== 0) {
+      writer.uint32(8).int32(message.rank);
+    }
+    if (message.symbol !== "") {
+      writer.uint32(18).string(message.symbol);
+    }
+    if (message.name !== "") {
+      writer.uint32(26).string(message.name);
+    }
+    if (message.currentPrice !== "0") {
+      writer.uint32(32).int64(message.currentPrice);
+    }
+    if (message.priceChange !== "0") {
+      writer.uint32(40).int64(message.priceChange);
+    }
+    if (message.priceChangeRate !== 0) {
+      writer.uint32(49).double(message.priceChangeRate);
+    }
+    if (message.priceChangeSign !== "") {
+      writer.uint32(58).string(message.priceChangeSign);
+    }
+    if (message.tradingVolume !== "0") {
+      writer.uint32(64).int64(message.tradingVolume);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RankingItem {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRankingItem();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.rank = reader.int32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.symbol = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.currentPrice = reader.int64().toString();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.priceChange = reader.int64().toString();
+          continue;
+        }
+        case 6: {
+          if (tag !== 49) {
+            break;
+          }
+
+          message.priceChangeRate = reader.double();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.priceChangeSign = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.tradingVolume = reader.int64().toString();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RankingItem {
+    return {
+      rank: isSet(object.rank) ? globalThis.Number(object.rank) : 0,
+      symbol: isSet(object.symbol) ? globalThis.String(object.symbol) : "",
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      currentPrice: isSet(object.currentPrice)
+        ? globalThis.String(object.currentPrice)
+        : isSet(object.current_price)
+        ? globalThis.String(object.current_price)
+        : "0",
+      priceChange: isSet(object.priceChange)
+        ? globalThis.String(object.priceChange)
+        : isSet(object.price_change)
+        ? globalThis.String(object.price_change)
+        : "0",
+      priceChangeRate: isSet(object.priceChangeRate)
+        ? globalThis.Number(object.priceChangeRate)
+        : isSet(object.price_change_rate)
+        ? globalThis.Number(object.price_change_rate)
+        : 0,
+      priceChangeSign: isSet(object.priceChangeSign)
+        ? globalThis.String(object.priceChangeSign)
+        : isSet(object.price_change_sign)
+        ? globalThis.String(object.price_change_sign)
+        : "",
+      tradingVolume: isSet(object.tradingVolume)
+        ? globalThis.String(object.tradingVolume)
+        : isSet(object.trading_volume)
+        ? globalThis.String(object.trading_volume)
+        : "0",
+    };
+  },
+
+  toJSON(message: RankingItem): unknown {
+    const obj: any = {};
+    if (message.rank !== 0) {
+      obj.rank = Math.round(message.rank);
+    }
+    if (message.symbol !== "") {
+      obj.symbol = message.symbol;
+    }
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.currentPrice !== "0") {
+      obj.currentPrice = message.currentPrice;
+    }
+    if (message.priceChange !== "0") {
+      obj.priceChange = message.priceChange;
+    }
+    if (message.priceChangeRate !== 0) {
+      obj.priceChangeRate = message.priceChangeRate;
+    }
+    if (message.priceChangeSign !== "") {
+      obj.priceChangeSign = message.priceChangeSign;
+    }
+    if (message.tradingVolume !== "0") {
+      obj.tradingVolume = message.tradingVolume;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<RankingItem>): RankingItem {
+    return RankingItem.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<RankingItem>): RankingItem {
+    const message = createBaseRankingItem();
+    message.rank = object.rank ?? 0;
+    message.symbol = object.symbol ?? "";
+    message.name = object.name ?? "";
+    message.currentPrice = object.currentPrice ?? "0";
+    message.priceChange = object.priceChange ?? "0";
+    message.priceChangeRate = object.priceChangeRate ?? 0;
+    message.priceChangeSign = object.priceChangeSign ?? "";
+    message.tradingVolume = object.tradingVolume ?? "0";
+    return message;
+  },
+};
+
+function createBaseGetRankingsRequest(): GetRankingsRequest {
+  return { type: 0, limit: 0 };
+}
+
+export const GetRankingsRequest: MessageFns<GetRankingsRequest> = {
+  encode(message: GetRankingsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.type !== 0) {
+      writer.uint32(8).int32(message.type);
+    }
+    if (message.limit !== 0) {
+      writer.uint32(16).int32(message.limit);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetRankingsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetRankingsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.type = reader.int32() as any;
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.limit = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetRankingsRequest {
+    return {
+      type: isSet(object.type) ? rankingTypeFromJSON(object.type) : 0,
+      limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0,
+    };
+  },
+
+  toJSON(message: GetRankingsRequest): unknown {
+    const obj: any = {};
+    if (message.type !== 0) {
+      obj.type = rankingTypeToJSON(message.type);
+    }
+    if (message.limit !== 0) {
+      obj.limit = Math.round(message.limit);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetRankingsRequest>): GetRankingsRequest {
+    return GetRankingsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetRankingsRequest>): GetRankingsRequest {
+    const message = createBaseGetRankingsRequest();
+    message.type = object.type ?? 0;
+    message.limit = object.limit ?? 0;
+    return message;
+  },
+};
+
+function createBaseGetRankingsResponse(): GetRankingsResponse {
+  return { type: 0, items: [], asOf: undefined };
+}
+
+export const GetRankingsResponse: MessageFns<GetRankingsResponse> = {
+  encode(message: GetRankingsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.type !== 0) {
+      writer.uint32(8).int32(message.type);
+    }
+    for (const v of message.items) {
+      RankingItem.encode(v!, writer.uint32(18).fork()).join();
+    }
+    if (message.asOf !== undefined) {
+      Timestamp.encode(toTimestamp(message.asOf), writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetRankingsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetRankingsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.type = reader.int32() as any;
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.items.push(RankingItem.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.asOf = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetRankingsResponse {
+    return {
+      type: isSet(object.type) ? rankingTypeFromJSON(object.type) : 0,
+      items: globalThis.Array.isArray(object?.items) ? object.items.map((e: any) => RankingItem.fromJSON(e)) : [],
+      asOf: isSet(object.asOf)
+        ? fromJsonTimestamp(object.asOf)
+        : isSet(object.as_of)
+        ? fromJsonTimestamp(object.as_of)
+        : undefined,
+    };
+  },
+
+  toJSON(message: GetRankingsResponse): unknown {
+    const obj: any = {};
+    if (message.type !== 0) {
+      obj.type = rankingTypeToJSON(message.type);
+    }
+    if (message.items?.length) {
+      obj.items = message.items.map((e) => RankingItem.toJSON(e));
+    }
+    if (message.asOf !== undefined) {
+      obj.asOf = message.asOf.toISOString();
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetRankingsResponse>): GetRankingsResponse {
+    return GetRankingsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetRankingsResponse>): GetRankingsResponse {
+    const message = createBaseGetRankingsResponse();
+    message.type = object.type ?? 0;
+    message.items = object.items?.map((e) => RankingItem.fromPartial(e)) || [];
+    message.asOf = object.asOf ?? undefined;
+    return message;
+  },
+};
+
 function createBaseGetMarketStatusRequest(): GetMarketStatusRequest {
   return {};
 }
@@ -1551,6 +2032,14 @@ export const MarketServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    getRankings: {
+      name: "GetRankings",
+      requestType: GetRankingsRequest as typeof GetRankingsRequest,
+      requestStream: false,
+      responseType: GetRankingsResponse as typeof GetRankingsResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -1580,6 +2069,10 @@ export interface MarketServiceImplementation<CallContextExt = {}> {
     request: IsTradingDayRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<IsTradingDayResponse>>;
+  getRankings(
+    request: GetRankingsRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<GetRankingsResponse>>;
 }
 
 export interface MarketServiceClient<CallOptionsExt = {}> {
@@ -1608,6 +2101,10 @@ export interface MarketServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<IsTradingDayRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<IsTradingDayResponse>;
+  getRankings(
+    request: DeepPartial<GetRankingsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<GetRankingsResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
