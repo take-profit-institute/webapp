@@ -38,6 +38,8 @@ export const env = {
   }),
   dataSource: str('DATA_SOURCE', 'grpc') as DataSource,
   redisUrl: process.env['REDIS_URL'] || '',
+  // auth-service와 공유하는 JWT HMAC 시크릿. admin 라우트 토큰 검증에 사용.
+  authJwtSecret: str('AUTH_JWT_HMAC_SECRET', 'change-me-in-production-change-me-in-production'),
   kis: {
     baseUrl: str('KIS_BASE_URL', 'https://openapi.koreainvestment.com:9443'),
     appKey: str('KIS_APP_KEY', ''),

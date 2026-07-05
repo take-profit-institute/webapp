@@ -9,8 +9,8 @@ import { ApiError } from '@/apis/client';
 export default function LoginPage() {
   const router = useRouter();
   const { isLoggedIn, setSession } = useAdminStore();
-  const [email, setEmail] = useState('admin@candle.app');
-  const [password, setPassword] = useState('admin1234');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +24,8 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const result = await adminLogin(email, password);
-      if (result.user.role !== 'ADMIN') {
+      const result = await adminLogin(username, password);
+      if (result.user.role !== 'ADMIN' && result.user.role !== 'SUPER_ADMIN') {
         setError('관리자 권한이 없는 계정입니다.');
         return;
       }
@@ -54,13 +54,14 @@ export default function LoginPage() {
         <div className="card p-6">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
-              <label className="block text-xs mb-1.5" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>이메일</label>
+              <label className="block text-xs mb-1.5" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>아이디</label>
               <input
-                type="email"
+                type="text"
+                autoComplete="username"
                 className="input-dark"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@candle.app"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="관리자 아이디"
                 required
               />
             </div>
@@ -97,7 +98,7 @@ export default function LoginPage() {
           </form>
 
           <p className="text-xs text-center mt-4" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
-            테스트: admin@candle.app / admin1234
+            발급받은 관리자 아이디로 로그인하세요.
           </p>
         </div>
       </div>

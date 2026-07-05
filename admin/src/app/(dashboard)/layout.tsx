@@ -77,7 +77,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="text-lg">{user?.avatar ?? '🛡️'}</span>
             <div className="min-w-0">
               <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{user?.username}</p>
-              <p className="text-[10px]" style={{ color: 'var(--amber)' }}>ADMIN</p>
+              <p className="text-[10px]" style={{ color: 'var(--amber)' }}>{user?.role ?? 'ADMIN'}</p>
             </div>
           </div>
           <button

@@ -22,8 +22,8 @@ import type {
 } from '@candle/shared';
 
 // ── Auth ────────────────────────────────────────────────────────────
-export function adminLogin(email: string, password: string) {
-  return apiClient.post<OAuthLoginResult>('/api/admin/login', { email, password });
+export function adminLogin(username: string, password: string) {
+  return apiClient.post<OAuthLoginResult>('/api/admin/login', { username, password });
 }
 
 // ── Users ───────────────────────────────────────────────────────────

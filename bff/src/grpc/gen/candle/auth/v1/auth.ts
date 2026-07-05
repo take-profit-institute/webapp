@@ -37,6 +37,25 @@ export interface GetMeResponse {
   user?: AuthUser | undefined;
 }
 
+export interface AdminLoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface AdminLoginResponse {
+  accessToken: string;
+  refreshToken: string;
+  /** access token TTL (seconds) */
+  expiresIn: string;
+  /** refresh token TTL (seconds) */
+  refreshExpiresIn: string;
+  adminId: string;
+  username: string;
+  displayName: string;
+  /** ADMIN | SUPER_ADMIN */
+  role: string;
+}
+
 function createBaseProvider(): Provider {
   return { name: "", authorizationUrl: "" };
 }
@@ -460,6 +479,287 @@ export const GetMeResponse: MessageFns<GetMeResponse> = {
   },
 };
 
+function createBaseAdminLoginRequest(): AdminLoginRequest {
+  return { username: "", password: "" };
+}
+
+export const AdminLoginRequest: MessageFns<AdminLoginRequest> = {
+  encode(message: AdminLoginRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.username !== "") {
+      writer.uint32(10).string(message.username);
+    }
+    if (message.password !== "") {
+      writer.uint32(18).string(message.password);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AdminLoginRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAdminLoginRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.username = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.password = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AdminLoginRequest {
+    return {
+      username: isSet(object.username) ? globalThis.String(object.username) : "",
+      password: isSet(object.password) ? globalThis.String(object.password) : "",
+    };
+  },
+
+  toJSON(message: AdminLoginRequest): unknown {
+    const obj: any = {};
+    if (message.username !== "") {
+      obj.username = message.username;
+    }
+    if (message.password !== "") {
+      obj.password = message.password;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<AdminLoginRequest>): AdminLoginRequest {
+    return AdminLoginRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AdminLoginRequest>): AdminLoginRequest {
+    const message = createBaseAdminLoginRequest();
+    message.username = object.username ?? "";
+    message.password = object.password ?? "";
+    return message;
+  },
+};
+
+function createBaseAdminLoginResponse(): AdminLoginResponse {
+  return {
+    accessToken: "",
+    refreshToken: "",
+    expiresIn: "0",
+    refreshExpiresIn: "0",
+    adminId: "",
+    username: "",
+    displayName: "",
+    role: "",
+  };
+}
+
+export const AdminLoginResponse: MessageFns<AdminLoginResponse> = {
+  encode(message: AdminLoginResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.accessToken !== "") {
+      writer.uint32(10).string(message.accessToken);
+    }
+    if (message.refreshToken !== "") {
+      writer.uint32(18).string(message.refreshToken);
+    }
+    if (message.expiresIn !== "0") {
+      writer.uint32(24).int64(message.expiresIn);
+    }
+    if (message.refreshExpiresIn !== "0") {
+      writer.uint32(32).int64(message.refreshExpiresIn);
+    }
+    if (message.adminId !== "") {
+      writer.uint32(42).string(message.adminId);
+    }
+    if (message.username !== "") {
+      writer.uint32(50).string(message.username);
+    }
+    if (message.displayName !== "") {
+      writer.uint32(58).string(message.displayName);
+    }
+    if (message.role !== "") {
+      writer.uint32(66).string(message.role);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AdminLoginResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAdminLoginResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.accessToken = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.refreshToken = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.expiresIn = reader.int64().toString();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.refreshExpiresIn = reader.int64().toString();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.adminId = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.username = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.displayName = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.role = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AdminLoginResponse {
+    return {
+      accessToken: isSet(object.accessToken)
+        ? globalThis.String(object.accessToken)
+        : isSet(object.access_token)
+        ? globalThis.String(object.access_token)
+        : "",
+      refreshToken: isSet(object.refreshToken)
+        ? globalThis.String(object.refreshToken)
+        : isSet(object.refresh_token)
+        ? globalThis.String(object.refresh_token)
+        : "",
+      expiresIn: isSet(object.expiresIn)
+        ? globalThis.String(object.expiresIn)
+        : isSet(object.expires_in)
+        ? globalThis.String(object.expires_in)
+        : "0",
+      refreshExpiresIn: isSet(object.refreshExpiresIn)
+        ? globalThis.String(object.refreshExpiresIn)
+        : isSet(object.refresh_expires_in)
+        ? globalThis.String(object.refresh_expires_in)
+        : "0",
+      adminId: isSet(object.adminId)
+        ? globalThis.String(object.adminId)
+        : isSet(object.admin_id)
+        ? globalThis.String(object.admin_id)
+        : "",
+      username: isSet(object.username) ? globalThis.String(object.username) : "",
+      displayName: isSet(object.displayName)
+        ? globalThis.String(object.displayName)
+        : isSet(object.display_name)
+        ? globalThis.String(object.display_name)
+        : "",
+      role: isSet(object.role) ? globalThis.String(object.role) : "",
+    };
+  },
+
+  toJSON(message: AdminLoginResponse): unknown {
+    const obj: any = {};
+    if (message.accessToken !== "") {
+      obj.accessToken = message.accessToken;
+    }
+    if (message.refreshToken !== "") {
+      obj.refreshToken = message.refreshToken;
+    }
+    if (message.expiresIn !== "0") {
+      obj.expiresIn = message.expiresIn;
+    }
+    if (message.refreshExpiresIn !== "0") {
+      obj.refreshExpiresIn = message.refreshExpiresIn;
+    }
+    if (message.adminId !== "") {
+      obj.adminId = message.adminId;
+    }
+    if (message.username !== "") {
+      obj.username = message.username;
+    }
+    if (message.displayName !== "") {
+      obj.displayName = message.displayName;
+    }
+    if (message.role !== "") {
+      obj.role = message.role;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<AdminLoginResponse>): AdminLoginResponse {
+    return AdminLoginResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AdminLoginResponse>): AdminLoginResponse {
+    const message = createBaseAdminLoginResponse();
+    message.accessToken = object.accessToken ?? "";
+    message.refreshToken = object.refreshToken ?? "";
+    message.expiresIn = object.expiresIn ?? "0";
+    message.refreshExpiresIn = object.refreshExpiresIn ?? "0";
+    message.adminId = object.adminId ?? "";
+    message.username = object.username ?? "";
+    message.displayName = object.displayName ?? "";
+    message.role = object.role ?? "";
+    return message;
+  },
+};
+
 export type AuthServiceDefinition = typeof AuthServiceDefinition;
 export const AuthServiceDefinition = {
   name: "AuthService",
@@ -481,6 +781,14 @@ export const AuthServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    adminLogin: {
+      name: "AdminLogin",
+      requestType: AdminLoginRequest as typeof AdminLoginRequest,
+      requestStream: false,
+      responseType: AdminLoginResponse as typeof AdminLoginResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -490,6 +798,10 @@ export interface AuthServiceImplementation<CallContextExt = {}> {
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<ListProvidersResponse>>;
   getMe(request: GetMeRequest, context: CallContext & CallContextExt): Promise<DeepPartial<GetMeResponse>>;
+  adminLogin(
+    request: AdminLoginRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<AdminLoginResponse>>;
 }
 
 export interface AuthServiceClient<CallOptionsExt = {}> {
@@ -498,6 +810,10 @@ export interface AuthServiceClient<CallOptionsExt = {}> {
     options?: CallOptions & CallOptionsExt,
   ): Promise<ListProvidersResponse>;
   getMe(request: DeepPartial<GetMeRequest>, options?: CallOptions & CallOptionsExt): Promise<GetMeResponse>;
+  adminLogin(
+    request: DeepPartial<AdminLoginRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<AdminLoginResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

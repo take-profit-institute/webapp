@@ -122,6 +122,20 @@ export interface GetMarketStatusResponse {
   session: string;
 }
 
+/**
+ * 임의 날짜의 거래일 여부. 예약 주문의 실행 예정일(scheduled_date)이 주말·휴장일이
+ * 아닌지 검증하는 데 쓴다. 판정은 GetMarketStatus와 동일한 권위 소스(MarketSession)다.
+ */
+export interface IsTradingDayRequest {
+  /** "YYYY-MM-DD" (KST 기준 civil date) */
+  date: string;
+}
+
+export interface IsTradingDayResponse {
+  /** 주말·휴장일이 아니면 true */
+  tradingDay: boolean;
+}
+
 function createBaseStock(): Stock {
   return { symbol: "", name: "", market: "" };
 }
@@ -1354,6 +1368,128 @@ export const GetMarketStatusResponse: MessageFns<GetMarketStatusResponse> = {
   },
 };
 
+function createBaseIsTradingDayRequest(): IsTradingDayRequest {
+  return { date: "" };
+}
+
+export const IsTradingDayRequest: MessageFns<IsTradingDayRequest> = {
+  encode(message: IsTradingDayRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.date !== "") {
+      writer.uint32(10).string(message.date);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): IsTradingDayRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseIsTradingDayRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.date = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): IsTradingDayRequest {
+    return { date: isSet(object.date) ? globalThis.String(object.date) : "" };
+  },
+
+  toJSON(message: IsTradingDayRequest): unknown {
+    const obj: any = {};
+    if (message.date !== "") {
+      obj.date = message.date;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<IsTradingDayRequest>): IsTradingDayRequest {
+    return IsTradingDayRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<IsTradingDayRequest>): IsTradingDayRequest {
+    const message = createBaseIsTradingDayRequest();
+    message.date = object.date ?? "";
+    return message;
+  },
+};
+
+function createBaseIsTradingDayResponse(): IsTradingDayResponse {
+  return { tradingDay: false };
+}
+
+export const IsTradingDayResponse: MessageFns<IsTradingDayResponse> = {
+  encode(message: IsTradingDayResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.tradingDay !== false) {
+      writer.uint32(8).bool(message.tradingDay);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): IsTradingDayResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseIsTradingDayResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.tradingDay = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): IsTradingDayResponse {
+    return {
+      tradingDay: isSet(object.tradingDay)
+        ? globalThis.Boolean(object.tradingDay)
+        : isSet(object.trading_day)
+        ? globalThis.Boolean(object.trading_day)
+        : false,
+    };
+  },
+
+  toJSON(message: IsTradingDayResponse): unknown {
+    const obj: any = {};
+    if (message.tradingDay !== false) {
+      obj.tradingDay = message.tradingDay;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<IsTradingDayResponse>): IsTradingDayResponse {
+    return IsTradingDayResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<IsTradingDayResponse>): IsTradingDayResponse {
+    const message = createBaseIsTradingDayResponse();
+    message.tradingDay = object.tradingDay ?? false;
+    return message;
+  },
+};
+
 export type MarketServiceDefinition = typeof MarketServiceDefinition;
 export const MarketServiceDefinition = {
   name: "MarketService",
@@ -1407,6 +1543,14 @@ export const MarketServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    isTradingDay: {
+      name: "IsTradingDay",
+      requestType: IsTradingDayRequest as typeof IsTradingDayRequest,
+      requestStream: false,
+      responseType: IsTradingDayResponse as typeof IsTradingDayResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -1432,6 +1576,10 @@ export interface MarketServiceImplementation<CallContextExt = {}> {
     request: GetMarketStatusRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<GetMarketStatusResponse>>;
+  isTradingDay(
+    request: IsTradingDayRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<IsTradingDayResponse>>;
 }
 
 export interface MarketServiceClient<CallOptionsExt = {}> {
@@ -1456,6 +1604,10 @@ export interface MarketServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<GetMarketStatusRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<GetMarketStatusResponse>;
+  isTradingDay(
+    request: DeepPartial<IsTradingDayRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<IsTradingDayResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

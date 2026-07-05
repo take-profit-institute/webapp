@@ -31,8 +31,11 @@ import {
   Paginated,
   TriggerBatchJobBody,
   UserProfile,
+  UserRole,
 } from '@candle/shared';
 import { env } from '../config/env';
+import { ERROR_CODES, PublicError } from '../errors';
+import { verifyHs256 } from '../plugins/jwt';
 import { mapGrpcError, requireIdempotencyKey } from '../grpc';
 import {
   grpcGetBatchExecution,
@@ -48,28 +51,6 @@ import {
   grpcAdminUpdateContent,
 } from '../grpc/learning.grpc-client';
 
-const ADMIN_EMAIL = 'admin@candle.app';
-const ADMIN_PASSWORD = 'admin1234';
-const ACCESS_TTL = 60 * 60;
-const REFRESH_TTL = 60 * 60 * 24 * 14;
-
-function b64url(value: unknown): string {
-  return Buffer.from(JSON.stringify(value)).toString('base64url');
-}
-
-function issueTokens(userId: string, role: 'USER' | 'ADMIN') {
-  const now = Math.floor(Date.now() / 1000);
-  const header = b64url({ alg: 'HS256', typ: 'JWT' });
-  const payload = b64url({ sub: userId, role, iat: now, exp: now + ACCESS_TTL });
-  return {
-    accessToken: `${header}.${payload}.mock-signature`,
-    refreshToken: `refresh.${b64url({ sub: userId, jti: Date.now() })}`,
-    tokenType: 'Bearer' as const,
-    expiresIn: ACCESS_TTL,
-    refreshExpiresIn: REFRESH_TTL,
-  };
-}
-
 function paginate<T>(arr: T[], page: number, limit: number) {
   const total = arr.length;
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -79,7 +60,7 @@ function paginate<T>(arr: T[], page: number, limit: number) {
 }
 
 const AdminLoginBody = Type.Object({
-  email: Type.String({ format: 'email' }),
+  username: Type.String({ minLength: 1 }),
   password: Type.String({ minLength: 1 }),
 });
 
@@ -100,15 +81,62 @@ const EmptyResult = Type.Object({
 });
 
 export const adminRoutes: FastifyPluginAsyncTypebox = async (app) => {
+  // ── Auth guard ───────────────────────────────────────────────────────
+  // /login을 제외한 모든 admin 라우트는 유효한 admin access token(ADMIN|SUPER_ADMIN)을 요구한다.
+  // 공개 라우트는 route config에 { public: true }로 표시한다.
+  app.addHook('preHandler', async (req) => {
+    if ((req.routeOptions?.config as { public?: boolean } | undefined)?.public) return;
+    const header = req.headers['authorization'];
+    const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : null;
+    if (!token) throw new PublicError(401, ERROR_CODES.UNAUTHORIZED);
+    const claims = verifyHs256(token, env.authJwtSecret);
+    if (!claims) throw new PublicError(401, ERROR_CODES.UNAUTHORIZED);
+    if (claims.role !== 'ADMIN' && claims.role !== 'SUPER_ADMIN') {
+      throw new PublicError(403, ERROR_CODES.FORBIDDEN);
+    }
+  });
+
   // ── Auth ────────────────────────────────────────────────────────────
   app.post(
     '/login',
-    { schema: { tags: ['admin'], summary: '관리자 로그인', body: AdminLoginBody, response: { 200: OAuthLoginResult, 401: ErrorResponse } } },
+    {
+      config: { public: true },
+      schema: {
+        tags: ['admin'],
+        summary: '관리자 로그인 (auth-service gRPC)',
+        body: AdminLoginBody,
+        response: { 200: OAuthLoginResult, 400: ErrorResponse, 401: ErrorResponse, 403: ErrorResponse, 422: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse },
+      },
+    },
     async (req, reply) => {
-      if (req.body.email !== ADMIN_EMAIL || req.body.password !== ADMIN_PASSWORD) {
-        return reply.status(401).send({ statusCode: 401, error: 'Unauthorized', message: '관리자 계정 정보가 올바르지 않습니다.' });
+      try {
+        const res = await req.server.grpc.auth.adminLogin({ username: req.body.username, password: req.body.password });
+        const user: UserProfile = {
+          id: res.adminId,
+          username: res.displayName || res.username,
+          // 관리자 계정은 이메일이 없다(username/password 로그인). UI 표시는 username을 쓴다.
+          email: '',
+          avatar: adminUser.avatar,
+          role: res.role as UserRole,
+          status: 'active',
+          createdAt: new Date().toISOString(),
+        };
+        return {
+          tokens: {
+            accessToken: res.accessToken,
+            refreshToken: res.refreshToken,
+            tokenType: 'Bearer' as const,
+            // int64는 ts-proto forceLong=string 설정으로 문자열이라 Number로 변환한다.
+            expiresIn: Number(res.expiresIn),
+            refreshExpiresIn: Number(res.refreshExpiresIn),
+          },
+          user,
+          isNewUser: false,
+        };
+      } catch (err) {
+        const mapped = mapGrpcError(err, req.id);
+        return reply.code(mapped.statusCode as 400 | 401 | 403 | 422 | 500 | 503).send(mapped);
       }
-      return { tokens: issueTokens(adminUser.id, 'ADMIN'), user: adminUser, isNewUser: false };
     },
   );
 

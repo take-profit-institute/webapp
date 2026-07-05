@@ -11,8 +11,8 @@ export const InvestStyle = Type.Union(
 );
 export type InvestStyle = Static<typeof InvestStyle>;
 
-/** Authorization role (AUTH-011). */
-export const UserRole = Type.Union([Type.Literal('USER'), Type.Literal('ADMIN')]);
+/** Authorization role (AUTH-011). SUPER_ADMIN는 관리자 계정 관리까지 가능한 상위 등급. */
+export const UserRole = Type.Union([Type.Literal('USER'), Type.Literal('ADMIN'), Type.Literal('SUPER_ADMIN')]);
 export type UserRole = Static<typeof UserRole>;
 
 /**
