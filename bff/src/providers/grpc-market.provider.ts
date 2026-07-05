@@ -8,7 +8,8 @@
  *   종가/거래량) 를 합쳐 StockDetail 을 채운다. 실시간 등락(change/prevClose 등)은 시세 피드가
  *   붙기 전까지 0.
  * - getCandles: stock-service ChartService (grpcGetCandles).
- * - getNews/getMovers: 백엔드 없음 → 빈 결과(throw 금지).
+ * - getNews: news-service gRPC(GetStockNews) 위임. 실패 시 빈 결과로 폴백(throw 금지).
+ * - getMovers: 백엔드 없음 → 빈 결과(throw 금지).
  */
 import type {
   Candle,
@@ -23,6 +24,7 @@ import type {
 import type { MarketProvider, StockListFilter } from './market.provider';
 import { grpcGetCandles, grpcGetPreviousClose, grpcGetPriceStats, type PriceStats } from '../grpc/stock-chart.grpc-client';
 import { grpcGetStock, grpcSearchStocks } from '../grpc/stock.grpc-client';
+import { grpcGetStockNews } from '../grpc/news.grpc-client';
 
 const EMPTY_FINANCIALS = { revenue: 0, operatingProfit: 0, netIncome: 0, per: 0, pbr: 0, roe: 0 };
 
@@ -47,10 +49,13 @@ export class GrpcMarketProvider implements MarketProvider {
     return grpcGetCandles(symbol, interval, limit);
   }
 
-  // 시세/뉴스/무버스 백엔드 미구현 — 500 대신 빈 결과.
-  async getNews(): Promise<NewsItem[]> {
-    return [];
+  // 뉴스는 news-service gRPC(GetStockNews)에서 최신 3건을 가져온다.
+  // 부가정보라 실패해도 상세 페이지를 막지 않도록 빈 배열로 폴백한다.
+  async getNews(symbol: string): Promise<NewsItem[]> {
+    return grpcGetStockNews(symbol).catch(() => []);
   }
+
+  // 시세/무버스 백엔드 미구현 — 500 대신 빈 결과.
 
   async getMovers(): Promise<MarketMovers> {
     return { gainers: [], losers: [], mostActive: [] };
