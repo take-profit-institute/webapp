@@ -48,9 +48,8 @@ jobs:
           file: bff/Dockerfile
           push: true
           platforms: linux/amd64
-          tags: |
-            ${{ steps.ecr.outputs.registry }}/candle/bff:${{ github.sha }}
-            ${{ steps.ecr.outputs.registry }}/candle/bff:dev
+          # ECR IMMUTABLE: SHA 태그만(고유). :dev 같은 이동 태그는 덮어쓰기 불가라 넣지 않는다.
+          tags: ${{ steps.ecr.outputs.registry }}/candle/bff:${{ github.sha }}
           cache-from: type=gha,scope=bff
           cache-to: type=gha,mode=max,scope=bff
       - uses: ./.github/actions/bump-tag
