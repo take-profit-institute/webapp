@@ -32,7 +32,7 @@ import {
 } from '@candle/shared';
 import { env } from '../config/env';
 import { ERROR_CODES, PublicError } from '../errors';
-import { verifyHs256 } from '../plugins/jwt';
+import { verifyToken } from '../plugins/jwt';
 import { mapGrpcError, requireIdempotencyKey } from '../grpc';
 import {
   grpcGetBatchExecution,
@@ -86,7 +86,7 @@ export const adminRoutes: FastifyPluginAsyncTypebox = async (app) => {
     const header = req.headers['authorization'];
     const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) throw new PublicError(401, ERROR_CODES.UNAUTHORIZED);
-    const claims = verifyHs256(token, env.authJwtSecret);
+    const claims = await verifyToken(token);
     if (!claims) throw new PublicError(401, ERROR_CODES.UNAUTHORIZED);
     if (claims.role !== 'ADMIN' && claims.role !== 'SUPER_ADMIN') {
       throw new PublicError(403, ERROR_CODES.FORBIDDEN);

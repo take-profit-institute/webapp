@@ -38,8 +38,10 @@ export const env = {
   }),
   dataSource: str('DATA_SOURCE', 'grpc') as DataSource,
   redisUrl: process.env['REDIS_URL'] || '',
-  // auth-service와 공유하는 JWT HMAC 시크릿. admin 라우트 토큰 검증에 사용.
-  authJwtSecret: str('AUTH_JWT_HMAC_SECRET', 'change-me-in-production-change-me-in-production'),
+  // auth-service JWKS(공개키)로 RS256 access token 검증. admin 라우트 가드에 사용.
+  authJwksUri: str('AUTH_JWKS_URI', 'http://localhost:8081/.well-known/jwks.json'),
+  authJwtIssuer: str('AUTH_JWT_ISSUER', 'http://localhost:8081'),
+  authJwtAudience: str('AUTH_JWT_AUDIENCE', 'candle-api'),
   kis: {
     baseUrl: str('KIS_BASE_URL', 'https://openapi.koreainvestment.com:9443'),
     appKey: str('KIS_APP_KEY', ''),
