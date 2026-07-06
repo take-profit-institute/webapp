@@ -46,48 +46,68 @@ jobs:
           cache-from: type=gha,scope=bff
           cache-to: type=gha,mode=max,scope=bff
 
-  push-webapp:
+  # webapp: 정적 export(next output=export) → S3 sync → CloudFront invalidation.
+  # 컨테이너 대신 CloudFront+S3(static-site 모듈)로 서빙한다. 자격증명은 GitHub OIDC로
+  # ci_deploy_role 을 assume (정적 키 없음). role/bucket/dist 는 Terraform output 값을
+  # 레포 Secrets/Variables 에 등록한다.
+  deploy-webapp:
     needs: changes
     if: needs.changes.outputs.webapp == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      # 빌드 타임에 정적 번들로 박히는 prod 공개 URL (candle.io.kr)
+      NEXT_PUBLIC_API_BASE_URL: https://api.candle.io.kr
+      NEXT_PUBLIC_AUTH_BASE_URL: https://api.candle.io.kr
+      NEXT_PUBLIC_WS_BASE_URL: wss://ws.candle.io.kr
+      NEXT_PUBLIC_OAUTH_REDIRECT_BRIDGE_URL: https://app.candle.io.kr/auth/callback
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/setup-node@v4
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w @candle/shared
+      # NEXT_OUTPUT=export → webapp/out 정적 번들 생성
+      - run: npm run build:app -w @candle/webapp
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          context: .
-          file: webapp/Dockerfile
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            yyubin/candle-webapp:dev
-            yyubin/candle-webapp:${{ github.sha }}
-          cache-from: type=gha,scope=webapp
-          cache-to: type=gha,mode=max,scope=webapp
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Sync to S3
+        run: aws s3 sync webapp/out "s3://${{ vars.WEBAPP_S3_BUCKET }}" --delete
+      - name: Invalidate CloudFront
+        run: aws cloudfront create-invalidation --distribution-id "${{ vars.WEBAPP_CLOUDFRONT_ID }}" --paths "/*"
 
-  push-admin:
+  # admin: 정적 export(next output=export) → S3 sync → CloudFront invalidation.
+  # webapp 과 동일 패턴 (OIDC 로 ci_deploy_role assume, 정적 키 없음).
+  deploy-admin:
     needs: changes
     if: needs.changes.outputs.admin == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      NEXT_PUBLIC_API_BASE_URL: https://api.candle.io.kr
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/setup-node@v4
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w @candle/shared
+      # next.config output=export → admin/out 정적 번들 생성
+      - run: npm run build -w @candle/admin
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          context: .
-          file: admin/Dockerfile
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            yyubin/candle-admin:dev
-            yyubin/candle-admin:${{ github.sha }}
-          cache-from: type=gha,scope=admin
-          cache-to: type=gha,mode=max,scope=admin
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Sync to S3
+        run: aws s3 sync admin/out "s3://${{ vars.ADMIN_S3_BUCKET }}" --delete
+      - name: Invalidate CloudFront
+        run: aws cloudfront create-invalidation --distribution-id "${{ vars.ADMIN_CLOUDFRONT_ID }}" --paths "/*"
