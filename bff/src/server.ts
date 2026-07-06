@@ -4,7 +4,6 @@ dns.setDefaultResultOrder('ipv4first');
 import { buildApp } from './app';
 import { env } from './config/env';
 
-
 async function start() {
   const app = await buildApp();
   try {
