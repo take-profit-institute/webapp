@@ -47,6 +47,7 @@ export const env = {
     appKey: str('KIS_APP_KEY', ''),
     appSecret: str('KIS_APP_SECRET', ''),
   },
+
   grpc: {
     authAddr: str('GRPC_AUTH_ADDR', 'localhost:50051'),
     userAddr: str('GRPC_USER_ADDR', 'localhost:50052'),
