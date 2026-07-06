@@ -23,28 +23,44 @@ jobs:
             admin:  ['admin/**', 'shared/**']
 
   # dev 태그는 로컬/CI/배포 환경에서 함께 쓰므로 amd64 + arm64 manifest를 같이 푸시한다.
+  # bff: ECR push + candle-k8s services-<env>.yaml 태그 bump (백엔드 aws-ci.yml과 동일 패턴).
+  # k8s가 기대하는 <account>.dkr.ecr.../candle/bff:<SHA> 로 올린다. (Docker Hub 아님)
+  # EKS 노드는 amd64라 amd64만 빌드. 자격증명은 OIDC(ci_deploy_role).
   push-bff:
     needs: changes
     if: needs.changes.outputs.bff == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: bff/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
-            yyubin/candle-bff:dev
-            yyubin/candle-bff:${{ github.sha }}
+            ${{ steps.ecr.outputs.registry }}/candle/bff:${{ github.sha }}
+            ${{ steps.ecr.outputs.registry }}/candle/bff:dev
           cache-from: type=gha,scope=bff
           cache-to: type=gha,mode=max,scope=bff
+      - uses: ./.github/actions/bump-tag
+        if: github.event_name != 'pull_request'
+        with:
+          service: bff
+          tag: ${{ github.sha }}
+          env: dev
+          appset: services
+          token: ${{ secrets.GITOPS_TOKEN }}
 
   # webapp: 정적 export(next output=export) → S3 sync → CloudFront invalidation.
   # 컨테이너 대신 CloudFront+S3(static-site 모듈)로 서빙한다. 자격증명은 GitHub OIDC로

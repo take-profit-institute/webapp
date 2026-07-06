@@ -35,6 +35,7 @@ function getDevicePlatform(): DevicePlatform {
   return 'web';
 }
 
+
 async function registerWebFCM() {
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return;
