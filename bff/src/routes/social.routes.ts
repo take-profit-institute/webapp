@@ -74,21 +74,19 @@ export const rankingRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.get(
     '/me',
-    { schema: { tags: ['ranking'], summary: '내 랭킹', response: { 200: RankingEntry, 404: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    { schema: { tags: ['ranking'], summary: '내 랭킹', response: { 200: Type.Union([RankingEntry, Type.Null()]), 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
     async (req, reply) => {
       if (env.dataSource === 'grpc') {
         try {
           const me = await grpcGetMyRanking(resolveRankingActor(req));
-          if (!me) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'No ranking for current user' });
-          return me;
+          return me ?? null;
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
-          return reply.code(mapped.statusCode as 404 | 500 | 503 | 504).send(mapped);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
         }
       }
       const me = rankings.find((r) => r.userId === DEMO_USER_ID);
-      if (!me) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'No ranking for current user' });
-      return me;
+      return me ?? null;
     },
   );
 };

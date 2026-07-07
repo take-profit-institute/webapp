@@ -1,10 +1,11 @@
 /**
  * ranking-service gRPC client helpers for BFF read models.
  */
-import { createClient, Metadata, type Client } from 'nice-grpc';
+import { ClientError, createClient, Metadata, type Client } from 'nice-grpc';
 import type { RankingEntry } from '@candle/shared';
 import { env } from '../config/env';
 import { getChannel } from './channel';
+import { GrpcStatus } from './types';
 import {
   RankingServiceDefinition,
   type RankingEntry as ProtoRankingEntry,
@@ -50,11 +51,21 @@ export async function grpcListRankings(pageSize = 20): Promise<RankingEntry[]> {
 }
 
 export async function grpcGetMyRanking(userId: string): Promise<RankingEntry | undefined> {
-  const res = await ranking().getMyRanking({ userId }, { metadata: userMeta(userId) });
-  return res.ranking ? toShared(res.ranking) : undefined;
+  try {
+    const res = await ranking().getMyRanking({ userId }, { metadata: userMeta(userId) });
+    return res.ranking ? toShared(res.ranking) : undefined;
+  } catch (err) {
+    if (err instanceof ClientError && err.code === GrpcStatus.NOT_FOUND) return undefined;
+    throw err;
+  }
 }
 
 export async function grpcGetMyRankingSummary(userId: string): Promise<MyRankingSummary | undefined> {
-  const res = await ranking().getMyRanking({ userId }, { metadata: userMeta(userId) });
-  return res.ranking ? toSummary(res.ranking) : undefined;
+  try {
+    const res = await ranking().getMyRanking({ userId }, { metadata: userMeta(userId) });
+    return res.ranking ? toSummary(res.ranking) : undefined;
+  } catch (err) {
+    if (err instanceof ClientError && err.code === GrpcStatus.NOT_FOUND) return undefined;
+    throw err;
+  }
 }
