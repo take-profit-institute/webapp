@@ -5,6 +5,7 @@ import websocket from '@fastify/websocket';
 import { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { env } from './config/env';
+import accountContextPlugin from './plugins/account-context.plugin';
 import pubsubPlugin from './plugins/pubsub.plugin';
 import marketDemandPlugin from './services/market-demand.service';
 import marketStreamPlugin from './services/market-stream.service';
@@ -58,6 +59,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await app.register(grpcRegistry);
 
+  await app.register(accountContextPlugin);
   await app.register(pubsubPlugin);
   await app.register(websocket);
   await app.register(marketDemandPlugin); // 모델 B: 뷰어 refcount → StreamQuotes upstream open/close
