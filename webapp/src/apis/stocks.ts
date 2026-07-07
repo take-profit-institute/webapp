@@ -21,15 +21,9 @@ export interface LiveMarketStockPage {
   size: number;
 }
 
+// 정적 export(서버 없음) 대응: 네이버 프록시는 BFF(/api/market/market-value)가 담당한다.
 export function getLiveMarketStocks(params: { market?: string; page?: number; size?: number } = {}): Promise<LiveMarketStockPage> {
-  const query = new URLSearchParams();
-  if (params.market) query.set('market', params.market);
-  if (params.page !== undefined) query.set('page', String(params.page));
-  if (params.size !== undefined) query.set('size', String(params.size));
-  return fetch(`/api/market-stocks?${query}`, { cache: 'no-store' }).then((response) => {
-    if (!response.ok) throw new Error(`종목 조회 실패 (${response.status})`);
-    return response.json() as Promise<LiveMarketStockPage>;
-  });
+  return apiClient.get<LiveMarketStockPage>('/api/market/market-value', { ...params });
 }
 
 /** 종목 목록/검색 (서버 페이징 + 조건검색). */

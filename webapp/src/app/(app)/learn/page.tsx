@@ -10,6 +10,7 @@ import {
   useApi,
 } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
+import { learnDetailHref } from '@/lib/market-routes';
 import type { LearnContent, LearnLevel } from '@/lib/api-types';
 
 const levels = ['전체', '초급', '중급', '고급'];
@@ -23,7 +24,7 @@ const levelColors: Record<LearnLevel, { bg: string; color: string; label: string
 function LearnCard({ content, onFavorite }: { content: LearnContent; onFavorite: (id: string) => void }) {
   const lvl = levelColors[content.level];
   return (
-    <Link href={`/learn/${content.id}`} className="card-interactive p-4 block" style={{ textDecoration: 'none' }}>
+    <Link href={learnDetailHref(content.id)} className="card-interactive p-4 block" style={{ textDecoration: 'none' }}>
       <div className="flex items-start justify-between mb-2">
         <div className="text-2xl md:text-3xl">{content.emoji}</div>
         <button onClick={(e) => { e.preventDefault(); onFavorite(content.id); }}
@@ -124,7 +125,7 @@ export default function LearnPage() {
           <p className="text-sm font-bold mb-2" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>추천 콘텐츠</p>
           <div className="space-y-2">
             {(recommended ?? []).slice(0, 3).map((content) => (
-              <Link key={content.id} href={`/learn/${content.id}`} className="flex items-center gap-2" style={{ textDecoration: 'none' }}>
+              <Link key={content.id} href={learnDetailHref(content.id)} className="flex items-center gap-2" style={{ textDecoration: 'none' }}>
                 <span className="text-lg">{content.emoji}</span>
                 <span className="text-xs truncate" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>{content.title}</span>
               </Link>

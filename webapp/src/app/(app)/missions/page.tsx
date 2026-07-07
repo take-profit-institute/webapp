@@ -174,7 +174,7 @@ function ChallengeCard({
       </div>
       {challenge.joined ? (
         <div className="grid grid-cols-2 gap-2">
-          <Link href={`/missions/challenges/${challenge.id}`} className="btn-outline w-full text-xs text-center">
+          <Link href="/missions/challenges" className="btn-outline w-full text-xs text-center">
             상세 보기
           </Link>
           <button onClick={onResult} disabled={mutating} className="btn-outline w-full text-xs" style={{ opacity: mutating ? 0.5 : 1 }}>
@@ -183,7 +183,7 @@ function ChallengeCard({
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
-          <Link href={`/missions/challenges/${challenge.id}`} className="btn-outline w-full text-xs text-center">
+          <Link href="/missions/challenges" className="btn-outline w-full text-xs text-center">
             상세 보기
           </Link>
           <button onClick={onJoin} disabled={mutating || challenge.status === 'completed'} className="btn-amber w-full text-xs" style={{ opacity: mutating || challenge.status === 'completed' ? 0.5 : 1 }}>

@@ -122,6 +122,98 @@ const marketRoutes: FastifyPluginAsyncTypebox = async (app) => {
       return { symbol, ticks: app.tickStore.getHistory(symbol) };
     },
   );
+
+  // ── 외부 시세 프록시 (네이버 금융) ─────────────────────────────────
+  // 정적 webapp(CloudFront)은 서버가 없고 브라우저 직접 호출은 CORS로 막히므로
+  // BFF가 서버 사이드에서 프록시한다. (구 webapp Next /api/market-* 라우트 대체)
+  app.get(
+    '/indices',
+    { schema: { tags: ['market'], summary: 'KOSPI/KOSDAQ 지수 (네이버 프록시)' } },
+    async (req, reply) => {
+      const codes = ['KOSPI', 'KOSDAQ'];
+      try {
+        const responses = await Promise.all(
+          codes.map((code) =>
+            fetch(`https://polling.finance.naver.com/api/realtime/domestic/index/${code}`, {
+              headers: { Accept: 'application/json' },
+            }),
+          ),
+        );
+        if (responses.some((r) => !r.ok)) {
+          return reply.status(502).send({ statusCode: 502, error: 'Bad Gateway', message: '지수 제공처 응답 오류' });
+        }
+        const payloads = (await Promise.all(responses.map((r) => r.json()))) as Array<{ datas?: unknown[] }>;
+        return { datas: payloads.flatMap((p) => p.datas ?? []) };
+      } catch (err) {
+        req.log.warn({ err }, 'naver indices proxy failed');
+        return reply.status(502).send({ statusCode: 502, error: 'Bad Gateway', message: '지수를 불러오지 못했습니다.' });
+      }
+    },
+  );
+
+  interface NaverStock {
+    itemCode: string;
+    stockName: string;
+    closePriceRaw: string;
+    compareToPreviousClosePriceRaw: string;
+    fluctuationsRatio: string;
+    accumulatedTradingVolumeRaw: string;
+    marketValueRaw: string;
+    stockExchangeType?: { name?: string };
+  }
+
+  app.get(
+    '/market-value',
+    {
+      schema: {
+        tags: ['market'],
+        summary: '시가총액 상위 종목 (네이버 프록시)',
+        querystring: Type.Object({
+          market: Type.Optional(Type.String()),
+          page: Type.Optional(Type.Integer({ minimum: 0 })),
+          size: Type.Optional(Type.Integer({ minimum: 1, maximum: 50 })),
+        }),
+      },
+    },
+    async (req, reply) => {
+      const q = req.query;
+      const markets = q.market === 'KOSPI' || q.market === 'KOSDAQ' ? [q.market] : ['KOSPI', 'KOSDAQ'];
+      const page = Math.max(0, q.page ?? 0);
+      const size = Math.min(50, Math.max(1, q.size ?? 20));
+      try {
+        const responses = await Promise.all(
+          markets.map((market) =>
+            fetch(`https://m.stock.naver.com/api/stocks/marketValue/${market}?page=${page + 1}&pageSize=${size}`, {
+              headers: { Accept: 'application/json' },
+            }),
+          ),
+        );
+        if (responses.some((r) => !r.ok)) {
+          return reply.status(502).send({ statusCode: 502, error: 'Bad Gateway', message: '종목 제공처 응답 오류' });
+        }
+        const payloads = (await Promise.all(responses.map((r) => r.json()))) as Array<{ stocks?: NaverStock[]; totalCount?: number }>;
+        const stocks = payloads
+          .flatMap((p) => p.stocks ?? [])
+          .map((s) => ({
+            code: s.itemCode,
+            name: s.stockName,
+            market: s.stockExchangeType?.name ?? '',
+            price: Number(s.closePriceRaw),
+            change: Number(s.compareToPreviousClosePriceRaw),
+            changePercent: Number(s.fluctuationsRatio),
+            volume: Number(s.accumulatedTradingVolumeRaw),
+            marketCap: Number(s.marketValueRaw),
+          }))
+          .sort((a, b) => b.marketCap - a.marketCap)
+          .slice(0, size);
+        const totalElements = payloads.reduce((sum, p) => sum + (p.totalCount ?? 0), 0);
+        return { items: stocks, totalElements, totalPages: Math.max(1, Math.ceil(totalElements / size)), page, size };
+      } catch (err) {
+        req.log.warn({ err }, 'naver market-value proxy failed');
+        return reply.status(502).send({ statusCode: 502, error: 'Bad Gateway', message: '종목을 불러오지 못했습니다.' });
+      }
+    },
+  );
 };
 
 export default marketRoutes;

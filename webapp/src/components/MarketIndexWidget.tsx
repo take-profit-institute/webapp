@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
+import { apiClient } from '@/apis/client';
 
 type IndexCode = 'KOSPI' | 'KOSDAQ';
 
@@ -41,10 +42,8 @@ function normalizeQuote(code: IndexCode, quote: NaverIndexQuote): IndexQuote {
 }
 
 async function fetchIndices(): Promise<IndexQuote[]> {
-  const response = await fetch('/api/market-indices', { cache: 'no-store' });
-  if (!response.ok) throw new Error(`지수 조회 실패 (${response.status})`);
-
-  const payload = await response.json() as { datas?: Array<NaverIndexQuote & { itemCode?: string }> };
+  // 정적 export(서버 없음) 대응: 네이버 프록시는 BFF(/api/market/indices)가 담당한다.
+  const payload = await apiClient.get<{ datas?: Array<NaverIndexQuote & { itemCode?: string }> }>('/api/market/indices');
   return INDEX_CODES.map((code) => {
     const quote = payload.datas?.find((item) => item.itemCode === code);
     if (!quote) throw new Error(`${code} 응답이 비어 있습니다.`);
