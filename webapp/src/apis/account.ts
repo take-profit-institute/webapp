@@ -81,6 +81,7 @@ export function getPositions(): Promise<AccountPositions> {
   return apiClient.get<AccountPositions>('/api/account/positions');
 }
 
+
 /** 거래 내역. */
 export function getTransactions(
   params: { limit?: number; type?: TransactionType } = {},

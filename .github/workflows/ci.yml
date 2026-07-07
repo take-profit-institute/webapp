@@ -73,11 +73,24 @@ jobs:
       id-token: write
       contents: read
     env:
-      # 빌드 타임에 정적 번들로 박히는 prod 공개 URL (candle.io.kr)
-      NEXT_PUBLIC_API_BASE_URL: https://api.candle.io.kr
-      NEXT_PUBLIC_AUTH_BASE_URL: https://api.candle.io.kr
-      NEXT_PUBLIC_WS_BASE_URL: wss://ws.candle.io.kr
-      NEXT_PUBLIC_OAUTH_REDIRECT_BRIDGE_URL: https://app.candle.io.kr/auth/callback
+      # 빌드 타임에 정적 번들로 박히는 dev 공개 URL (dev.candle.io.kr).
+      # 정적 export는 NEXT_PUBLIC_*가 빌드 시점에 박히므로 여기서 dev 엔드포인트를 준다.
+      NEXT_PUBLIC_API_BASE_URL: https://api.dev.candle.io.kr
+      NEXT_PUBLIC_AUTH_BASE_URL: https://api.dev.candle.io.kr
+      NEXT_PUBLIC_WS_BASE_URL: wss://ws.dev.candle.io.kr
+      NEXT_PUBLIC_CHAT_API_BASE_URL: https://ws.dev.candle.io.kr
+      NEXT_PUBLIC_CHAT_WS_BASE_URL: wss://ws.dev.candle.io.kr
+      NEXT_PUBLIC_OAUTH_REDIRECT_BRIDGE_URL: https://app.dev.candle.io.kr/auth/callback
+      NEXT_PUBLIC_OAUTH_NATIVE_REDIRECT_URI: com.candle.app://auth/callback
+      # Firebase 웹 클라이언트 config (공개 값 — env 무관 동일). 미설정 시 FCM 초기화 실패.
+      NEXT_PUBLIC_FIREBASE_API_KEY: AIzaSyAf6a4Z6eyjt4svQDgCglP_xdCtUsozV2w
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: candle-bfce9.firebaseapp.com
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: candle-bfce9
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: candle-bfce9.firebasestorage.app
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "712132485233"
+      NEXT_PUBLIC_FIREBASE_APP_ID: "1:712132485233:web:1d160ba1748475bd103bd0"
+      NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: G-Z9E5649TY7
+      NEXT_PUBLIC_FIREBASE_VAPID_KEY: BDviTHHrHk_L_UaMyfCrlvBr1aUG18XWx98IDociuUDaNmAxNqNrVgDqaNQ67SqVBMuZOjukMwcuwf6SVn4sQhA
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -107,7 +120,9 @@ jobs:
       id-token: write
       contents: read
     env:
-      NEXT_PUBLIC_API_BASE_URL: https://api.candle.io.kr
+      # dev 공개 URL (빌드 타임 정적 번들에 박힘)
+      NEXT_PUBLIC_API_BASE_URL: https://api.dev.candle.io.kr
+      NEXT_PUBLIC_AUTH_BASE_URL: https://api.dev.candle.io.kr
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
