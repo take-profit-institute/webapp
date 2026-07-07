@@ -12,4 +12,5 @@ const nextConfig: NextConfig = {
   images: { unoptimized: isStaticExport },
 };
 
+
 export default nextConfig;
