@@ -119,17 +119,13 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
       if (!userId) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
       try {
         if (env.dataSource === 'grpc') {
-          const { userMe, account } = await parallelFetch({
+          const { userMe, account, ranking, missionSummary } = await parallelFetch({
             userMe: req.server.grpc.user.getMe({ userId }, { userId }),
             account: grpcGetAccountSummary(userId),
+            ranking: grpcGetMyRankingSummary(userId).catch(() => undefined),
+            missionSummary: grpcGetMissionSummary(userId).catch(() => ({ active: 0, completed: 0 })),
           });
           if (!userMe.profile) return reply.code(404).send({ statusCode: 404, error: 'Not Found', message: '사용자를 찾을 수 없습니다.' });
-          const [rankingResult, missionResult] = await Promise.allSettled([
-            grpcGetMyRankingSummary(userId),
-            grpcGetMissionSummary(userId),
-          ]);
-          const ranking = rankingResult.status === 'fulfilled' ? rankingResult.value : undefined;
-          const missionSummary = missionResult.status === 'fulfilled' ? missionResult.value : { active: 0, completed: 0 };
           return {
             profile: toSharedProfile(userMe.profile),
             performance: { totalReturnPercent: account.totalReturnPercent, totalProfitLoss: account.totalProfitLoss },
