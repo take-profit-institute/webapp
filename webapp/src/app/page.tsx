@@ -11,6 +11,7 @@ const features = [
   { emoji: '📈', title: '성과 분석', desc: '나의 투자 패턴과 수익률을 정밀하게 분석' },
 ];
 
+
 const stats = [
   { value: '12,480+', label: '활성 사용자' },
   { value: '47조+', label: '누적 거래액' },
@@ -43,8 +44,8 @@ export default function LandingPage() {
             className="text-xl font-bold tracking-wider gradient-text"
             style={{ fontFamily: 'Syne, sans-serif' }}
           >
-    CANDLE
-  </span>
+            CANDLE
+          </span>
         </div>
         <div className="flex items-center gap-3">
           <ThemeToggle chip className="w-9 h-9 justify-center" />
