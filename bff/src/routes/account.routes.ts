@@ -933,10 +933,8 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
       const { symbol } = req.body;
+      // 종목 메타(이름/거래소)는 있으면 보강용으로만 사용. 목업 시세 목록에 없다고 404 내지 않는다.
       const quote = getQuote(symbol);
-      if (!quote) {
-        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown symbol: ${symbol}` });
-      }
 
       // 실제 gRPC 경로 — WishlistService.AddWishlistItem. 중복/한도는 백엔드가 판정한다.
       if (env.dataSource === 'grpc') {
@@ -944,8 +942,8 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
           const entry = await grpcAddWatchlist({
             userId: resolveActor(req),
             symbol,
-            displayName: quote.name,
-            market: quote.exchange,
+            displayName: quote?.name ?? symbol,
+            market: quote?.exchange ?? '',
             idempotencyKey,
           });
           return reply.status(201).send({ symbol: entry.symbol, name: entry.name, addedAt: entry.addedAt });
@@ -962,7 +960,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
       if (result === 'limit') {
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: `관심종목은 최대 ${WATCHLIST_LIMIT}개까지 등록할 수 있습니다` });
       }
-      return reply.status(201).send({ symbol: quote.symbol, name: quote.name, addedAt: new Date().toISOString() });
+      return reply.status(201).send({ symbol: quote?.symbol ?? symbol, name: quote?.name ?? symbol, addedAt: new Date().toISOString() });
     },
   );
 
