@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, Star, Clock, MessageCircle } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, Star, Clock, MessageCircle, ExternalLink } from 'lucide-react';
 import CandleChart from '@/components/CandleChart';
 import IntradayChart from '@/components/IntradayChart';
 import {
@@ -417,14 +417,30 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
 
             {activeTab === '뉴스' && (
               <div className="space-y-2">
-                {(news ?? []).map((n) => (
-                  <div key={n.id} className="p-3 rounded-xl" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
-                    <p className="text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{n.title}</p>
-                    <div className="flex gap-2 text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
-                      <span>{n.source}</span><span>·</span><span>{new Date(n.publishedAt).toLocaleDateString('ko-KR')}</span>
+                {(news ?? []).map((n) => {
+                  const meta = (
+                    <>
+                      <p className="text-sm font-medium mb-1.5 flex items-start gap-1.5" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>
+                        <span className="flex-1">{n.title}</span>
+                        {n.url && <ExternalLink size={13} className="shrink-0 mt-0.5" style={{ color: 'var(--text-muted)' }} />}
+                      </p>
+                      <div className="flex gap-2 text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+                        <span>{n.source}</span><span>·</span><span>{new Date(n.publishedAt).toLocaleDateString('ko-KR')}</span>
+                      </div>
+                    </>
+                  );
+                  return n.url ? (
+                    <a key={n.id} href={n.url} target="_blank" rel="noopener noreferrer"
+                      className="block p-3 rounded-xl transition-colors hover:bg-[var(--bg-elevated)]"
+                      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', textDecoration: 'none' }}>
+                      {meta}
+                    </a>
+                  ) : (
+                    <div key={n.id} className="p-3 rounded-xl" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+                      {meta}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {news && news.length === 0 && (
                   <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>관련 뉴스가 없습니다</p>
                 )}
