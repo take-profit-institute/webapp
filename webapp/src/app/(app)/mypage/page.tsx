@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Camera, Bell, Shield, HelpCircle, ChevronRight, TrendingUp, Award, Zap, BookOpen, Target, LogOut, Check, X, Pencil, UserMinus, Sun, Moon } from 'lucide-react';
+import { Camera, ChevronRight, TrendingUp, Award, Zap, BookOpen, Target, LogOut, Check, X, Pencil, UserMinus, Sun, Moon } from 'lucide-react';
 import Link from 'next/link';
 import {
   checkNickname,
@@ -487,22 +487,6 @@ export default function MyPage() {
             </div>
           </button>
 
-          {[
-            { icon: Bell, label: '알림 설정', desc: '시세 알림, 거래 알림' },
-            { icon: Shield, label: '보안 설정', desc: '비밀번호, 2단계 인증' },
-            { icon: HelpCircle, label: '고객 지원', desc: '자주 묻는 질문, 문의' },
-          ].map(({ icon: Icon, label, desc }) => (
-            <button key={label} className="w-full card-interactive p-4 flex items-center gap-3 text-left">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--bg-surface)' }}>
-                <Icon size={16} style={{ color: 'var(--amber)' }} />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{label}</p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{desc}</p>
-              </div>
-              <ChevronRight size={15} style={{ color: 'var(--text-muted)' }} />
-            </button>
-          ))}
           <button onClick={handleLogout} className="w-full card-interactive p-4 flex items-center gap-3 text-left">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--bg-surface)' }}>
               <LogOut size={16} style={{ color: 'var(--amber)' }} />

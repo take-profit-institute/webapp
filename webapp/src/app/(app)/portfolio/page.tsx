@@ -77,6 +77,9 @@ export default function PortfolioPage() {
   const locked = balance?.lockedAmount ?? 0;
   const totalCash = balance?.totalBalance ?? available + locked;
 
+  // 거래 횟수 = 체결된 주문 수 (마이페이지 '거래 건수'와 동일 소스 — filled 주문/거래).
+  const filledTradeCount = orderList.filter((o) => o.status === 'filled').length;
+
   const totalValue = myHoldings.reduce((s, h) => s + h.totalValue, 0);
   const totalPL = myHoldings.reduce((s, h) => s + h.profitLoss, 0);
   const totalPLPct = totalValue - totalPL !== 0 ? (totalPL / (totalValue - totalPL)) * 100 : 0;
@@ -559,7 +562,7 @@ export default function PortfolioPage() {
               {[
                 { label: '총 수익금', value: `+${(totalPL / 10000).toFixed(0)}만원`, color: 'var(--gain)' },
                 { label: '수익률', value: `+${totalPLPct.toFixed(2)}%`, color: 'var(--gain)' },
-                { label: '거래 횟수', value: '24회', color: 'var(--text-primary)' },
+                { label: '거래 횟수', value: `${filledTradeCount}회`, color: 'var(--text-primary)' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="p-3 rounded-xl text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
                   <p className="text-xs mb-1" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{label}</p>

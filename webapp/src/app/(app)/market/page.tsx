@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Search,
@@ -23,10 +23,32 @@ const exchanges: Array<'전체' | StockMarket> = ['전체', 'KOSPI', 'KOSDAQ'];
 const PAGE_SIZE = 20;
 const PAGE_WINDOW_SIZE = 5;
 
+// 페이지/거래소 필터를 세션에 저장해 새로고침 후에도 보던 페이지를 유지한다.
+const LIST_STATE_KEY = 'market:list-state';
+type ListState = { page: number; exchange: '전체' | StockMarket };
+function loadListState(): ListState {
+  if (typeof window === 'undefined') return { page: 0, exchange: '전체' };
+  try {
+    const raw = sessionStorage.getItem(LIST_STATE_KEY);
+    if (raw) {
+      const s = JSON.parse(raw) as Partial<ListState>;
+      return { page: typeof s.page === 'number' ? s.page : 0, exchange: s.exchange ?? '전체' };
+    }
+  } catch { /* 저장소 접근 불가 시 기본값 */ }
+  return { page: 0, exchange: '전체' };
+}
+
 export default function MarketPage() {
-  const [activeExchange, setActiveExchange] = useState<'전체' | StockMarket>('전체');
+  const [activeExchange, setActiveExchange] = useState<'전체' | StockMarket>(() => loadListState().exchange);
   const [query, setQuery] = useState('');
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(() => loadListState().page);
+
+  // page/거래소가 바뀔 때마다 세션에 저장 (새로고침 복원용).
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(LIST_STATE_KEY, JSON.stringify({ page, exchange: activeExchange }));
+    } catch { /* 저장소 접근 불가 시 무시 */ }
+  }, [page, activeExchange]);
 
   const { data, loading, error, refetch } = useApi(
     () => getLiveMarketStocks({
@@ -122,10 +144,12 @@ export default function MarketPage() {
         </div>
       </div>
 
-      {loading && <Loader />}
-      {error && <ErrorState error={error} onRetry={refetch} />}
+      {/* 최초 로드 때만 전체 로더/에러 표시. 페이지 이동 중에는 기존 목록을 유지해
+          언마운트로 인한 스크롤 상단 튐을 막는다. */}
+      {loading && !data && <Loader />}
+      {error && !data && <ErrorState error={error} onRetry={refetch} />}
 
-      {!loading && !error && (
+      {data && (
         <>
           <div className="lg:hidden space-y-2">
             {stockList.map(s => {
