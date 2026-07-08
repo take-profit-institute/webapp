@@ -1,5 +1,13 @@
 const USE_STATIC_MARKET_ROUTES = process.env.NEXT_PUBLIC_STATIC_EXPORT === 'true';
 
+/**
+ * 유효한 국내 종목코드 여부. 정확히 6자리 숫자만 허용한다.
+ * (예: `005930AL`처럼 접미사가 붙거나 6자리 숫자가 아닌 코드는 상세 진입을 막는다.)
+ */
+export function isValidStockCode(code: string | null | undefined): code is string {
+  return typeof code === 'string' && /^\d{6}$/.test(code);
+}
+
 export function marketDetailHref(symbol: string) {
   const encoded = encodeURIComponent(symbol);
   return USE_STATIC_MARKET_ROUTES ? `/market/detail?symbol=${encoded}` : `/market/${encoded}`;

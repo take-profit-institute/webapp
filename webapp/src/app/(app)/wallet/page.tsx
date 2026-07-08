@@ -17,6 +17,12 @@ const RSV_KIND_LABEL: Record<string, string> = {
   limit: '지정가',
   after_hours_close: '시간외종가',
 };
+
+/** 주문 단가 표시: 지정가는 "@ N원", 시장가·시간외종가 등 체결가 미정 주문은 종류 라벨로. */
+function priceDisplay(orderKind: string | undefined, price?: number): string {
+  if (orderKind && orderKind !== 'limit') return `· ${RSV_KIND_LABEL[orderKind] ?? '시장가'}`;
+  return price ? `@ ${price.toLocaleString()}원` : '· 시장가';
+}
 const RSV_STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   reserved: { label: '예약', color: 'var(--amber)', bg: 'var(--amber-subtle)' },
   pending: { label: '대기', color: 'var(--amber)', bg: 'var(--amber-subtle)' },
@@ -226,7 +232,7 @@ export default function WalletPage() {
                   <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--amber-subtle)', color: 'var(--amber)', fontFamily: 'Noto Sans KR' }}>체결 대기</span>
                 </div>
                 <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
-                  {r.executedAt.slice(0, 10)} {r.executedAt.slice(11, 16)} · {r.quantity}주 @ {r.price.toLocaleString()}원
+                  {r.executedAt.slice(0, 10)} {r.executedAt.slice(11, 16)} · {r.quantity}주 {priceDisplay(r.orderKind, r.price)}
                 </p>
               </div>
               <div className="text-right shrink-0">
@@ -271,7 +277,7 @@ export default function WalletPage() {
                       <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>{RSV_KIND_LABEL[r.orderKind]}</span>
                     </div>
                     <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
-                      {TIMING_LABEL[r.timing]} · {r.scheduledDate} · {r.quantity}주{r.price ? ` @ ${r.price.toLocaleString()}원` : ''}
+                      {TIMING_LABEL[r.timing]} · {r.scheduledDate} · {r.quantity}주 {priceDisplay(r.orderKind, r.price)}
                     </p>
                   </div>
                   <div className="text-right shrink-0 flex flex-col items-end gap-1">

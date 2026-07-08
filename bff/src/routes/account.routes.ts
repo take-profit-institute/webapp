@@ -701,7 +701,16 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       if (env.dataSource === 'grpc') {
         try {
-          return await grpcListReservations({ userId: resolveActor(req), status: req.query.status });
+          const list = await grpcListReservations({ userId: resolveActor(req), status: req.query.status });
+          // gRPC ListReservations는 표시명을 안 내려줘 name=symbol로 온다. BFF에서 종목명을 조합한다.
+          const names = new Map<string, string>();
+          await Promise.all(
+            [...new Set(list.map((r) => r.symbol))].map(async (symbol) => {
+              const stock = await provider.getStock(symbol);
+              if (stock?.name) names.set(symbol, stock.name);
+            }),
+          );
+          return list.map((r) => ({ ...r, name: names.get(r.symbol) ?? r.name }));
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);

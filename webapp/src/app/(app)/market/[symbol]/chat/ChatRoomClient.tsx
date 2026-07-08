@@ -5,7 +5,7 @@ import { ArrowLeft, Send, Users } from 'lucide-react';
 import { getChatRoom, getStock, useApi } from '@/apis';
 import { useChatSocket } from '@/hooks/useChatSocket';
 import { useAuthStore } from '@/store/useStore';
-import type { ChatBroadcast, ChatWireMessage } from '@/lib/api-types';
+import type { ChatBroadcast, ChatWireMessage, PresenceEvent } from '@/lib/api-types';
 import { marketDetailHref } from '@/lib/market-routes';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,7 +40,9 @@ export default function ChatRoomClient({ symbol }: { symbol: string }) {
   const { data: room } = useApi(() => getChatRoom(symbol), [symbol]);
   const roomId = room?.roomId ?? null;
   const roomNo = room?.room ?? 1;
-  const memberCount = room?.count ?? 0;
+  // 배정 시점 인원(REST 스냅샷)을 초기값으로, 이후 WS presence 이벤트로 실시간 갱신한다.
+  const [liveCount, setLiveCount] = useState<number | null>(null);
+  const memberCount = liveCount ?? room?.count ?? 0;
 
   const myAccountId = useAuthStore((s) => s.user?.id);
 
@@ -83,7 +85,12 @@ export default function ChatRoomClient({ symbol }: { symbol: string }) {
     [myAccountId],
   );
 
-  const { send: sendSocket, status } = useChatSocket(roomId, onBroadcast);
+  // presence(입/퇴장) 이벤트 → 서버 권원 인원수로 라이브 갱신.
+  const onPresence = useCallback((e: PresenceEvent) => {
+    setLiveCount(e.count);
+  }, []);
+
+  const { send: sendSocket, status } = useChatSocket(roomId, onBroadcast, onPresence);
 
   const send = () => {
     const text = draft.trim();

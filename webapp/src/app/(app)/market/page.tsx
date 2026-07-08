@@ -16,7 +16,7 @@ import { getLiveMarketStocks, getSparklines, useApi } from '@/apis';
 import { Loader, ErrorState } from '@/components/AsyncState';
 import { generateSparkline, symbolSeed } from '@/lib/chart-utils';
 import { formatMarketCap } from '@/lib/format';
-import { marketDetailHref } from '@/lib/market-routes';
+import { marketDetailHref, isValidStockCode } from '@/lib/market-routes';
 import type { StockMarket } from '@/lib/api-types';
 
 const exchanges: Array<'전체' | StockMarket> = ['전체', 'KOSPI', 'KOSDAQ'];
@@ -47,7 +47,9 @@ export default function MarketPage() {
 
   const normalizedQuery = query.trim().toLocaleLowerCase('ko-KR');
   const stockList = (data?.items ?? []).filter((stock) =>
-    !normalizedQuery || stock.name.toLocaleLowerCase('ko-KR').includes(normalizedQuery) || stock.code.includes(normalizedQuery),
+    // 6자리 숫자가 아닌 종목코드(접미사 붙은 코드 등)는 상세 진입이 불가하므로 목록에서도 제외.
+    isValidStockCode(stock.code)
+    && (!normalizedQuery || stock.name.toLocaleLowerCase('ko-KR').includes(normalizedQuery) || stock.code.includes(normalizedQuery)),
   );
   const totalElements = data?.totalElements ?? 0;
   const totalPages = data?.totalPages ?? 1;
@@ -90,7 +92,8 @@ export default function MarketPage() {
           <div className="relative flex-1">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
             <input
-              className="input-dark text-sm pl-8 py-2 w-full"
+              className="input-dark text-sm py-2 w-full"
+              style={{ paddingLeft: 32 }}
               placeholder="종목 검색"
               value={query}
               onChange={(e) => {

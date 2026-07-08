@@ -110,4 +110,5 @@ export type {
   RoomAssignment,
   ChatWireMessage,
   ChatBroadcast,
+  PresenceEvent,
 } from '@candle/shared';

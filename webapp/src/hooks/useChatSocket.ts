@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ChatBroadcast, ChatWireMessage } from '@/lib/api-types';
+import type { ChatBroadcast, ChatWireMessage, PresenceEvent } from '@/lib/api-types';
 import { API_BASE_URL, refreshToken as apiRefreshToken } from '@/apis';
 import { useAuthStore } from '@/store/useStore';
 
@@ -39,12 +39,14 @@ async function refreshAccessToken(): Promise<boolean> {
 export function useChatSocket(
   roomId: string | null,
   onBroadcast: (msg: ChatBroadcast) => void,
+  onPresence?: (event: PresenceEvent) => void,
 ) {
   const wsRef = useRef<WebSocket | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryRef = useRef(0);
   const refreshedRef = useRef(false);
   const onRef = useRef(onBroadcast);
+  const onPresenceRef = useRef(onPresence);
   // 최신 connect를 ref로 들고 재연결에서 호출한다(자기참조 회피).
   const connectRef = useRef<() => void>(() => {});
   // 상태 전이는 WS 콜백/지연 재연결(비동기)에서만 한다(effect 내 동기 setState 회피).
@@ -54,7 +56,8 @@ export function useChatSocket(
 
   useEffect(() => {
     onRef.current = onBroadcast;
-  }, [onBroadcast]);
+    onPresenceRef.current = onPresence;
+  }, [onBroadcast, onPresence]);
 
   const connect = useCallback(() => {
     if (typeof window === 'undefined' || !roomId) return;
@@ -80,9 +83,14 @@ export function useChatSocket(
 
     ws.onmessage = (e) => {
       try {
-        const msg = JSON.parse(e.data as string) as ChatBroadcast;
-        if (typeof msg.accountId === 'string' && typeof msg.message === 'string') {
-          onRef.current(msg);
+        const msg = JSON.parse(e.data as string) as ChatBroadcast | PresenceEvent;
+        // presence 이벤트(입/퇴장): type 판별자로 채팅 봉투와 구분해 인원수 콜백으로 라우팅.
+        if ('type' in msg && msg.type === 'presence' && typeof msg.count === 'number') {
+          onPresenceRef.current?.(msg);
+          return;
+        }
+        if (typeof (msg as ChatBroadcast).accountId === 'string' && typeof (msg as ChatBroadcast).message === 'string') {
+          onRef.current(msg as ChatBroadcast);
         }
       } catch {
         /* ignore malformed */

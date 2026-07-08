@@ -33,3 +33,15 @@ export const ChatBroadcast = Type.Object({
   ts: Type.Number(),
 });
 export type ChatBroadcast = Static<typeof ChatBroadcast>;
+
+// ── 서버 → 클라 presence 이벤트 (chatting-service의 PresenceEvent 레코드) ──
+// 입장/퇴장 시 같은 WS 채널로 나오며, `type: "presence"` 판별자로 채팅 봉투와 구분한다.
+// count = 이벤트 처리 후 방 인원(권원: Redis 카운터) → 클라가 실시간 인원수로 표시.
+export const PresenceEvent = Type.Object({
+  type: Type.Literal('presence'),
+  event: Type.Union([Type.Literal('join'), Type.Literal('leave')]),
+  count: Type.Number(),
+  accountId: Type.String(),
+  ts: Type.Number(),
+});
+export type PresenceEvent = Static<typeof PresenceEvent>;
