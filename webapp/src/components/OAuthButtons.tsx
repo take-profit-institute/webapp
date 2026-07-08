@@ -30,6 +30,7 @@ interface Props {
 export default function OAuthButtons({ scenario = 'existing', redirectTo = '/dashboard' }: Props) {
   const router = useRouter();
   const setSession = useAuthStore((s) => s.setSession);
+  const setAccountSummary = useAuthStore((s) => s.setAccountSummary);
   const { data } = useApi(() => getProviders(), []);
   const providers = data ?? FALLBACK;
 
@@ -70,7 +71,7 @@ export default function OAuthButtons({ scenario = 'existing', redirectTo = '/das
           }
           // 교환 redirect_uri = 인가 때 쓴 브릿지 URL과 동일해야 함(OAuth 일치 요건)
           const result = await oauthExchange(provider, code, returnedState ?? undefined, OAUTH_BRIDGE_REDIRECT_URI);
-          await setSessionWithServerProfile(result, setSession);
+          await setSessionWithServerProfile(result, setSession, setAccountSummary);
           router.push(result.isNewUser ? '/signup' : redirectTo);
         } catch (e) {
           setError(e instanceof Error ? e.message : '로그인에 실패했습니다');
@@ -89,7 +90,7 @@ export default function OAuthButtons({ scenario = 'existing', redirectTo = '/das
     setError(null);
     try {
       const result = await oauthLogin(provider, scenario);
-      await setSessionWithServerProfile(result, setSession);
+      await setSessionWithServerProfile(result, setSession, setAccountSummary);
       router.push(redirectTo);
     } catch (e) {
       // AUTH-014: suspended accounts come back as 403 with a message.
