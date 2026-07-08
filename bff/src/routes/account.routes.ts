@@ -126,6 +126,19 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     }
   };
 
+  // trading/reservation gRPC 응답은 표시명을 안 내려줘 name=symbol로 온다.
+  // BFF에서 종목명을 조합해 채운다(심볼 중복 제거 후 1회씩 조회, 못 찾으면 기존값 유지).
+  const withStockNames = async <T extends { symbol: string; name: string }>(list: T[]): Promise<T[]> => {
+    const names = new Map<string, string>();
+    await Promise.all(
+      [...new Set(list.map((x) => x.symbol))].map(async (symbol) => {
+        const stock = await provider.getStock(symbol);
+        if (stock?.name) names.set(symbol, stock.name);
+      }),
+    );
+    return list.map((x) => ({ ...x, name: names.get(x.symbol) ?? x.name }));
+  };
+
   async function resolveOrderPrice(
     symbol: string,
     orderKind: OrderKind,
@@ -393,7 +406,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
           let result = await grpcListOrders({ userId: resolveActor(req), status: 'filled' });
           if (req.query.type) result = result.filter((t) => t.type === req.query.type);
           if (req.query.limit) result = result.slice(0, req.query.limit);
-          return result;
+          return await withStockNames(result);
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
@@ -453,7 +466,8 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
         try {
           // OrderService.ListOrders엔 종목 필터가 없어 symbol은 BFF에서 후처리한다.
           const list = await grpcListOrders({ userId: resolveActor(req), status: req.query.status });
-          return req.query.symbol ? list.filter((o) => o.symbol === req.query.symbol) : list;
+          const filtered = req.query.symbol ? list.filter((o) => o.symbol === req.query.symbol) : list;
+          return await withStockNames(filtered);
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
@@ -702,15 +716,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
       if (env.dataSource === 'grpc') {
         try {
           const list = await grpcListReservations({ userId: resolveActor(req), status: req.query.status });
-          // gRPC ListReservations는 표시명을 안 내려줘 name=symbol로 온다. BFF에서 종목명을 조합한다.
-          const names = new Map<string, string>();
-          await Promise.all(
-            [...new Set(list.map((r) => r.symbol))].map(async (symbol) => {
-              const stock = await provider.getStock(symbol);
-              if (stock?.name) names.set(symbol, stock.name);
-            }),
-          );
-          return list.map((r) => ({ ...r, name: names.get(r.symbol) ?? r.name }));
+          return await withStockNames(list);
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
