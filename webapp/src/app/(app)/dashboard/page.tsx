@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Bell, Search, TrendingUp, Wallet, BarChart2, Trophy } from 'lucide-react';
+import { Bell, TrendingUp, Wallet, BarChart2, Trophy } from 'lucide-react';
 import { useNotificationStore } from '@/store/useStore';
 import MiniSparkline from '@/components/MiniSparkline';
 import { Loader, ErrorState } from '@/components/AsyncState';
@@ -107,10 +107,6 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative hidden sm:block">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-            <input className="input-dark text-sm pl-9 w-40 py-2" placeholder="종목 검색..." />
-          </div>
           <button
             onClick={togglePanel}
             className="relative w-9 h-9 rounded-lg flex items-center justify-center transition-colors active:opacity-70"
