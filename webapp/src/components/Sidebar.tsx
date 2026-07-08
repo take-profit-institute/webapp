@@ -43,12 +43,19 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="hidden lg:flex flex-col transition-all duration-300 relative shrink-0"
+      className="hidden lg:flex flex-col transition-all duration-300 shrink-0"
       style={{
         width: sidebarCollapsed ? 64 : 220,
         background: 'var(--bg-surface)',
         borderRight: '1px solid var(--border-subtle)',
-        minHeight: '100vh',
+        // 콘텐츠가 길어져도 늘어나지 않게 뷰포트 높이로 고정. sticky+top:0 으로
+        // 스크롤을 내리면 함께 따라와 빈 공간이 안 생긴다. align-self로 flex stretch 해제.
+        position: 'sticky',
+        top: 0,
+        alignSelf: 'flex-start',
+        height: '100vh',
+        // 뷰포트가 짧아 내부 콘텐츠가 넘칠 때만 사이드바 자체 스크롤
+        overflowY: 'auto',
       }}
     >
       {/* Logo */} 
