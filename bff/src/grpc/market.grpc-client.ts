@@ -11,6 +11,7 @@ import { getChannel } from './channel';
 import {
   MarketServiceDefinition,
   RankingType as GenRankingType,
+  type Quote as GenQuote,
   type RankingItem as GenRankingItem,
 } from './gen/candle/market/v1/market';
 
@@ -41,6 +42,31 @@ export async function grpcBatchQuotes(symbols: string[]): Promise<Map<string, nu
       .map((quote) => [quote.symbol, Number(quote.price)] as const)
       .filter(([, price]) => Number.isFinite(price) && price > 0),
   );
+}
+
+export type MarketQuoteSnapshot = {
+  symbol: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+  updatedAt?: string;
+};
+
+export async function grpcGetQuote(symbol: string): Promise<MarketQuoteSnapshot | null> {
+  const res = await getClient().getQuote({ symbol }, { signal: AbortSignal.timeout(1000) });
+  return res.quote ? toMarketQuoteSnapshot(res.quote) : null;
+}
+
+function toMarketQuoteSnapshot(quote: GenQuote): MarketQuoteSnapshot {
+  return {
+    symbol: quote.symbol,
+    price: Number(quote.price),
+    change: Number(quote.change),
+    changePercent: quote.changeRate,
+    volume: Number(quote.volume),
+    updatedAt: quote.quotedAt ? (quote.quotedAt as Date).toISOString() : undefined,
+  };
 }
 
 /**

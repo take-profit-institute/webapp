@@ -40,6 +40,7 @@ export const env = {
   redisUrl: process.env['REDIS_URL'] || '',
   // auth-service JWKS(공개키)로 RS256 access token 검증. admin 라우트 가드에 사용.
   authJwksUri: str('AUTH_JWKS_URI', 'http://localhost:8081/.well-known/jwks.json'),
+  authServiceBaseUrl: str('AUTH_SERVICE_BASE_URL', 'http://localhost:8081/api/v1/auth').replace(/\/$/, ''),
   authJwtIssuer: str('AUTH_JWT_ISSUER', 'http://localhost:8081'),
   authJwtAudience: str('AUTH_JWT_AUDIENCE', 'candle-api'),
   kis: {

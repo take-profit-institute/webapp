@@ -458,6 +458,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
           // 프론트가 이 경우 버튼을 "예약"으로 표기하므로 지정가도 동일하게 변환해야 한다.
           // (지정가만 즉시 PlaceOrder로 보내면 trading이 OUTSIDE_TRADING_HOURS → 422로 거부.)
           if (!(await getMarketStatus()).open) {
+            const reservationPrice = orderKind === 'limit' ? resolved.price : 0;
             const reservation = await grpcPlaceReservation({
               userId: resolveActor(req),
               symbol: req.body.symbol,
@@ -465,7 +466,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
               timing: 'open',
               orderKind,
               quantity: req.body.quantity,
-              price: resolved.price,
+              price: reservationPrice,
               scheduledDate: nextScheduledDate(),
               idempotencyKey,
             });
