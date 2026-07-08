@@ -43,6 +43,7 @@ import {
   grpcGetSectorAllocation,
   type PriceResolver,
 } from '../grpc/portfolio.grpc-client';
+import { grpcBatchQuotes } from '../grpc/market.grpc-client';
 import {
   grpcListWatchlist,
   grpcAddWatchlist,
@@ -91,6 +92,14 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   // 보유 종목 평가금액 계산용 현재가 resolver. grpc 모드에서 portfolio 보유목록과 머지한다.
   const resolvePrice: PriceResolver = async (symbol) => (await provider.getStock(symbol))?.price;
+  const resolvePrices = async (symbols: string[]): Promise<Map<string, number>> => {
+    if (env.dataSource !== 'grpc') return new Map();
+    try {
+      return await grpcBatchQuotes(symbols);
+    } catch {
+      return new Map();
+    }
+  };
 
   async function resolveOrderPrice(
     symbol: string,
@@ -227,7 +236,10 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       if (env.dataSource === 'grpc') {
         try {
-          return await grpcListHoldings(resolveActor(req), req.query.includeInactive ?? false, resolvePrice);
+          return await grpcListHoldings(resolveActor(req), req.query.includeInactive ?? false, {
+            resolvePrice,
+            resolvePrices,
+          });
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
@@ -253,7 +265,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
         try {
           const userId = resolveActor(req);
           const [holdingsList, reservations] = await Promise.all([
-            grpcListHoldings(userId, false, resolvePrice),
+            grpcListHoldings(userId, false, { resolvePrice, resolvePrices }),
             grpcListReservations({ userId, status: 'reserved' }),
           ]);
           const reserved = await Promise.all(

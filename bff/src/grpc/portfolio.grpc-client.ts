@@ -38,6 +38,10 @@ const userMeta = (userId: string): Metadata => Metadata({ 'x-user-id': userId })
 
 /** 현재가를 심볼별로 resolve하는 콜백. 라우트가 market provider를 주입한다. */
 export type PriceResolver = (symbol: string) => Promise<number | undefined>;
+export type PriceResolvers = {
+  resolvePrice: PriceResolver;
+  resolvePrices?: (symbols: string[]) => Promise<Map<string, number>>;
+};
 
 // ── proto → shared ──────────────────────────────────────────────────
 function holdingToShared(h: ProtoHolding, currentPrice: number): Holding {
@@ -67,14 +71,22 @@ function holdingToShared(h: ProtoHolding, currentPrice: number): Holding {
 export async function grpcListHoldings(
   userId: string,
   includeInactive: boolean,
-  resolvePrice: PriceResolver,
+  priceResolvers: PriceResolver | PriceResolvers,
 ): Promise<Holding[]> {
   const res = await holdings().listHoldings(
     { userId, includeInactive, page: undefined },
     { metadata: userMeta(userId) },
   );
+  const resolvePrice = typeof priceResolvers === 'function' ? priceResolvers : priceResolvers.resolvePrice;
+  const batchPrices =
+    typeof priceResolvers === 'function' || !priceResolvers.resolvePrices
+      ? new Map<string, number>()
+      : await priceResolvers.resolvePrices(res.holdings.map((h) => h.symbol));
   return Promise.all(
-    res.holdings.map(async (h) => holdingToShared(h, (await resolvePrice(h.symbol)) ?? Number(h.averagePrice))),
+    res.holdings.map(async (h) => {
+      const batchPrice = batchPrices.get(h.symbol);
+      return holdingToShared(h, batchPrice ?? (await resolvePrice(h.symbol)) ?? Number(h.averagePrice));
+    }),
   );
 }
 

@@ -30,6 +30,19 @@ export async function grpcGetIntradayTicks(symbol: string, limit = 0): Promise<I
     .map((t) => ({ price: Number(t.price), timestamp: (t.ts as Date).toISOString() }));
 }
 
+/** 여러 종목 현재가를 market-service Redis 캐시에서 한 번에 조회한다. */
+export async function grpcBatchQuotes(symbols: string[]): Promise<Map<string, number>> {
+  const uniqueSymbols = [...new Set(symbols.filter(Boolean))];
+  if (uniqueSymbols.length === 0) return new Map();
+
+  const res = await getClient().batchQuotes({ symbols: uniqueSymbols }, { signal: AbortSignal.timeout(1000) });
+  return new Map(
+    res.quotes
+      .map((quote) => [quote.symbol, Number(quote.price)] as const)
+      .filter(([, price]) => Number.isFinite(price) && price > 0),
+  );
+}
+
 /**
  * 트렌딩 랭킹 top-N. market-service 가 Redis 캐시(스케줄러 write-through)만 읽어 돌려준다 —
  * 키움 API 를 유저 요청마다 타지 않는다. 캐시 miss 시 UNAVAILABLE 로 throw 되므로 호출부가
