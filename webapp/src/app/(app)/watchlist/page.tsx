@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Star, ArrowUpRight, ArrowDownRight, TrendingUp } from 'lucide-react';
 import MiniSparkline from '@/components/MiniSparkline';
@@ -21,9 +21,20 @@ export default function WatchlistPage() {
   }, [data, setSymbols]);
 
   const { isWatching } = useWatchlistStore();
+  // 별표 취소 즉시 목록에서 제거(낙관적). 실패 시 onChange 롤백으로 복원.
+  const [removedSymbols, setRemovedSymbols] = useState<Set<string>>(new Set());
   const allStocks = data ?? [];
-  const stocks = allStocks.filter((s) => isWatching(s.symbol));
+  const stocks = allStocks.filter((s) => isWatching(s.symbol) && !removedSymbols.has(s.symbol));
   const sparklinesMap = sparklines ?? {};
+
+  const handleWatchChange = (symbol: string, watching: boolean) => {
+    setRemovedSymbols((prev) => {
+      const next = new Set(prev);
+      if (watching) next.delete(symbol); // 롤백(다시 관심 등록됨)
+      else next.add(symbol); // 낙관적 제거
+      return next;
+    });
+  };
 
   return (
     <div className="p-3 md:p-6 max-w-[900px]">
@@ -105,7 +116,7 @@ export default function WatchlistPage() {
                 </div>
 
                 {/* Remove */}
-                <WatchlistButton symbol={s.symbol} size="sm" />
+                <WatchlistButton symbol={s.symbol} size="sm" onChange={(watching) => handleWatchChange(s.symbol, watching)} />
               </div>
             );
           })}

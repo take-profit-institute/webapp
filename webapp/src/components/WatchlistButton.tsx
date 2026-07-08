@@ -7,9 +7,11 @@ import { useWatchlistStore } from '@/store/useStore';
 interface Props {
   symbol: string;
   size?: 'sm' | 'md';
+  /** 토글 직후(낙관적) 및 실패 롤백 시 호출. `watching`은 반영 후 관심 여부. */
+  onChange?: (watching: boolean) => void;
 }
 
-export default function WatchlistButton({ symbol, size = 'md' }: Props) {
+export default function WatchlistButton({ symbol, size = 'md', onChange }: Props) {
   const { isWatching, add, remove } = useWatchlistStore();
   const watched = isWatching(symbol);
   const [loading, setLoading] = useState(false);
@@ -22,12 +24,14 @@ export default function WatchlistButton({ symbol, size = 'md' }: Props) {
     const next = !watched;
     // optimistic update
     next ? add(symbol) : remove(symbol);
+    onChange?.(next);
     try {
       if (next) await addWatchlist(symbol);
       else await removeWatchlist(symbol);
     } catch {
       // revert on failure
       next ? remove(symbol) : add(symbol);
+      onChange?.(!next);
     } finally {
       setLoading(false);
     }
