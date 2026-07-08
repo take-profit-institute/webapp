@@ -28,7 +28,7 @@ export default function WalletPage() {
   const { data: balance, loading, error, refetch } = useApi(() => getAccountBalance(), []);
   const { data: account } = useApi(() => getAccount(), []);
   const { data: reservations } = useApi(() => getLockedOrders(), []);
-  const { data: scheduledRaw, refetch: refetchReservations } = useApi(() => getReservations(), []);
+  const { data: scheduledRaw, refetch: refetchReservations } = useApi(() => getReservations({ status: 'reserved' }), []);
   const [cancelledIds, setCancelledIds] = useState<Set<string>>(new Set());
   const [editingReservationId, setEditingReservationId] = useState<string | null>(null);
   const [amendTiming, setAmendTiming] = useState<ReservationTiming>('open');

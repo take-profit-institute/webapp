@@ -873,67 +873,49 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
         summary: '예약 주문 정정 (CAN-006~008)',
         params: ReservationIdParams,
         body: AmendReservationBody,
-        response: { 201: Reservation, 400: ErrorResponse, 404: ErrorResponse, 409: ErrorResponse },
+        response: { 201: Reservation, 400: ErrorResponse, 404: ErrorResponse, 409: ErrorResponse, 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse },
       },
     },
-    // NOTE: 예약 정정은 아직 mock 유지. proto AmendReservation은 전체 필드(timing/kind/quantity/
-    //   price/scheduledDate)를 요구하는데 이 바디는 partial patch라 원본과 병합이 필요하고,
-    //   ReservationService엔 단건 조회(GetReservation) RPC가 없어 BFF가 원본을 못 가져온다.
-    //   → grpc 전환 시: 프론트가 전체 필드를 보내거나 백엔드에 GetReservation 추가 후 연결.
+    // NOTE: proto AmendReservation은 전체 필드(timing/kind/quantity/price/scheduledDate)를 요구하는
+    //   전량 교체 방식이고, ReservationService엔 단건 조회(GetReservation) RPC가 없어 BFF가 원본을
+    //   병합할 수 없다. 프론트(지갑 정정 폼)는 전 필드를 항상 채워 보내므로 바디를 그대로 정정
+    //   요청으로 전달한다(필드 누락 시 400). — ReservationService.AmendReservation(전량 교체).
     async (req, reply) => {
-      requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
-      const original = demoReservations.find((x) => x.id === req.params.id);
-      if (!original) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown reservation: ${req.params.id}` });
-      if (original.status !== 'reserved') {
-        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'RESERVED 상태의 예약 주문만 정정할 수 있습니다.' });
-      }
+      const idempotencyKey = requireIdempotencyKey(req); // 쓰기 요청: 멱등성 키 검증 (누락/형식오류 → 400)
 
-      const timing = req.body.timing ?? original.timing;
-      const orderKind = req.body.orderKind ?? original.orderKind;
-      const quantity = req.body.quantity ?? original.quantity;
+      const { timing, orderKind, quantity } = req.body;
+      if (timing == null || orderKind == null || quantity == null) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '정정은 시점·유형·수량을 모두 포함해야 합니다.' });
+      }
       if (!allowedReservationKinds(timing).includes(orderKind)) {
         const hint = timing === 'open' ? '시가 예약은 시장가/지정가만 가능합니다.' : '종가 예약은 시간외종가만 가능합니다.';
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: hint });
       }
-      if (orderKind === 'limit' && req.body.price == null && original.price == null) {
-        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '지정가 예약은 가격이 필요합니다.' });
+      if (orderKind === 'limit') {
+        if (req.body.price == null) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '지정가 예약은 가격이 필요합니다.' });
+        if (!Number.isInteger(req.body.price) || req.body.price < 1) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '지정가는 1원 단위(정수)만 가능합니다.' });
       }
-
-      const scheduledDate = resolveScheduledDate(timing, req.body.scheduledDate ?? original.scheduledDate);
+      const scheduledDate = resolveScheduledDate(timing, req.body.scheduledDate);
       if (!scheduledDate) {
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '실행 예정일은 내일부터 7일 이내여야 합니다.' });
       }
-
-      const stock = await provider.getStock(original.symbol);
-      if (!stock) {
-        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Unknown symbol: ${original.symbol}` });
+      try {
+        const r = await grpcAmendReservation({
+          userId: resolveActor(req),
+          reservationId: req.params.id,
+          timing,
+          orderKind,
+          // 시장가/시간외종가는 백엔드가 체결가를 산정하므로 0을 보낸다(POST와 동일).
+          price: orderKind === 'limit' ? req.body.price! : 0,
+          quantity,
+          scheduledDate,
+          idempotencyKey,
+        });
+        return reply.status(201).send(r);
+      } catch (e) {
+        const mapped = mapGrpcError(e, req.id);
+        return reply.code(mapped.statusCode as 400 | 404 | 409 | 500 | 503 | 504).send(mapped);
       }
-      const price =
-        orderKind === 'limit'
-          ? (req.body.price ?? original.price)!
-          : timing === 'prev_close'
-            ? stock.prevClose
-            : stock.price;
-      const amount = price * quantity;
-
-      // Real flow: cancel original reservation, release its reserved amount, submit a new reservation with parent_order_id.
-      original.status = 'cancelled';
-      const amended: Reservation = {
-        ...original,
-        id: `rsv_${Date.now()}`,
-        parentOrderId: original.id,
-        timing,
-        orderKind,
-        quantity,
-        price: orderKind === 'limit' ? price : undefined,
-        scheduledDate,
-        amount,
-        fee: Math.round(amount * 0.00015),
-        status: 'reserved',
-        createdAt: new Date().toISOString(),
-      };
-      demoReservations.unshift(amended);
-      return reply.status(201).send(amended);
     },
   );
 
