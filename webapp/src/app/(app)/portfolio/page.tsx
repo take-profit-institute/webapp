@@ -154,9 +154,11 @@ export default function PortfolioPage() {
                 {(totalValue + totalCash).toLocaleString()}<span className="text-xs ml-1" style={{ color: 'var(--text-secondary)' }}>원</span>
               </p>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <ArrowUpRight size={13} style={{ color: 'var(--gain)' }} />
-                <span className="text-xs md:text-sm font-mono font-bold" style={{ color: 'var(--gain)', fontFamily: 'JetBrains Mono' }}>
-                  +{totalPL.toLocaleString()}원 (+{totalPLPct.toFixed(2)}%)
+                {totalPL >= 0
+                  ? <ArrowUpRight size={13} style={{ color: 'var(--gain)' }} />
+                  : <ArrowDownRight size={13} style={{ color: 'var(--loss)' }} />}
+                <span className="text-xs md:text-sm font-mono font-bold" style={{ color: totalPL >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
+                  {totalPL >= 0 ? '+' : ''}{totalPL.toLocaleString()}원 ({totalPLPct >= 0 ? '+' : ''}{totalPLPct.toFixed(2)}%)
                 </span>
               </div>
             </div>
@@ -560,8 +562,8 @@ export default function PortfolioPage() {
           <div className="p-4 md:p-5">
             <div className="grid grid-cols-3 gap-3 mb-5">
               {[
-                { label: '총 수익금', value: `+${(totalPL / 10000).toFixed(0)}만원`, color: 'var(--gain)' },
-                { label: '수익률', value: `+${totalPLPct.toFixed(2)}%`, color: 'var(--gain)' },
+                { label: '총 수익금', value: `${totalPL >= 0 ? '+' : ''}${(totalPL / 10000).toFixed(0)}만원`, color: totalPL >= 0 ? 'var(--gain)' : 'var(--loss)' },
+                { label: '수익률', value: `${totalPLPct >= 0 ? '+' : ''}${totalPLPct.toFixed(2)}%`, color: totalPLPct >= 0 ? 'var(--gain)' : 'var(--loss)' },
                 { label: '거래 횟수', value: `${filledTradeCount}회`, color: 'var(--text-primary)' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="p-3 rounded-xl text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
