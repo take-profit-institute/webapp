@@ -82,7 +82,11 @@ export async function request<T>(
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
-    ...(body !== undefined ? { data: body } : {}),
+    // body 없는 non-GET(액션 POST: /learn/:id/favorite·complete, /account/reset 등)도
+    // 최소 {} 를 실어 보낸다. data 가 undefined면 브라우저 axios 어댑터가 Content-Type 을
+    // 떨궈(또는 x-www-form-urlencoded 로 바꿔) BFF(Fastify)가 415를 낸다. 실제 body가 있으면
+    // axios 가 무조건 application/json 을 싣는다(Node·브라우저 공통). BFF 는 빈 {} 를 정상 처리한다.
+    ...(body !== undefined ? { data: body } : method !== 'GET' ? { data: {} } : {}),
   };
 
   try {
