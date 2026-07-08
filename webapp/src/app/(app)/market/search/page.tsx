@@ -61,7 +61,7 @@ export default function StockSearchPage() {
         <div className="relative mb-3">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
           <input
-            className="input-dark text-sm pl-9 py-2 w-full"
+            className="input-dark text-sm pl-12 py-2 w-full"
             placeholder="종목명 또는 코드 (예: 삼성전자, 005930)"
             value={queryInput}
             onChange={(e) => setQueryInput(e.target.value)}
