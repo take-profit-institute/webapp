@@ -116,6 +116,6 @@ export async function grpcGetMarketStatus(): Promise<MarketStatus> {
     asOf: new Date().toISOString(),
     message: res.open
       ? undefined
-      : '정규장 시간이 아닙니다 (평일 09:00~15:30 KST, 휴장일 제외). 주문은 예약으로 접수됩니다.',
+      : '정규장 시간이 아닙니다 (평일 09:00~22:00 KST, 휴장일 제외). 주문은 예약으로 접수됩니다.',
   };
 }

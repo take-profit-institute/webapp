@@ -8,6 +8,7 @@ import {
   getAccount,
   getAllocation,
   getHoldings,
+  getMarketStatus,
   getPortfolioHistory,
   getStocks,
   getTransactions,
@@ -25,6 +26,12 @@ export default function DashboardPage() {
   const { data: holdings } = useApi(() => getHoldings(), []);
   const { data: topStocks } = useApi(() => getStocks({ limit: 5 }), []);
   const { data: transactions } = useApi(() => getTransactions({ limit: 5 }), []);
+  const { data: marketStatus } = useApi(() => getMarketStatus(), []);
+
+  const todayLabel = new Date().toLocaleDateString('ko-KR', {
+    year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Seoul',
+  });
+  const marketOpen = marketStatus?.open === true;
 
   if (loading) {
     return (
@@ -89,8 +96,12 @@ export default function DashboardPage() {
           <h1 className="text-xl md:text-2xl font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-primary)' }}>
             대시보드
           </h1>
-          <p className="text-xs md:text-sm mt-0.5 hidden sm:block" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>
-            2026년 6월 15일 · 시장 마감
+          <p className="text-xs md:text-sm mt-0.5 hidden sm:flex items-center gap-1.5" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>
+            {todayLabel} ·
+            <span className="inline-flex items-center gap-1" style={{ color: marketOpen ? 'var(--gain)' : 'var(--text-muted)' }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: marketOpen ? 'var(--gain)' : 'var(--text-muted)' }} />
+              {marketOpen ? '정규장' : '장 마감'}
+            </span>
           </p>
         </div>
         <div className="flex items-center gap-2">

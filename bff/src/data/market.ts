@@ -5,19 +5,19 @@ import { grpcGetMarketStatus } from '../grpc/market.grpc-client';
 
 /**
  * 로컬 계산 폴백 — mock 데이터 소스이거나 market-service 미가용 시 사용.
- * 평일 09:00~15:30 KST를 정규장으로 본다(공휴일은 반영하지 못한다).
+ * 데모/테스트 목적으로 평일 09:00~22:00 KST를 정규장으로 본다(실 정규장은 15:30, 공휴일 미반영).
  */
 export function computeLocalMarketStatus(): MarketStatus {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST = UTC+9
   const day = kst.getUTCDay(); // 0=일 .. 6=토
   const minutes = kst.getUTCHours() * 60 + kst.getUTCMinutes();
-  const open = day >= 1 && day <= 5 && minutes >= 540 && minutes <= 930; // 09:00~15:30
+  const open = day >= 1 && day <= 5 && minutes >= 540 && minutes <= 1320; // 09:00~22:00 (데모 연장)
   return {
     open,
     session: open ? 'regular' : 'closed',
     asOf: now.toISOString(),
-    message: open ? undefined : '정규장 시간이 아닙니다 (평일 09:00~15:30 KST). 시장가 주문은 예약 주문으로 접수됩니다.',
+    message: open ? undefined : '정규장 시간이 아닙니다 (평일 09:00~22:00 KST). 시장가 주문은 예약 주문으로 접수됩니다.',
   };
 }
 
