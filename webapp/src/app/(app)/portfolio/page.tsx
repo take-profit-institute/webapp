@@ -7,6 +7,7 @@ import {
   getAccountBalance,
   getAllocation,
   getHoldings,
+  getLockedOrders,
   getOrders,
   getPortfolioHistory,
   getPositions,
@@ -44,6 +45,7 @@ export default function PortfolioPage() {
   const { data: holdings, loading, error, refetch } = useApi(() => getHoldings({ includeInactive: true }), []);
   const { data: balance, refetch: refetchBalance } = useApi(() => getAccountBalance(), []);
   const { data: orders, refetch: refetchOrders } = useApi(() => getOrders(), []);
+  const { data: lockedOrders } = useApi(() => getLockedOrders(), []);
   const { data: history } = useApi(() => getPortfolioHistory(30), []);
   const { data: allocation } = useApi(() => getAllocation(), []);
   const { data: positions } = useApi(() => getPositions(), []);
@@ -67,6 +69,7 @@ export default function PortfolioPage() {
   const inactiveHoldings = holdings.filter((h) => !h.isActive);
   const reserved = positions?.reserved ?? [];
   const orderList = orders ?? [];
+  const lockedOrderList = lockedOrders ?? [];
   const portfolioHistory = history ?? [];
   const sectorAllocation = allocation ?? [];
   // 잔고 분리 (ACC-004): 총 = 가용 + 묶인
@@ -410,8 +413,48 @@ export default function PortfolioPage() {
         {/* 주문 내역 (ORD-004) + 클릭 시 상세 (ORD-005) */}
         {activeTab === '주문 내역' && (
           <div>
-            {orderList.length === 0 && (
+            {lockedOrderList.length === 0 && orderList.length === 0 && (
               <p className="text-sm text-center py-10" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>주문 내역이 없습니다</p>
+            )}
+            {lockedOrderList.length > 0 && (
+              <div style={{ borderBottom: orderList.length > 0 ? '1px solid var(--border-subtle)' : 'none' }}>
+                <div className="px-4 py-2 flex items-center gap-2" style={{ background: 'var(--amber-subtle)' }}>
+                  <span className="text-xs font-bold" style={{ color: 'var(--amber)', fontFamily: 'Noto Sans KR' }}>묶인 내역</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--bg-surface)', color: 'var(--amber)', fontFamily: 'JetBrains Mono' }}>{lockedOrderList.length}</span>
+                </div>
+                {lockedOrderList.map((r, i) => (
+                  <div key={r.id} className="flex items-center gap-3 px-4 py-3"
+                    style={{ borderBottom: i < lockedOrderList.length - 1 || orderList.length > 0 ? '1px solid var(--border-subtle)' : 'none' }}>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                      style={{ background: r.type === 'buy' ? 'var(--gain-dim)' : 'var(--loss-dim)', color: r.type === 'buy' ? 'var(--gain)' : 'var(--loss)' }}>
+                      {r.type === 'buy' ? '매수' : '매도'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{r.name}</p>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--amber-subtle)', color: 'var(--amber)', fontFamily: 'Noto Sans KR' }}>체결 대기</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+                          {r.orderKind === 'limit' ? '지정가' : '시장가'}
+                        </span>
+                      </div>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>
+                        {r.executedAt.slice(0, 10)} {r.executedAt.slice(11, 16)} · {r.quantity}주 @ {r.price.toLocaleString()}원
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-mono font-bold" style={{ color: 'var(--amber)', fontFamily: 'JetBrains Mono' }}>
+                        {(r.amount + r.fee).toLocaleString()}원
+                      </p>
+                      <div className="flex items-center justify-end gap-0.5">
+                        {r.type === 'buy'
+                          ? <ArrowUpRight size={10} style={{ color: 'var(--text-muted)' }} />
+                          : <ArrowDownRight size={10} style={{ color: 'var(--text-muted)' }} />}
+                        <span className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>묶임</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
             {orderList.map((o, i) => {
               const meta = STATUS_META[o.status] ?? STATUS_META.filled;

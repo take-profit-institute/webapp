@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, TrendingUp, Briefcase, Wallet, Trophy, Target, BookOpen, User, LogOut, ChevronLeft, ChevronRight, Star
 } from 'lucide-react';
-import { logout } from '@/apis';
+import { getAccount, logout, useApi } from '@/apis';
 import { useUIStore, useAuthStore } from '@/store/useStore';
 import { secureTokenStore } from '@/lib/secure-token-store';
 import ThemeToggle from './ThemeToggle';
@@ -27,6 +27,9 @@ export default function Sidebar() {
   const router = useRouter();
   const { sidebarCollapsed, toggleSidebar } = useUIStore();
   const { username, avatar, cash, rank } = useAuthStore();
+  const { data: account } = useApi(() => getAccount(), []);
+  const displayCash = account?.cash ?? cash;
+  const displayRank = account?.rank ?? rank;
 
   const handleLogout = async () => {
     const rt = await secureTokenStore.getRefreshToken();
@@ -106,13 +109,13 @@ export default function Sidebar() {
             <span className="text-xl">{avatar}</span>
             <div className="min-w-0">
               <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{username}</p>
-              <p className="text-xs" style={{ color: 'var(--amber)' }}>랭킹 #{rank}</p>
+              <p className="text-xs" style={{ color: 'var(--amber)' }}>랭킹 {displayRank > 0 ? `#${displayRank}` : '-'}</p>
             </div>
           </div>
           <Link href="/wallet" className="block" style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 8 }}>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>가용 현금</p>
             <p className="text-sm font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {cash.toLocaleString()}원
+              {displayCash.toLocaleString()}원
             </p>
           </Link>
         </div>

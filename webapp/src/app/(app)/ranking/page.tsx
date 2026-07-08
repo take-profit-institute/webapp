@@ -6,6 +6,9 @@ import { Loader, ErrorState } from '@/components/AsyncState';
 
 const periods = ['오늘', '이번 주', '이번 달', '전체'];
 
+const formatReturnPercent = (value: number) => `${value >= 0 ? '+' : ''}${value}%`;
+const returnColor = (value: number) => (value >= 0 ? 'var(--gain)' : 'var(--loss)');
+
 export default function RankingPage() {
   const [period, setPeriod] = useState('이번 달');
 
@@ -59,7 +62,7 @@ export default function RankingPage() {
             <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Noto Sans KR' }}>전체 {rankings.length.toLocaleString()}명 중</p>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-xl md:text-2xl font-black" style={{ fontFamily: 'JetBrains Mono', color: 'var(--gain)' }}>+{myRanking.returnPercent}%</p>
+            <p className="text-xl md:text-2xl font-black" style={{ fontFamily: 'JetBrains Mono', color: returnColor(myRanking.returnPercent) }}>{formatReturnPercent(myRanking.returnPercent)}</p>
             <p className="text-xs" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>총 수익률</p>
           </div>
         </div>
@@ -91,7 +94,7 @@ export default function RankingPage() {
           <div className="w-16 md:w-20 h-12 md:h-16 rounded-t-xl flex flex-col items-center justify-center"
             style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-normal)' }}>
             <span className="text-lg md:text-2xl font-black" style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-secondary)' }}>2</span>
-            <span className="text-xs font-mono" style={{ color: 'var(--gain)' }}>+{rankings[1].returnPercent}%</span>
+            <span className="text-xs font-mono" style={{ color: returnColor(rankings[1].returnPercent) }}>{formatReturnPercent(rankings[1].returnPercent)}</span>
           </div>
         </div>
         <div className="flex flex-col items-center">
@@ -101,7 +104,7 @@ export default function RankingPage() {
           <div className="w-20 md:w-24 h-16 md:h-24 rounded-t-xl flex flex-col items-center justify-center"
             style={{ background: 'var(--amber-glow)', border: '1px solid rgba(245,166,35,0.4)' }}>
             <span className="text-2xl md:text-3xl font-black gradient-text" style={{ fontFamily: 'Syne, sans-serif' }}>1</span>
-            <span className="text-xs font-mono" style={{ color: 'var(--gain)' }}>+{rankings[0].returnPercent}%</span>
+            <span className="text-xs font-mono" style={{ color: returnColor(rankings[0].returnPercent) }}>{formatReturnPercent(rankings[0].returnPercent)}</span>
           </div>
         </div>
         <div className="flex flex-col items-center">
@@ -162,7 +165,7 @@ export default function RankingPage() {
                   </div>
                   {/* Mobile: show return on same row */}
                   <div className="flex items-center gap-2 md:hidden">
-                    <span className="text-xs font-mono font-bold" style={{ color: 'var(--gain)', fontFamily: 'JetBrains Mono' }}>+{user.returnPercent}%</span>
+                    <span className="text-xs font-mono font-bold" style={{ color: returnColor(user.returnPercent), fontFamily: 'JetBrains Mono' }}>{formatReturnPercent(user.returnPercent)}</span>
                     <div className="flex items-center gap-0.5">
                       {user.dayChangePercent >= 0 ? <ArrowUpRight size={10} style={{ color: 'var(--gain)' }} /> : <ArrowDownRight size={10} style={{ color: 'var(--loss)' }} />}
                       <span className="text-xs font-mono" style={{ color: user.dayChangePercent >= 0 ? 'var(--gain)' : 'var(--loss)' }}>{user.dayChangePercent >= 0 ? '+' : ''}{user.dayChangePercent}%</span>
@@ -173,7 +176,7 @@ export default function RankingPage() {
 
               {/* Desktop-only columns */}
               <div className="hidden md:flex items-center justify-end">
-                <span className="font-mono font-bold text-sm" style={{ color: 'var(--gain)', fontFamily: 'JetBrains Mono' }}>+{user.returnPercent}%</span>
+                <span className="font-mono font-bold text-sm" style={{ color: returnColor(user.returnPercent), fontFamily: 'JetBrains Mono' }}>{formatReturnPercent(user.returnPercent)}</span>
               </div>
               <div className="hidden md:flex items-center justify-end">
                 <span className="text-sm font-mono" style={{ color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono' }}>{(user.totalAsset / 100000000).toFixed(1)}억</span>

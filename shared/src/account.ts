@@ -21,6 +21,7 @@ export const Account = Type.Object(
     todayProfitLoss: Type.Number(),
     todayReturnPercent: Type.Number(),
     rank: Type.Number(),
+    ranking: Type.Optional(Type.Object({ rank: Type.Number(), returnPercent: Type.Number() })),
     updatedAt: Type.String({ format: 'date-time' }),
   },
 );

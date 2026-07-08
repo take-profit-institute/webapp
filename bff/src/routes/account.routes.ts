@@ -22,7 +22,7 @@ import {
 } from '../data/account';
 import { getMarketStatus, getQuote } from '../data/market';
 import { getMarketProvider } from '../providers';
-import { requireIdempotencyKey, mapGrpcError } from '../grpc';
+import { requireIdempotencyKey, mapGrpcError, parallelFetch } from '../grpc';
 import { env } from '../config/env';
 import {
   grpcPlaceOrder,
@@ -50,6 +50,7 @@ import {
   grpcRemoveWatchlist,
   type WatchlistEntry,
 } from '../grpc/wishlist.grpc-client';
+import { grpcGetMyRankingSummary } from '../grpc/ranking.grpc-client';
 
 /** 게이트웨이가 JWT 검증 후 주입한 X-Account-Id 헤더로 actor 추출. */
 function resolveActor(req: { headers: Record<string, unknown> }): string {
@@ -222,7 +223,16 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       if (env.dataSource === 'grpc') {
         try {
-          return await grpcGetAccountSummary(resolveActor(req));
+          const userId = resolveActor(req);
+          const { account, ranking } = await parallelFetch({
+            account: grpcGetAccountSummary(userId),
+            ranking: grpcGetMyRankingSummary(userId).catch(() => undefined),
+          });
+          return {
+            ...account,
+            rank: ranking?.rank ?? account.rank,
+            ranking,
+          };
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
