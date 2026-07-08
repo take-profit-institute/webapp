@@ -16,7 +16,6 @@ import type { UserProfile as GrpcUserProfile } from '../grpc/gen/candle/user/v1/
 import { mapGrpcError, requireIdempotencyKey } from '../grpc';
 import { parallelFetch } from '../grpc/parallel';
 import { grpcGetAccountSummary } from '../grpc/portfolio.grpc-client';
-import { grpcGetMissionSummary } from '../grpc/mission.grpc-client';
 import { grpcGetMyRankingSummary } from '../grpc/ranking.grpc-client';
 
 function toSharedProfile(grpc: GrpcUserProfile): SharedUserProfile {
@@ -119,11 +118,13 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
       if (!userId) return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: '인증 정보가 없습니다.' });
       try {
         if (env.dataSource === 'grpc') {
-          const { userMe, account, ranking, missionSummary } = await parallelFetch({
+          // mission-service는 gRPC 서버가 없어(HTTP 전용) 호출하면 없는 9090으로 붙느라 데드라인까지
+          // 대기 → 병렬 fan-out 전체가 느려진다. 챌린지 집계는 gRPC 호출 없이 0 고정으로 반환한다.
+          // (mission이 gRPC 서버를 갖추면 grpcGetMissionSummary 호출을 되살린다)
+          const { userMe, account, ranking } = await parallelFetch({
             userMe: req.server.grpc.user.getMe({ userId }, { userId }),
             account: grpcGetAccountSummary(userId),
             ranking: grpcGetMyRankingSummary(userId).catch(() => undefined),
-            missionSummary: grpcGetMissionSummary(userId).catch(() => ({ active: 0, completed: 0 })),
           });
           if (!userMe.profile) return reply.code(404).send({ statusCode: 404, error: 'Not Found', message: '사용자를 찾을 수 없습니다.' });
           return {
@@ -131,7 +132,7 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
             performance: { totalReturnPercent: account.totalReturnPercent, totalProfitLoss: account.totalProfitLoss },
             assets: { totalAsset: account.totalAsset, cash: account.cash, investedAmount: account.investedAmount },
             ranking,
-            challenges: missionSummary,
+            challenges: { active: 0, completed: 0 },
           };
         }
 
