@@ -10,7 +10,8 @@ import {
   getHoldings,
   getMarketStatus,
   getPortfolioHistory,
-  getStocks,
+  getSparklines,
+  getTrendingRankings,
   getTransactions,
   useApi,
 } from '@/apis';
@@ -24,7 +25,8 @@ export default function DashboardPage() {
   const { data: history } = useApi(() => getPortfolioHistory(30), []);
   const { data: allocation } = useApi(() => getAllocation(), []);
   const { data: holdings } = useApi(() => getHoldings(), []);
-  const { data: topStocks } = useApi(() => getStocks({ limit: 5 }), []);
+  const { data: rising } = useApi(() => getTrendingRankings('RISING', 4), []);
+  const { data: sparklines } = useApi(() => getSparklines(), []);
   const { data: transactions } = useApi(() => getTransactions({ limit: 5 }), []);
   const { data: marketStatus } = useApi(() => getMarketStatus(), []);
 
@@ -248,27 +250,34 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Market movers */}
+        {/* Market movers — 급등(RISING) TOP 4 + 실 스파크라인 */}
         <div className="card p-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>시장 동향</p>
+            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>급등 종목</p>
             <Link href="/market" className="text-xs" style={{ color: 'var(--amber)' }}>전체 보기</Link>
           </div>
           <div className="space-y-2">
-            {(topStocks ?? []).map(s => (
-              <Link key={s.symbol} href={marketDetailHref(s.symbol)}
-                className="flex items-center justify-between py-1 rounded-lg px-1.5 transition-colors hover:bg-[var(--bg-elevated)] active:bg-[var(--bg-elevated)]"
-                style={{ color: 'inherit' }}
-              >
-                <span className="text-sm" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{s.name}</span>
-                <div className="flex items-center gap-2">
-                  <MiniSparkline data={generateSparkline(s.price, 12, symbolSeed(s.symbol))} width={40} height={20} positive={s.change >= 0} />
-                  <span className="text-xs font-mono w-14 text-right" style={{ color: s.change >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
-                    {s.change >= 0 ? '+' : ''}{s.changePercent.toFixed(2)}%
-                  </span>
-                </div>
-              </Link>
-            ))}
+            {(rising?.items ?? []).map(s => {
+              // 실 스파크라인(2주 일봉 종가). 아직 안 왔거나 종목이 없으면 합성 폴백.
+              const series = sparklines?.[s.symbol];
+              const sparkData = series && series.length >= 2
+                ? series
+                : generateSparkline(s.price, 12, symbolSeed(s.symbol));
+              return (
+                <Link key={s.symbol} href={marketDetailHref(s.symbol)}
+                  className="flex items-center justify-between py-1 rounded-lg px-1.5 transition-colors hover:bg-[var(--bg-elevated)] active:bg-[var(--bg-elevated)]"
+                  style={{ color: 'inherit' }}
+                >
+                  <span className="text-sm" style={{ color: 'var(--text-primary)', fontFamily: 'Noto Sans KR' }}>{s.name}</span>
+                  <div className="flex items-center gap-2">
+                    <MiniSparkline data={sparkData} width={40} height={20} positive={s.change >= 0} />
+                    <span className="text-xs font-mono w-14 text-right" style={{ color: s.change >= 0 ? 'var(--gain)' : 'var(--loss)', fontFamily: 'JetBrains Mono' }}>
+                      {s.change >= 0 ? '+' : ''}{s.changePercent.toFixed(2)}%
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </div>
 

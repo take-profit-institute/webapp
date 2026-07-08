@@ -2,8 +2,27 @@
 import Link from 'next/link';
 import { TrendingUp } from 'lucide-react';
 import OAuthButtons from '@/components/OAuthButtons';
+import { getTrendingRankings, useApi } from '@/apis';
+
+// 실시간 급등 데이터 로딩 전/캐시 miss 시 패널이 비지 않도록 쓰는 폴백.
+const FALLBACK_MOVERS = [
+  { name: '삼성전자', price: '71,400', change: '+1.13%', up: true },
+  { name: 'SK하이닉스', price: '198,500', change: '-1.24%', up: false },
+  { name: '엔비디아', price: '875,200', change: '+2.15%', up: true },
+  { name: 'NAVER', price: '168,000', change: '-1.75%', up: false },
+];
 
 export default function LoginPage() {
+  // 급등(RISING) TOP 4 — 공개 엔드포인트라 토큰 불필요.
+  const { data: rising } = useApi(() => getTrendingRankings('RISING', 4), []);
+  const movers = (rising?.items ?? []).map((it) => ({
+    name: it.name,
+    price: it.price.toLocaleString(),
+    change: `${it.changePercent >= 0 ? '+' : ''}${it.changePercent.toFixed(2)}%`,
+    up: it.change >= 0,
+  }));
+  const display = movers.length ? movers : FALLBACK_MOVERS;
+
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--bg-void)' }}>
       {/* Left panel */}
@@ -27,14 +46,9 @@ export default function LoginPage() {
         </div>
 
         <div className="relative">
-          <p className="text-xs font-mono mb-6 tracking-widest" style={{ color: 'var(--amber)', fontFamily: 'JetBrains Mono' }}>TODAY&apos;S MARKET</p>
+          <p className="text-xs font-mono mb-6 tracking-widest" style={{ color: 'var(--amber)', fontFamily: 'JetBrains Mono' }}>TODAY&apos;S TOP GAINERS</p>
           <div className="space-y-3">
-            {[
-              { name: '삼성전자', price: '71,400', change: '+1.13%', up: true },
-              { name: 'SK하이닉스', price: '198,500', change: '-1.24%', up: false },
-              { name: '엔비디아', price: '875,200', change: '+2.15%', up: true },
-              { name: 'NAVER', price: '168,000', change: '-1.75%', up: false },
-            ].map(s => (
+            {display.map(s => (
               <div key={s.name} className="flex items-center justify-between p-3 rounded-lg"
                 style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)' }}>
                 <div className="flex items-center gap-3">
