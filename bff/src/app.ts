@@ -30,6 +30,23 @@ export async function buildApp(): Promise<FastifyInstance> {
       : true,
   }).withTypeProvider<TypeBoxTypeProvider>();
 
+  // body 없는 액션 POST(예: /learn/:id/complete, /favorite)를 허용한다.
+  // 클라이언트가 Content-Type: application/json 을 붙이고 body를 비워 보내도
+  // FST_ERR_CTP_EMPTY_JSON_BODY 로 실패하지 않도록 빈 문자열을 {} 로 처리한다.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    const raw = typeof body === 'string' ? body : '';
+    if (raw.trim().length === 0) {
+      done(null, {});
+      return;
+    }
+    try {
+      done(null, JSON.parse(raw));
+    } catch (err) {
+      (err as { statusCode?: number }).statusCode = 400;
+      done(err as Error, undefined);
+    }
+  });
+
   await app.register(cors, {
     origin: (origin, callback) => {
       callback(null, isAllowedCorsOrigin(origin));

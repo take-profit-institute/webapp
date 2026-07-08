@@ -38,6 +38,19 @@ export function handleError(error: FastifyError | Error, req: FastifyRequest, re
     );
   }
 
+  // Fastify가 던지는 4xx(빈 body·미지원 content-type 등)는 원래 상태코드를 보존한다.
+  // 이 분기가 없으면 400/415가 아래 fallback에서 500(INTERNAL_ERROR)으로 오인 전달된다.
+  const fastifyStatus = (error as FastifyError).statusCode;
+  if (typeof fastifyStatus === 'number' && fastifyStatus >= 400 && fastifyStatus < 500) {
+    return reply.status(fastifyStatus).send(
+      buildErrorResponse({
+        statusCode: fastifyStatus,
+        code: ERROR_CODES.BAD_REQUEST,
+        traceId,
+      }),
+    );
+  }
+
   req.log.error({ err: error, traceId }, 'Unhandled BFF error');
   return reply.status(500).send(
     buildErrorResponse({
