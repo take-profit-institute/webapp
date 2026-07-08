@@ -1,33 +1,9 @@
 'use client';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { Eye, EyeOff, TrendingUp } from 'lucide-react';
-import { authApi } from '@/apis';
+import { TrendingUp } from 'lucide-react';
 import OAuthButtons from '@/components/OAuthButtons';
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setErrorMessage(null);
-    try {
-      await authApi.login({ email, password });
-      router.push('/dashboard');
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : '로그인에 실패했습니다');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--bg-void)' }}>
       {/* Left panel */}
@@ -89,58 +65,6 @@ export default function LoginPage() {
             <p className="text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>
               계정에 로그인하여 투자를 계속하세요
             </p>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>이메일</label>
-              <input
-                type="email"
-                placeholder="name@example.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="input-dark text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>비밀번호</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="input-dark text-sm pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              <div className="flex justify-end mt-1">
-                <button type="button" className="text-xs" style={{ color: 'var(--amber)', fontFamily: 'Noto Sans KR' }}>
-                  비밀번호 찾기
-                </button>
-              </div>
-            </div>
-
-            {errorMessage && (
-              <p className="text-xs" style={{ color: 'var(--loss)', fontFamily: 'Noto Sans KR' }}>{errorMessage}</p>
-            )}
-
-            <button type="submit" disabled={submitting} className="btn-amber w-full text-sm py-3 mt-2" style={{ opacity: submitting ? 0.6 : 1 }}>
-              {submitting ? '로그인 중...' : '로그인'}
-            </button>
-          </form>
-
-          <div className="my-6 flex items-center gap-3">
-            <div className="flex-1 h-px" style={{ background: 'var(--border-subtle)' }} />
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>소셜 계정으로 로그인</span>
-            <div className="flex-1 h-px" style={{ background: 'var(--border-subtle)' }} />
           </div>
 
           <OAuthButtons scenario="existing" redirectTo="/dashboard" />

@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Check } from 'lucide-react';
-import { authApi } from '@/apis';
 import OAuthButtons from '@/components/OAuthButtons';
 import { useAuthStore } from '@/store/useStore';
 
@@ -20,9 +19,7 @@ export default function SignupPage() {
     // 기존 유저가 /signup 직접 접근하면 대시보드로
     if (isLoggedIn && !isNewUser) router.replace('/dashboard');
   }, [isLoggedIn, isNewUser, router]);
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+
   const [style, setStyle] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -36,19 +33,6 @@ export default function SignupPage() {
 
   const handleNext = async () => {
     setErrorMessage(null);
-    // Step 0 → create the account on the BFF before continuing.
-    if (step === 0) {
-      setSubmitting(true);
-      try {
-        await authApi.signup({ username, email, password });
-        setStep(1);
-      } catch (err) {
-        setErrorMessage(err instanceof Error ? err.message : '회원가입에 실패했습니다');
-      } finally {
-        setSubmitting(false);
-      }
-      return;
-    }
     if (step < 2) setStep(step + 1);
     else router.push('/dashboard');
   };
@@ -100,25 +84,6 @@ export default function SignupPage() {
 
               {/* OAuth 회원가입 — 최초 로그인 시 자동 가입 (AUTH-002) */}
               <OAuthButtons scenario="new" redirectTo="/dashboard" />
-
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px" style={{ background: 'var(--border-subtle)' }} />
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>또는 이메일로 가입</span>
-                <div className="flex-1 h-px" style={{ background: 'var(--border-subtle)' }} />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>닉네임</label>
-                <input className="input-dark text-sm" placeholder="투자왕김철수" value={username} onChange={e => setUsername(e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>이메일</label>
-                <input className="input-dark text-sm" type="email" placeholder="name@example.com" value={email} onChange={e => setEmail(e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>비밀번호</label>
-                <input className="input-dark text-sm" type="password" placeholder="8자 이상" value={password} onChange={e => setPassword(e.target.value)} />
-              </div>
             </div>
           )}
 
@@ -167,9 +132,11 @@ export default function SignupPage() {
             <p className="text-xs mt-4 text-center" style={{ color: 'var(--loss)', fontFamily: 'Noto Sans KR' }}>{errorMessage}</p>
           )}
 
-          <button onClick={handleNext} disabled={submitting} className="btn-amber w-full py-3 mt-6 text-sm" style={{ opacity: submitting ? 0.6 : 1 }}>
-            {submitting ? '처리 중...' : step === 2 ? '투자 시작하기 →' : '다음'}
-          </button>
+          {step > 0 && (
+            <button onClick={handleNext} disabled={submitting} className="btn-amber w-full py-3 mt-6 text-sm" style={{ opacity: submitting ? 0.6 : 1 }}>
+              {submitting ? '처리 중...' : step === 2 ? '투자 시작하기 →' : '다음'}
+            </button>
+          )}
 
           {step === 0 && (
             <p className="text-center text-sm mt-4" style={{ color: 'var(--text-secondary)', fontFamily: 'Noto Sans KR' }}>
