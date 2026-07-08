@@ -24,6 +24,8 @@ interface AuthState {
   rank: number;
   // ── actions ──
   setSession: (result: OAuthLoginResult) => void;
+  /** 로그인 이후 잔고(availableAmount)/랭킹을 별도로 갱신 (setSession과 분리). */
+  setAccountSummary: (input: { cash: number; rank: number }) => void;
   setAccessToken: (token: string, expiresInSec: number) => void;
   clearSession: () => void;
   hasRole: (role: UserRole) => boolean;
@@ -58,6 +60,8 @@ export const useAuthStore = create<AuthState>()(
         });
       },
 
+      setAccountSummary: (input) => set({ cash: input.cash, rank: input.rank }),
+
       setAccessToken: (token, expiresInSec) =>
         set({ accessToken: token, expiresAt: Date.now() + expiresInSec * 1000 }),
 
@@ -81,6 +85,8 @@ export const useAuthStore = create<AuthState>()(
         isNewUser: s.isNewUser,
         username: s.username,
         avatar: s.avatar,
+        cash: s.cash,
+        rank: s.rank,
       }),
       // 구버전: refresh_token 이 localStorage(candle-auth)에 있던 사용자 → 보안 저장소로 1회 이관.
       onRehydrateStorage: () => (state) => {
