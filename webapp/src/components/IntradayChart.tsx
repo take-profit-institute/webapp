@@ -1,5 +1,5 @@
 'use client';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   LineChart,
   Line,
@@ -44,6 +44,8 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<
 }
 
 export default function IntradayChart({ ticks, currency, height = 220 }: Props) {
+  // 호버 중인 데이터 포인트 인덱스 — 정확히 그 지점의 가격에 가로 크로스헤어를 맞춘다.
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const data = useMemo<ChartPoint[]>(
     () =>
       ticks.map(({ price, timestamp }) => ({
@@ -76,9 +78,19 @@ export default function IntradayChart({ ticks, currency, height = 220 }: Props) 
   const maxP = Math.max(...prices);
   const pad = Math.max((maxP - minP) * 0.15, 1);
 
+  const hoveredPrice = activeIndex !== null ? data[activeIndex]?.price ?? null : null;
+
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+      <LineChart
+        data={data}
+        margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+        onMouseMove={(s) => {
+          const idx = s?.isTooltipActive ? Number(s.activeTooltipIndex) : NaN;
+          setActiveIndex(Number.isInteger(idx) ? idx : null);
+        }}
+        onMouseLeave={() => setActiveIndex(null)}
+      >
         <XAxis dataKey="time" hide />
         <YAxis
           domain={[minP - pad, maxP + pad]}
@@ -94,6 +106,16 @@ export default function IntradayChart({ ticks, currency, height = 220 }: Props) 
           strokeDasharray="4 3"
           strokeWidth={1}
         />
+        {/* 호버 지점의 가격에 정확히 맞춘 가로 크로스헤어 */}
+        {hoveredPrice !== null && (
+          <ReferenceLine
+            y={hoveredPrice}
+            stroke="var(--amber)"
+            strokeDasharray="3 3"
+            strokeWidth={0.8}
+            ifOverflow="extendDomain"
+          />
+        )}
         <Tooltip
           content={<CustomTooltip />}
           cursor={{ stroke: 'var(--amber)', strokeWidth: 1, strokeDasharray: '3 3' }}

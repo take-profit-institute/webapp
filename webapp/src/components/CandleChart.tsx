@@ -30,8 +30,12 @@ export default function CandleChart({ data, width = 600, height = 280 }: Props) 
   const range = maxP - minP || 1;
 
   const sy = (p: number) => pad.top + ch - ((p - minP) / range) * ch;
-  const candleW = Math.max(2, cw / visible.length * 0.65);
-  const sx = (i: number) => pad.left + (i + 0.5) * (cw / visible.length);
+  const step = cw / visible.length;
+  const candleW = Math.max(2, step * 0.65);
+  const sx = (i: number) => pad.left + (i + 0.5) * step;
+
+  // 크로스헤어가 캔들 사이를 부드럽게 미끄러지도록 하는 전환.
+  const CROSSHAIR_TRANSITION = 'transform 90ms cubic-bezier(0.22, 1, 0.36, 1)';
 
   const priceLabels = Array.from({ length: 5 }, (_, i) => {
     const p = minP + (range / 4) * i;
@@ -83,16 +87,18 @@ export default function CandleChart({ data, width = 600, height = 280 }: Props) 
         ))}
       </div>
 
-      {/* Hovered info */}
-      {hoveredCandle && (
-        <div className="flex gap-4 mb-2 text-xs font-mono text-[var(--text-secondary)]">
-          <span>{hoveredCandle.date}</span>
-          <span>시가 <span className="text-[var(--text-primary)]">{hoveredCandle.open.toLocaleString()}</span></span>
-          <span>고가 <span className="text-[var(--gain)]">{hoveredCandle.high.toLocaleString()}</span></span>
-          <span>저가 <span className="text-[var(--loss)]">{hoveredCandle.low.toLocaleString()}</span></span>
-          <span>종가 <span className="text-[var(--text-primary)]">{hoveredCandle.close.toLocaleString()}</span></span>
-        </div>
-      )}
+      {/* Hovered info — 항상 자리를 차지해 호버 시 레이아웃이 밀리지 않게 한다 */}
+      <div className="flex items-center gap-4 mb-2 h-4 text-xs font-mono text-[var(--text-secondary)]">
+        {hoveredCandle && (
+          <>
+            <span>{hoveredCandle.date}</span>
+            <span>시가 <span className="text-[var(--text-primary)]">{hoveredCandle.open.toLocaleString()}</span></span>
+            <span>고가 <span className="text-[var(--gain)]">{hoveredCandle.high.toLocaleString()}</span></span>
+            <span>저가 <span className="text-[var(--loss)]">{hoveredCandle.low.toLocaleString()}</span></span>
+            <span>종가 <span className="text-[var(--text-primary)]">{hoveredCandle.close.toLocaleString()}</span></span>
+          </>
+        )}
+      </div>
 
       <svg
         viewBox={`0 0 ${width} ${height}`}
@@ -131,9 +137,6 @@ export default function CandleChart({ data, width = 600, height = 280 }: Props) 
 
           return (
             <g key={i}>
-              {isHov && (
-                <rect x={x - cw / visible.length / 2} y={pad.top} width={cw / visible.length} height={ch} fill="white" opacity={0.03} />
-              )}
               {/* Wick */}
               <line x1={x} y1={sy(c.high)} x2={x} y2={sy(c.low)} stroke={color} strokeWidth={isHov ? 1.5 : 1} />
               {/* Body */}
@@ -152,48 +155,79 @@ export default function CandleChart({ data, width = 600, height = 280 }: Props) 
 
         {hoveredX !== null && hoveredY !== null && hoveredCandle && (
           <g pointerEvents="none">
+            {/* 호버 캔들 컬럼 하이라이트 (부드럽게 이동) */}
+            <rect
+              x={-step / 2}
+              y={pad.top}
+              width={step}
+              height={ch}
+              fill="white"
+              opacity={0.04}
+              style={{ transform: `translateX(${hoveredX}px)`, transition: CROSSHAIR_TRANSITION }}
+            />
+            {/* 세로 크로스헤어 */}
             <line
-              x1={hoveredX}
+              x1={0}
               y1={pad.top}
-              x2={hoveredX}
+              x2={0}
               y2={pad.top + ch}
               stroke="var(--amber)"
               strokeWidth={0.8}
               strokeDasharray="3 3"
               opacity={0.7}
+              style={{ transform: `translateX(${hoveredX}px)`, transition: CROSSHAIR_TRANSITION }}
             />
+            {/* 가로 크로스헤어 */}
             <line
               x1={pad.left}
-              y1={hoveredY}
+              y1={0}
               x2={pad.left + cw}
-              y2={hoveredY}
+              y2={0}
               stroke="var(--amber)"
               strokeWidth={0.8}
               strokeDasharray="3 3"
               opacity={0.55}
+              style={{ transform: `translateY(${hoveredY}px)`, transition: CROSSHAIR_TRANSITION }}
             />
-            <circle cx={hoveredX} cy={hoveredY} r={3} fill="var(--amber)" stroke="var(--bg-card)" strokeWidth={1.5} />
-            <rect
-              x={pad.left + cw - 52}
-              y={Math.min(Math.max(hoveredY - 11, pad.top), pad.top + ch - 22)}
-              width={52}
-              height={22}
-              rx={4}
-              fill="var(--bg-card)"
-              stroke="var(--amber)"
-              strokeWidth={0.8}
+            {/* 데이터 포인트 */}
+            <circle
+              cx={0}
+              cy={0}
+              r={3}
+              fill="var(--amber)"
+              stroke="var(--bg-card)"
+              strokeWidth={1.5}
+              style={{ transform: `translate(${hoveredX}px, ${hoveredY}px)`, transition: CROSSHAIR_TRANSITION }}
             />
-            <text
-              x={pad.left + cw - 26}
-              y={Math.min(Math.max(hoveredY + 4, pad.top + 15), pad.top + ch - 7)}
-              textAnchor="middle"
-              fill="var(--text-primary)"
-              fontSize={10}
-              fontFamily="JetBrains Mono, monospace"
-              fontWeight={700}
+            {/* 가격 라벨 (세로로만 이동, 플롯 안에 클램프) */}
+            <g
+              style={{
+                transform: `translateY(${Math.min(Math.max(hoveredY - 11, pad.top), pad.top + ch - 22)}px)`,
+                transition: CROSSHAIR_TRANSITION,
+              }}
             >
-              {hoveredPriceLabel}
-            </text>
+              <rect
+                x={pad.left + cw - 52}
+                y={0}
+                width={52}
+                height={22}
+                rx={4}
+                fill="var(--bg-card)"
+                stroke="var(--amber)"
+                strokeWidth={0.8}
+              />
+              <text
+                x={pad.left + cw - 26}
+                y={15}
+                textAnchor="middle"
+                fill="var(--text-primary)"
+                fontSize={10}
+                fontFamily="JetBrains Mono, monospace"
+                fontWeight={700}
+              >
+                {hoveredPriceLabel}
+              </text>
+            </g>
           </g>
         )}
 
