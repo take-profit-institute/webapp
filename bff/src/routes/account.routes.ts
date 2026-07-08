@@ -684,7 +684,9 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
           return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: '실행 예정일은 내일부터 7일 이내여야 합니다.' });
         }
         try {
-          const resolved = await resolveReservationPrice(req.body.symbol, timing, orderKind, req.body.price);
+          const resolved = orderKind === 'limit'
+            ? await resolveReservationPrice(req.body.symbol, timing, orderKind, req.body.price)
+            : { price: 0 };
           if ('error' in resolved) return reply.code(resolved.error.statusCode).send(resolved.error);
           const r = await grpcPlaceReservation({
             userId: resolveActor(req),
