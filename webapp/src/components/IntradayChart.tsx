@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   LineChart,
   Line,
@@ -43,9 +43,53 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<
   );
 }
 
+/**
+ * 활성 데이터 포인트(동그란 activeDot)의 중심에 정확히 스냅되는 2축 크로스헤어.
+ * recharts가 커서 엘리먼트에 넘겨주는 값으로 그린다:
+ *  - points[0].x  → 활성 포인트의 x (시간축, 이미 데이터 포인트에 스냅됨)
+ *  - top/height   → 플롯 영역 세로 범위
+ *  - payload[0].value → 활성 포인트의 가격 → 도메인으로 픽셀 y 환산(= activeDot의 cy)
+ * activeCoordinate.y 는 (horizontal 레이아웃에선) 마우스 y라 쓰지 않는다.
+ */
+function CrosshairCursor(props: {
+  points?: Array<{ x: number; y: number }>;
+  top?: number;
+  left?: number;
+  width?: number;
+  height?: number;
+  payload?: Array<{ value?: number }>;
+  domainMin?: number;
+  domainMax?: number;
+}) {
+  const { points, top, left, width, height, payload, domainMin, domainMax } = props;
+  if (
+    !points?.length ||
+    top == null || left == null || width == null || height == null ||
+    domainMin == null || domainMax == null
+  ) {
+    return null;
+  }
+  const x = points[0].x;
+  const price = payload?.[0]?.value;
+  const span = domainMax - domainMin || 1;
+  const py = typeof price === 'number' ? top + height * (1 - (price - domainMin) / span) : null;
+  return (
+    <g pointerEvents="none">
+      <line
+        x1={x} y1={top} x2={x} y2={top + height}
+        stroke="var(--amber)" strokeWidth={1} strokeDasharray="3 3" strokeOpacity={0.7}
+      />
+      {py != null && (
+        <line
+          x1={left} y1={py} x2={left + width} y2={py}
+          stroke="var(--amber)" strokeWidth={1} strokeDasharray="3 3" strokeOpacity={0.55}
+        />
+      )}
+    </g>
+  );
+}
+
 export default function IntradayChart({ ticks, currency, height = 220 }: Props) {
-  // 호버 중인 데이터 포인트 인덱스 — 정확히 그 지점의 가격에 가로 크로스헤어를 맞춘다.
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const data = useMemo<ChartPoint[]>(
     () =>
       ticks.map(({ price, timestamp }) => ({
@@ -78,19 +122,9 @@ export default function IntradayChart({ ticks, currency, height = 220 }: Props) 
   const maxP = Math.max(...prices);
   const pad = Math.max((maxP - minP) * 0.15, 1);
 
-  const hoveredPrice = activeIndex !== null ? data[activeIndex]?.price ?? null : null;
-
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart
-        data={data}
-        margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-        onMouseMove={(s) => {
-          const idx = s?.isTooltipActive ? Number(s.activeTooltipIndex) : NaN;
-          setActiveIndex(Number.isInteger(idx) ? idx : null);
-        }}
-        onMouseLeave={() => setActiveIndex(null)}
-      >
+      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <XAxis dataKey="time" hide />
         <YAxis
           domain={[minP - pad, maxP + pad]}
@@ -106,19 +140,9 @@ export default function IntradayChart({ ticks, currency, height = 220 }: Props) 
           strokeDasharray="4 3"
           strokeWidth={1}
         />
-        {/* 호버 지점의 가격에 정확히 맞춘 가로 크로스헤어 */}
-        {hoveredPrice !== null && (
-          <ReferenceLine
-            y={hoveredPrice}
-            stroke="var(--amber)"
-            strokeDasharray="3 3"
-            strokeWidth={0.8}
-            ifOverflow="extendDomain"
-          />
-        )}
         <Tooltip
           content={<CustomTooltip />}
-          cursor={{ stroke: 'var(--amber)', strokeWidth: 1, strokeDasharray: '3 3' }}
+          cursor={<CrosshairCursor domainMin={minP - pad} domainMax={maxP + pad} />}
           isAnimationActive={false}
         />
         <Line
