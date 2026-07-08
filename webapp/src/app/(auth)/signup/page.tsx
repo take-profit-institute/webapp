@@ -6,6 +6,7 @@ import { Check } from 'lucide-react';
 import { authApi } from '@/apis';
 import OAuthButtons from '@/components/OAuthButtons';
 import { useAuthStore } from '@/store/useStore';
+import Image from 'next/image';
 
 const steps = ['기본 정보', '투자 성향', '완료'];
 
@@ -58,14 +59,20 @@ export default function SignupPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-8 h-8 flex items-center justify-center rounded-lg" style={{ background: 'var(--amber-glow)', border: '1px solid rgba(245,166,35,0.3)' }}>
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <rect x="7" y="1" width="4" height="2" rx="1" fill="var(--amber)" />
-              <rect x="6" y="3" width="6" height="10" rx="2" fill="var(--amber)" />
-              <rect x="5" y="13" width="8" height="4" rx="2" fill="var(--amber)" opacity="0.6" />
-            </svg>
-          </div>
-          <span className="text-xl font-bold gradient-text" style={{ fontFamily: 'Syne, sans-serif' }}>CANDLE</span>
+          <div className="flex items-center gap-2">
+          <Image
+            src="/logo-1.png"
+            alt="CANDLE"
+            width={32}
+            height={32}
+          />
+            </div>
+          <span
+            className="text-xl font-bold tracking-wider gradient-text"
+            style={{ fontFamily: 'Syne, sans-serif' }}
+          >
+    CANDLE
+  </span>
         </div>
 
         {/* Steps */}
