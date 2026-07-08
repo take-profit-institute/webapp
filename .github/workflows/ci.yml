@@ -61,6 +61,34 @@ jobs:
           appset: services
           token: ${{ secrets.GITOPS_TOKEN }}
 
+  # bff → Docker Hub (yyubin/candle-bff:dev). ECR(push-bff)와 별개로, 로컬/수동 배포에서
+  # 끌어다 쓰는 이동 태그(:dev)를 Docker Hub에 올린다. Docker Hub는 ECR과 달리 태그 덮어쓰기 허용.
+  # :dev 는 로컬(arm64)·클러스터(amd64) 양쪽에서 쓰이므로 멀티아치 매니페스트로 푸시한다.
+  # 자격증명: repo secrets DOCKERHUB_USERNAME / DOCKERHUB_TOKEN (Docker Hub access token).
+  push-bff-dockerhub:
+    needs: changes
+    if: needs.changes.outputs.bff == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # arm64 크로스빌드용 에뮬레이터
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          # 컨텍스트는 모노레포 루트(shared + bff 함께 빌드), Dockerfile 은 bff/Dockerfile
+          context: .
+          file: bff/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: yyubin/candle-bff:dev
+          cache-from: type=gha,scope=bff-hub
+          cache-to: type=gha,mode=max,scope=bff-hub
+
   # webapp: 정적 export(next output=export) → S3 sync → CloudFront invalidation.
   # 컨테이너 대신 CloudFront+S3(static-site 모듈)로 서빙한다. 자격증명은 GitHub OIDC로
   # ci_deploy_role 을 assume (정적 키 없음). role/bucket/dist 는 Terraform output 값을

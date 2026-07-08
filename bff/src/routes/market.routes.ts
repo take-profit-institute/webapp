@@ -20,6 +20,7 @@ import {
   SymbolParams,
 } from '@candle/shared';
 
+
 const marketRoutes: FastifyPluginAsyncTypebox = async (app) => {
   const provider = getMarketProvider();
 
