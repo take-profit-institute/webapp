@@ -46,8 +46,14 @@ function toSummary(entry: ProtoRankingEntry): MyRankingSummary {
 }
 
 export async function grpcListRankings(pageSize = 20): Promise<RankingEntry[]> {
-  const res = await ranking().listRankings({ page: { pageSize, pageToken: '' } });
-  return res.rankings.map(toShared);
+  try {
+    const res = await ranking().listRankings({ page: { pageSize, pageToken: '' } });
+    return res.rankings.map(toShared);
+  } catch (err) {
+    // 랭킹 데이터가 아직 없으면(RANKING_NOT_FOUND) 오류가 아니라 빈 목록으로 취급 → 200 []
+    if (err instanceof ClientError && err.code === GrpcStatus.NOT_FOUND) return [];
+    throw err;
+  }
 }
 
 export async function grpcGetMyRanking(userId: string): Promise<RankingEntry | undefined> {
