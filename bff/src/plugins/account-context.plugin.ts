@@ -9,9 +9,30 @@ function bearerToken(value: unknown): string | null {
   return token;
 }
 
+// access_token 은 auth-service가 httpOnly 쿠키(path=/)로도 내려준다. 브라우저가 Authorization
+// 헤더 없이 쿠키만 보내는 경우(SPA 부팅/딥링크, 헤더 유실 등)를 위해 쿠키에서도 토큰을 읽는다.
+// httpOnly라 프런트 JS는 헤더에 못 실으므로 이 폴백이 실질 진입 경로가 된다.
+function cookieToken(cookieHeader: unknown, name: string): string | null {
+  if (typeof cookieHeader !== 'string') return null;
+  for (const part of cookieHeader.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq === -1) continue;
+    if (part.slice(0, eq).trim() !== name) continue;
+    const value = part.slice(eq + 1).trim();
+    return value ? decodeURIComponent(value) : null;
+  }
+  return null;
+}
+
 const accountContextPlugin: FastifyPluginAsync = async (app) => {
   app.addHook('onRequest', async (req) => {
-    const token = bearerToken(req.headers.authorization);
+    // 클라이언트가 위조해 보낸 actor 헤더를 먼저 제거한다(스푸핑 차단). 유효 토큰이 검증된
+    // 경우에만 아래에서 다시 세팅한다 — 예전 게이트웨이의 덮어쓰기 방어와 동일 효과.
+    delete req.headers['x-account-id'];
+    delete req.headers['x-account-role'];
+
+    // Authorization: Bearer 우선, 없으면 access_token 쿠키 폴백.
+    const token = bearerToken(req.headers.authorization) ?? cookieToken(req.headers.cookie, 'access_token');
     if (!token) return;
 
     const claims = await verifyToken(token);
