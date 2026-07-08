@@ -76,7 +76,9 @@ export async function request<T>(
     params: cleanQuery(query),
     headers: {
       Accept: 'application/json',
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      // body 유무와 무관하게 항상 명시. 미지정 시 axios가 기본값
+      // application/x-www-form-urlencoded 를 보내 BFF(Fastify)가 415를 낸다.
+      ...(method !== 'GET' ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
