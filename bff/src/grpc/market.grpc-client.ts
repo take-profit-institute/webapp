@@ -59,12 +59,17 @@ export async function grpcGetQuote(symbol: string): Promise<MarketQuoteSnapshot 
 }
 
 function toMarketQuoteSnapshot(quote: GenQuote): MarketQuoteSnapshot {
+  const price = Number(quote.price);
+  const change = Number(quote.change);
+  // Quote proto엔 changeRate/volume 필드가 없다. 등락률은 전일종가(price-change) 기준으로
+  // 정확히 계산하고, 거래량은 이 RPC(GetQuote)가 제공하지 않으므로 0으로 둔다.
+  const prevClose = price - change;
   return {
     symbol: quote.symbol,
-    price: Number(quote.price),
-    change: Number(quote.change),
-    changePercent: quote.changeRate,
-    volume: Number(quote.volume),
+    price,
+    change,
+    changePercent: prevClose !== 0 ? (change / prevClose) * 100 : 0,
+    volume: 0,
     updatedAt: quote.quotedAt ? (quote.quotedAt as Date).toISOString() : undefined,
   };
 }

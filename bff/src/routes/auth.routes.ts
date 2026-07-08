@@ -165,7 +165,14 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
         summary: 'OAuth 로그인/자동 회원가입 (mock)',
         params: ProviderParams,
         querystring: OAuthLoginQuery,
-        response: { 200: OAuthLoginResult, 403: ErrorResponse },
+        response: {
+          200: OAuthLoginResult,
+          400: ErrorResponse,
+          401: ErrorResponse,
+          403: ErrorResponse,
+          500: ErrorResponse,
+          503: ErrorResponse,
+        },
       },
     },
     async (req, reply) => {
