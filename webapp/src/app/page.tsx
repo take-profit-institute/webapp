@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
+import Image from "next/image";
 
 const features = [
   { emoji: '📊', title: '실시간 시세', desc: '실제 시장 데이터를 기반으로 한 실시간 주가 정보' },
@@ -31,14 +32,19 @@ export default function LandingPage() {
       {/* Nav */}
       <nav className="relative flex items-center justify-between px-4 md:px-8 py-4 md:py-5 max-w-7xl mx-auto">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 flex items-center justify-center rounded-lg" style={{ background: 'var(--amber-glow)', border: '1px solid rgba(245,166,35,0.3)' }}>
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <rect x="7" y="1" width="4" height="2" rx="1" fill="var(--amber)" />
-              <rect x="6" y="3" width="6" height="10" rx="2" fill="var(--amber)" opacity="0.9" />
-              <rect x="5" y="13" width="8" height="4" rx="2" fill="var(--amber)" opacity="0.6" />
-            </svg>
-          </div>
-          <span className="text-xl font-bold tracking-wider gradient-text" style={{ fontFamily: 'Syne, sans-serif' }}>CANDLE</span>
+          <Image
+            src="/logo-1.png"
+            alt="CANDLE"
+            width={32}
+            height={32}
+          />
+
+          <span
+            className="text-xl font-bold tracking-wider gradient-text"
+            style={{ fontFamily: 'Syne, sans-serif' }}
+          >
+    CANDLE
+  </span>
         </div>
         <div className="flex items-center gap-3">
           <ThemeToggle chip className="w-9 h-9 justify-center" />

@@ -8,6 +8,7 @@ import { logout } from '@/apis';
 import { useUIStore, useAuthStore } from '@/store/useStore';
 import { secureTokenStore } from '@/lib/secure-token-store';
 import ThemeToggle from './ThemeToggle';
+import Image from "next/image";
 
 const navItems = [
   { icon: LayoutDashboard, label: '대시보드', href: '/dashboard' },
@@ -47,21 +48,28 @@ export default function Sidebar() {
         minHeight: '100vh',
       }}
     >
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-4 py-5" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg" style={{ background: 'var(--amber-glow)', border: '1px solid rgba(245,166,35,0.3)' }}>
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <rect x="7" y="1" width="4" height="2" rx="1" fill="var(--amber)" />
-            <rect x="6" y="3" width="6" height="10" rx="2" fill="var(--amber)" opacity="0.9" />
-            <rect x="5" y="13" width="8" height="4" rx="2" fill="var(--amber)" opacity="0.6" />
-          </svg>
-        </div>
-        {!sidebarCollapsed && (
-          <span className="font-display text-lg font-bold tracking-wider" style={{ color: 'var(--amber)', fontFamily: 'Syne, sans-serif' }}>
-            CANDLE
-          </span>
-        )}
-      </div>
+      {/* Logo */} 
+      <div className="flex items-center gap-3 px-4 py-5" style={{ borderBottom: "1px solid var(--border-subtle)" }}>   <div className="flex-shrink-0">
+    <Image
+      src="/logo-1.png"
+      alt="CANDLE"
+      width={32}
+      height={32}
+    />
+  </div>
+
+  {!sidebarCollapsed && (
+    <span
+      className="font-display text-lg font-bold tracking-wider"
+      style={{
+        color: "var(--amber)",
+        fontFamily: "Syne, sans-serif",
+      }}
+    >
+      CANDLE
+    </span>
+  )}
+</div>
 
       {/* Nav */}
       <nav className="flex-1 py-4 px-2 flex flex-col gap-1">
