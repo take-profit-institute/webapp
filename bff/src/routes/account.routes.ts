@@ -48,6 +48,7 @@ import {
   grpcListWatchlist,
   grpcAddWatchlist,
   grpcRemoveWatchlist,
+  type WatchlistEntry,
 } from '../grpc/wishlist.grpc-client';
 
 /** 게이트웨이가 JWT 검증 후 주입한 X-Account-Id 헤더로 actor 추출. */
@@ -86,6 +87,29 @@ import {
 import type { OrderKind, Reservation as SharedReservation } from '@candle/shared';
 
 const ORDER_PRICE_TICK_MAX_AGE_MS = 10 * 60 * 1000;
+
+function watchlistEntryToQuote(entry: WatchlistEntry): Quote {
+  const exchange = entry.market === 'KOSDAQ' || entry.market === 'NYSE' || entry.market === 'NASDAQ'
+    ? entry.market
+    : 'KOSPI';
+  return {
+    symbol: entry.symbol,
+    name: entry.name || entry.symbol,
+    exchange,
+    currency: exchange === 'NYSE' || exchange === 'NASDAQ' ? 'USD' : 'KRW',
+    sector: '',
+    price: 0,
+    change: 0,
+    changePercent: 0,
+    prevClose: 0,
+    open: 0,
+    high: 0,
+    low: 0,
+    volume: 0,
+    marketCap: 0,
+    updatedAt: new Date().toISOString(),
+  };
+}
 
 const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
   const provider = getMarketProvider();
@@ -910,7 +934,9 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
       if (env.dataSource === 'grpc') {
         try {
           const entries = await grpcListWatchlist(resolveActor(req));
-          return entries.map((e) => getQuote(e.symbol)).filter((q): q is NonNullable<typeof q> => Boolean(q));
+          return Promise.all(
+            entries.map(async (entry) => (await provider.getStock(entry.symbol).catch(() => undefined)) ?? watchlistEntryToQuote(entry)),
+          );
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
