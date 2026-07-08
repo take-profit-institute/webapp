@@ -115,10 +115,7 @@ export const transactions: Transaction[] = [
 ];
 
 /** 미체결 지정가 주문 — 체결 대기로 현금이 '묶인' 예약 건. lockedAmount의 출처. */
-export const reservations: Transaction[] = [
-  { ...tx('r1', 'buy', '000660', 'SK하이닉스', 3, 198500, '2026-06-15T14:05:00+09:00'), orderKind: 'limit', status: 'pending' },
-  { ...tx('r2', 'buy', '035720', '카카오', 6, 39450, '2026-06-15T13:20:00+09:00'), orderKind: 'limit', status: 'pending' },
-];
+export const reservations: Transaction[] = [];
 const BASE_CASH = 2_125_780;
 const INITIAL_LOCKED_AMOUNT = reservations.reduce((sum, r) => sum + r.amount + r.fee, 0);
 
