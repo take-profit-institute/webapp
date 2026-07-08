@@ -254,7 +254,6 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
       reserveKey.reset(); // 성공 — 다음 예약은 새 키
       setOrderStatus({ ok: true, message: `예약 접수됨 · ${TIMING_LABEL[timing]} · ${r.scheduledDate}` });
       setPlacedOk(true);
-      setQuantity('');
       setRsvPrice('');
     } catch (e) {
       setOrderStatus({ ok: false, message: e instanceof Error ? e.message : '예약에 실패했습니다' });

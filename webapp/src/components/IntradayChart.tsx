@@ -25,7 +25,7 @@ interface ChartPoint {
 
 function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ChartPoint; name?: string }> }) {
   if (!active || !payload?.length) return null;
-  const { time, price, raw } = payload[0].payload as ChartPoint;
+  const { price, raw } = payload[0].payload as ChartPoint;
   const d = new Date(raw);
   const full = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   return (
@@ -94,7 +94,11 @@ export default function IntradayChart({ ticks, currency, height = 220 }: Props) 
           strokeDasharray="4 3"
           strokeWidth={1}
         />
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip
+          content={<CustomTooltip />}
+          cursor={{ stroke: 'var(--amber)', strokeWidth: 1, strokeDasharray: '3 3' }}
+          isAnimationActive={false}
+        />
         <Line
           type="monotone"
           dataKey="price"
@@ -102,6 +106,7 @@ export default function IntradayChart({ ticks, currency, height = 220 }: Props) 
           stroke={lineColor}
           strokeWidth={1.5}
           dot={false}
+          activeDot={{ r: 4, stroke: 'var(--bg-card)', strokeWidth: 2, fill: lineColor }}
           isAnimationActive={false}
         />
       </LineChart>

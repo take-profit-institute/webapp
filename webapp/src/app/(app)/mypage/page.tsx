@@ -201,18 +201,6 @@ export default function MyPage() {
               style={{ background: 'var(--amber)', color: '#000' }}>
               <Camera size={10} />
             </button>
-            {showAvatarPicker && (
-              <div className="absolute z-20 top-full mt-2 left-0 p-2 rounded-xl grid grid-cols-5 gap-1.5"
-                style={{ background: 'var(--bg-card)', border: '1px solid var(--border-normal)', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
-                {AVATAR_OPTIONS.map(emoji => (
-                  <button key={emoji} onClick={() => handlePickAvatar(emoji)}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-lg transition-all"
-                    style={{ background: emoji === avatar ? 'var(--amber-subtle)' : 'var(--bg-surface)' }}>
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
@@ -288,6 +276,18 @@ export default function MyPage() {
             </div>
           </div>
         </div>
+        {showAvatarPicker && (
+          <div className="mt-4 p-2 rounded-xl grid grid-cols-5 sm:grid-cols-10 gap-1.5"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-normal)' }}>
+            {AVATAR_OPTIONS.map(emoji => (
+              <button key={emoji} onClick={() => handlePickAvatar(emoji)}
+                className="aspect-square rounded-lg flex items-center justify-center text-lg md:text-xl transition-all"
+                style={{ background: emoji === avatar ? 'var(--amber-subtle)' : 'var(--bg-surface)' }}>
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 자산 현황 (USER-014) */}

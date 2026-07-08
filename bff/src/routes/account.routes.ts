@@ -260,8 +260,18 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.get(
     '/locked',
-    { schema: { tags: ['account'], summary: '묶인 금액 내역 (미체결 지정가 주문)', response: { 200: Type.Array(Transaction) } } },
-    async () => reservations.filter((r) => r.status === 'pending'),
+    { schema: { tags: ['account'], summary: '묶인 금액 내역 (미체결 지정가 주문)', response: { 200: Type.Array(Transaction), 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          return await grpcListOrders({ userId: resolveActor(req), status: 'pending' });
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
+      return reservations.filter((r) => r.status === 'pending');
+    },
   );
 
   app.get(
@@ -376,8 +386,19 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   app.get(
     '/transactions',
-    { schema: { tags: ['account'], summary: '거래 내역', querystring: TransactionQuery, response: { 200: Type.Array(Transaction) } } },
-    async (req) => {
+    { schema: { tags: ['account'], summary: '거래 내역', querystring: TransactionQuery, response: { 200: Type.Array(Transaction), 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
+    async (req, reply) => {
+      if (env.dataSource === 'grpc') {
+        try {
+          let result = await grpcListOrders({ userId: resolveActor(req), status: 'filled' });
+          if (req.query.type) result = result.filter((t) => t.type === req.query.type);
+          if (req.query.limit) result = result.slice(0, req.query.limit);
+          return result;
+        } catch (e) {
+          const mapped = mapGrpcError(e, req.id);
+          return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
+        }
+      }
       let result = transactions;
       if (req.query.type) result = result.filter((t) => t.type === req.query.type);
       if (req.query.limit) result = result.slice(0, req.query.limit);

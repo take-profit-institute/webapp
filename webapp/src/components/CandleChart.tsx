@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, type PointerEvent } from 'react';
 import type { Candle } from '@/lib/api-types';
 
 interface Props {
@@ -39,6 +39,30 @@ export default function CandleChart({ data, width = 600, height = 280 }: Props) 
   });
 
   const hoveredCandle = hovered !== null ? visible[hovered] : null;
+  const hoveredX = hovered !== null ? sx(hovered) : null;
+  const hoveredY = hoveredCandle ? sy(hoveredCandle.close) : null;
+  const hoveredPriceLabel = hoveredCandle
+    ? hoveredCandle.close >= 10000
+      ? `${(hoveredCandle.close / 10000).toFixed(1)}만`
+      : hoveredCandle.close.toLocaleString()
+    : '';
+
+  const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
+    const svg = event.currentTarget;
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return;
+
+    const local = point.matrixTransform(ctm.inverse());
+    const clampedX = Math.min(Math.max(local.x, pad.left), pad.left + cw);
+    const index = Math.min(
+      visible.length - 1,
+      Math.max(0, Math.floor(((clampedX - pad.left) / cw) * visible.length)),
+    );
+    setHovered(index);
+  };
 
   return (
     <div className="w-full">
@@ -72,9 +96,10 @@ export default function CandleChart({ data, width = 600, height = 280 }: Props) 
 
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full"
+        className="w-full touch-none"
         style={{ height }}
-        onMouseLeave={() => setHovered(null)}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={() => setHovered(null)}
       >
         {/* Grid lines */}
         {priceLabels.map(({ y, label }, i) => (
@@ -105,7 +130,7 @@ export default function CandleChart({ data, width = 600, height = 280 }: Props) 
           const isHov = hovered === i;
 
           return (
-            <g key={i} onMouseEnter={() => setHovered(i)}>
+            <g key={i}>
               {isHov && (
                 <rect x={x - cw / visible.length / 2} y={pad.top} width={cw / visible.length} height={ch} fill="white" opacity={0.03} />
               )}
@@ -124,6 +149,62 @@ export default function CandleChart({ data, width = 600, height = 280 }: Props) 
             </g>
           );
         })}
+
+        {hoveredX !== null && hoveredY !== null && hoveredCandle && (
+          <g pointerEvents="none">
+            <line
+              x1={hoveredX}
+              y1={pad.top}
+              x2={hoveredX}
+              y2={pad.top + ch}
+              stroke="var(--amber)"
+              strokeWidth={0.8}
+              strokeDasharray="3 3"
+              opacity={0.7}
+            />
+            <line
+              x1={pad.left}
+              y1={hoveredY}
+              x2={pad.left + cw}
+              y2={hoveredY}
+              stroke="var(--amber)"
+              strokeWidth={0.8}
+              strokeDasharray="3 3"
+              opacity={0.55}
+            />
+            <circle cx={hoveredX} cy={hoveredY} r={3} fill="var(--amber)" stroke="var(--bg-card)" strokeWidth={1.5} />
+            <rect
+              x={pad.left + cw - 52}
+              y={Math.min(Math.max(hoveredY - 11, pad.top), pad.top + ch - 22)}
+              width={52}
+              height={22}
+              rx={4}
+              fill="var(--bg-card)"
+              stroke="var(--amber)"
+              strokeWidth={0.8}
+            />
+            <text
+              x={pad.left + cw - 26}
+              y={Math.min(Math.max(hoveredY + 4, pad.top + 15), pad.top + ch - 7)}
+              textAnchor="middle"
+              fill="var(--text-primary)"
+              fontSize={10}
+              fontFamily="JetBrains Mono, monospace"
+              fontWeight={700}
+            >
+              {hoveredPriceLabel}
+            </text>
+          </g>
+        )}
+
+        <rect
+          x={pad.left}
+          y={pad.top}
+          width={cw}
+          height={ch}
+          fill="transparent"
+          style={{ cursor: 'crosshair' }}
+        />
       </svg>
     </div>
   );
