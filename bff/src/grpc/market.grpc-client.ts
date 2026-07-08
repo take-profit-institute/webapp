@@ -11,6 +11,7 @@ import { getChannel } from './channel';
 import {
   MarketServiceDefinition,
   RankingType as GenRankingType,
+  type Quote as GenQuote,
   type RankingItem as GenRankingItem,
 } from './gen/candle/market/v1/market';
 
@@ -28,6 +29,44 @@ export async function grpcGetIntradayTicks(symbol: string, limit = 0): Promise<I
   return res.ticks
     .filter((t) => t.ts)
     .map((t) => ({ price: Number(t.price), timestamp: (t.ts as Date).toISOString() }));
+}
+
+/** 여러 종목 현재가를 market-service Redis 캐시에서 한 번에 조회한다. */
+export async function grpcBatchQuotes(symbols: string[]): Promise<Map<string, number>> {
+  const uniqueSymbols = [...new Set(symbols.filter(Boolean))];
+  if (uniqueSymbols.length === 0) return new Map();
+
+  const res = await getClient().batchQuotes({ symbols: uniqueSymbols }, { signal: AbortSignal.timeout(1000) });
+  return new Map(
+    res.quotes
+      .map((quote) => [quote.symbol, Number(quote.price)] as const)
+      .filter(([, price]) => Number.isFinite(price) && price > 0),
+  );
+}
+
+export type MarketQuoteSnapshot = {
+  symbol: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+  updatedAt?: string;
+};
+
+export async function grpcGetQuote(symbol: string): Promise<MarketQuoteSnapshot | null> {
+  const res = await getClient().getQuote({ symbol }, { signal: AbortSignal.timeout(1000) });
+  return res.quote ? toMarketQuoteSnapshot(res.quote) : null;
+}
+
+function toMarketQuoteSnapshot(quote: GenQuote): MarketQuoteSnapshot {
+  return {
+    symbol: quote.symbol,
+    price: Number(quote.price),
+    change: Number(quote.change),
+    changePercent: quote.changeRate,
+    volume: Number(quote.volume),
+    updatedAt: quote.quotedAt ? (quote.quotedAt as Date).toISOString() : undefined,
+  };
 }
 
 /**

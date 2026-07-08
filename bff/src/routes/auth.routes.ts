@@ -26,6 +26,7 @@ import type {
   UserRole,
 } from '@candle/shared';
 import { mapGrpcError } from '../grpc/error-mapper';
+import { env } from '../config/env';
 
 const PROVIDER_META: Record<string, { name: string; color: string }> = {
   google: { name: 'Google', color: '#4285F4' },
@@ -60,7 +61,15 @@ function issueTokens(userId: string, role: UserRole): AuthTokensType {
   };
 }
 
-function decodeAccessToken(token: string): { sub?: string; role?: UserRole; exp?: number } | null {
+type FlatOAuthLoginResponse = {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  refreshExpiresIn: number;
+  isNewUser: boolean;
+};
+
+function decodeAccessToken(token: string): { sub?: string; role?: UserRole; exp?: number; iat?: number; email?: string } | null {
   const parts = token.split('.');
   if (parts.length !== 3) return null;
   try {
@@ -68,6 +77,52 @@ function decodeAccessToken(token: string): { sub?: string; role?: UserRole; exp?
   } catch {
     return null;
   }
+}
+
+async function authServiceRequest<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${env.authServiceBaseUrl}${path}`, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: body === undefined
+      ? { Accept: 'application/json' }
+      : { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) {
+    const message = data && typeof data === 'object' && 'message' in data
+      ? String(data.message)
+      : `auth-service request failed: ${res.status}`;
+    throw Object.assign(new Error(message), { statusCode: res.status, body: data });
+  }
+  return data as T;
+}
+
+async function authServiceLoginToResult(provider: OAuthProvider, body: unknown): Promise<OAuthLoginResult> {
+  const res = await authServiceRequest<FlatOAuthLoginResponse>(`/oauth/${provider}`, body);
+  const jwt = decodeAccessToken(res.accessToken) ?? {};
+  const userId = String(jwt.sub ?? '');
+  const email = String(jwt.email ?? '');
+  return {
+    tokens: {
+      accessToken: res.accessToken,
+      refreshToken: res.refreshToken,
+      tokenType: 'Bearer',
+      expiresIn: Number(res.expiresIn),
+      refreshExpiresIn: Number(res.refreshExpiresIn),
+    },
+    user: {
+      id: userId,
+      username: (email || userId).split('@')[0],
+      email,
+      avatar: '🎯',
+      role: (jwt.role ?? 'USER') as UserRole,
+      status: 'active',
+      provider,
+      createdAt: jwt.iat ? new Date(jwt.iat * 1000).toISOString() : new Date().toISOString(),
+    },
+    isNewUser: Boolean(res.isNewUser),
+  };
 }
 
 /** Legacy mock token for the email/password endpoints. */
@@ -116,6 +171,22 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       const { provider } = req.params;
       const scenario = req.query.as ?? 'existing';
+      const body = req.body as { authorizationCode?: string; state?: string; redirectUri?: string } | undefined;
+
+      if (body?.authorizationCode) {
+        try {
+          return await authServiceLoginToResult(provider, body);
+        } catch (err) {
+          const statusCode = typeof (err as { statusCode?: unknown }).statusCode === 'number'
+            ? (err as { statusCode: number }).statusCode
+            : 503;
+          return reply.code(statusCode as 400 | 401 | 403 | 500 | 503).send({
+            statusCode,
+            error: statusCode >= 500 ? 'Service Unavailable' : 'Bad Request',
+            message: err instanceof Error ? err.message : 'OAuth 로그인에 실패했습니다.',
+          });
+        }
+      }
 
       // AUTH-014 / USER-006: 정지·탈퇴 사용자는 로그인 거부.
       if (scenario === 'suspended' || scenario === 'withdrawn') {
@@ -147,11 +218,24 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/token/refresh',
     { schema: { tags: ['auth'], summary: 'Access Token 재발급', body: RefreshTokenBody, response: { 200: RefreshTokenResult, 401: ErrorResponse } } },
     async (req, reply) => {
-      // AUTH-009: 폐기/유효하지 않은 Refresh Token은 거부.
-      if (!req.body.refreshToken.startsWith('refresh.')) {
-        return reply.status(401).send({ statusCode: 401, error: 'Unauthorized', message: '유효하지 않은 Refresh Token입니다.' });
+      try {
+        const res = await authServiceRequest<FlatOAuthLoginResponse>('/token/refresh', req.body);
+        return {
+          accessToken: res.accessToken,
+          refreshToken: res.refreshToken,
+          tokenType: 'Bearer' as const,
+          expiresIn: Number(res.expiresIn),
+        };
+      } catch (err) {
+        const statusCode = typeof (err as { statusCode?: unknown }).statusCode === 'number'
+          ? (err as { statusCode: number }).statusCode
+          : 401;
+        return reply.status(statusCode as 401).send({
+          statusCode,
+          error: 'Unauthorized',
+          message: err instanceof Error ? err.message : '유효하지 않은 Refresh Token입니다.',
+        });
       }
-      return { accessToken: issueAccessToken(demoUser.id, demoUser.role), tokenType: 'Bearer' as const, expiresIn: ACCESS_TTL };
     },
   );
 
@@ -173,8 +257,14 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
   app.post(
     '/logout',
     { schema: { tags: ['auth'], summary: '로그아웃 (Refresh Token 폐기)', body: LogoutBody, response: { 204: Type.Null() } } },
-    // NOTE: mock — a real service revokes the refresh token server-side (AUTH-010).
-    async (_req, reply) => reply.status(204).send(null),
+    async (req, reply) => {
+      try {
+        await authServiceRequest('/logout', req.body);
+      } catch {
+        // 클라이언트 세션 정리를 막지 않는다.
+      }
+      return reply.status(204).send(null);
+    },
   );
 
   // ── Current user / profile ───────────────────────────────────────

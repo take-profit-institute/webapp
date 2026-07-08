@@ -43,6 +43,7 @@ import {
   grpcGetSectorAllocation,
   type PriceResolver,
 } from '../grpc/portfolio.grpc-client';
+import { grpcBatchQuotes } from '../grpc/market.grpc-client';
 import {
   grpcListWatchlist,
   grpcAddWatchlist,
@@ -91,6 +92,14 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
   // 보유 종목 평가금액 계산용 현재가 resolver. grpc 모드에서 portfolio 보유목록과 머지한다.
   const resolvePrice: PriceResolver = async (symbol) => (await provider.getStock(symbol))?.price;
+  const resolvePrices = async (symbols: string[]): Promise<Map<string, number>> => {
+    if (env.dataSource !== 'grpc') return new Map();
+    try {
+      return await grpcBatchQuotes(symbols);
+    } catch {
+      return new Map();
+    }
+  };
 
   async function resolveOrderPrice(
     symbol: string,
@@ -227,7 +236,10 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     async (req, reply) => {
       if (env.dataSource === 'grpc') {
         try {
-          return await grpcListHoldings(resolveActor(req), req.query.includeInactive ?? false, resolvePrice);
+          return await grpcListHoldings(resolveActor(req), req.query.includeInactive ?? false, {
+            resolvePrice,
+            resolvePrices,
+          });
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);
@@ -253,7 +265,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
         try {
           const userId = resolveActor(req);
           const [holdingsList, reservations] = await Promise.all([
-            grpcListHoldings(userId, false, resolvePrice),
+            grpcListHoldings(userId, false, { resolvePrice, resolvePrices }),
             grpcListReservations({ userId, status: 'reserved' }),
           ]);
           const reserved = await Promise.all(
@@ -446,6 +458,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
           // 프론트가 이 경우 버튼을 "예약"으로 표기하므로 지정가도 동일하게 변환해야 한다.
           // (지정가만 즉시 PlaceOrder로 보내면 trading이 OUTSIDE_TRADING_HOURS → 422로 거부.)
           if (!(await getMarketStatus()).open) {
+            const reservationPrice = orderKind === 'limit' ? resolved.price : 0;
             const reservation = await grpcPlaceReservation({
               userId: resolveActor(req),
               symbol: req.body.symbol,
@@ -453,7 +466,7 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
               timing: 'open',
               orderKind,
               quantity: req.body.quantity,
-              price: resolved.price,
+              price: reservationPrice,
               scheduledDate: nextScheduledDate(),
               idempotencyKey,
             });

@@ -25,6 +25,7 @@ import type { MarketProvider, StockListFilter } from './market.provider';
 import { grpcGetCandles, grpcGetPreviousClose, grpcGetPriceStats, type PriceStats } from '../grpc/stock-chart.grpc-client';
 import { grpcGetStock, grpcSearchStocks } from '../grpc/stock.grpc-client';
 import { grpcGetStockNews } from '../grpc/news.grpc-client';
+import { grpcGetQuote, type MarketQuoteSnapshot } from '../grpc/market.grpc-client';
 
 const EMPTY_FINANCIALS = { revenue: 0, operatingProfit: 0, netIncome: 0, per: 0, pbr: 0, roe: 0 };
 
@@ -38,11 +39,12 @@ export class GrpcMarketProvider implements MarketProvider {
     const detail = await grpcGetStock(symbol);
     if (!detail) return undefined;
     // 52주 고저·최근 일봉은 부가정보 — 실패해도 상세는 내려준다(펀더멘털은 이미 확보).
-    const [stats, previousClose] = await Promise.all([
+    const [stats, previousClose, quote] = await Promise.all([
       grpcGetPriceStats(symbol).catch(() => null),
       grpcGetPreviousClose(symbol).catch(() => null),
+      grpcGetQuote(symbol).catch(() => null),
     ]);
-    return catalogToStockDetail(detail, stats, previousClose?.prevClose ?? 0);
+    return catalogToStockDetail(detail, stats, previousClose?.prevClose ?? 0, quote);
   }
 
   getCandles(symbol: string, interval: '1d' | '1w' | '1M', limit: number): Promise<Candle[]> {
@@ -91,7 +93,12 @@ function summaryToQuote(s: StockSummary): Quote {
   };
 }
 
-function catalogToStockDetail(detail: StockCatalogDetail, stats: PriceStats | null, prevClose: number): StockDetail {
+function catalogToStockDetail(
+  detail: StockCatalogDetail,
+  stats: PriceStats | null,
+  prevClose: number,
+  realtimeQuote: MarketQuoteSnapshot | null,
+): StockDetail {
   const f = detail.financials;
   const quote = summaryToQuote(detail);
   // 실시간 시세는 없지만, 최근 일봉 종가/거래량을 현재가/시간외종가 대용으로 노출한다.
@@ -99,8 +106,15 @@ function catalogToStockDetail(detail: StockCatalogDetail, stats: PriceStats | nu
     quote.price = stats.latestClose;
     quote.volume = stats.latestVolume;
   }
+  if (realtimeQuote && realtimeQuote.price > 0) {
+    quote.price = realtimeQuote.price;
+    quote.change = realtimeQuote.change;
+    quote.changePercent = realtimeQuote.changePercent;
+    quote.volume = realtimeQuote.volume || quote.volume;
+    quote.updatedAt = realtimeQuote.updatedAt ?? quote.updatedAt;
+  }
   quote.prevClose = prevClose;
-  if (quote.price > 0 && prevClose > 0) {
+  if ((!realtimeQuote || realtimeQuote.change === 0) && quote.price > 0 && prevClose > 0) {
     quote.change = quote.price - prevClose;
     quote.changePercent = (quote.change / prevClose) * 100;
   }
