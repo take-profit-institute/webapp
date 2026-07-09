@@ -16,6 +16,9 @@ export function useMarketSocket(symbols: string[], enabled = true) {
   const connectRef = useRef<() => void>(() => {});
   // Keep a stable ref to the latest symbols so reconnect picks them up
   const symbolsRef = useRef<string[]>(symbols);
+  // 현재 소켓이 서버에 구독 요청해 둔 심볼 집합. 심볼이 바뀔 때 이 집합과 diff 해서
+  // 새로 붙은 건 subscribe, 빠진 건 unsubscribe 한다(옛 심볼 구독 누수 방지).
+  const subscribedRef = useRef<Set<string>>(new Set());
   const setLiveQuote = useMarketStore((s) => s.setLiveQuote);
 
   useEffect(() => { symbolsRef.current = symbols; }, [symbols]);
@@ -25,9 +28,18 @@ export function useMarketSocket(symbols: string[], enabled = true) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    wsRef.current?.close();
+    const ws = wsRef.current;
+    if (ws) {
+      // 의도적 종료(unmount·비활성·심볼 없음)다. onclose/onerror 재연결 로직을 떼고 닫아야
+      // 화면을 나간 뒤 소켓이 되살아나(재구독→백엔드 구독 누수) 좀비로 남지 않는다.
+      // 네트워크 끊김에 의한 자동 재연결은 여기를 거치지 않으므로 그대로 동작한다.
+      ws.onclose = null;
+      ws.onerror = null;
+      ws.close();
+    }
     wsRef.current = null;
     retryRef.current = 0;
+    subscribedRef.current.clear();
   }, []);
 
   const connect = useCallback(() => {
@@ -42,6 +54,8 @@ export function useMarketSocket(symbols: string[], enabled = true) {
         const msg: WsClientMessage = { type: 'subscribe', symbols: symbolsRef.current };
         ws.send(JSON.stringify(msg));
       }
+      // 새 소켓은 방금 보낸 심볼만 구독한 상태로 시작한다.
+      subscribedRef.current = new Set(symbolsRef.current);
     };
 
     ws.onmessage = (e) => {
@@ -80,13 +94,25 @@ export function useMarketSocket(symbols: string[], enabled = true) {
     };
   }, [clearConnection, connect, enabled, symbols.length]);
 
-  // Sync new symbols to an already-open socket
+  // 열려 있는 소켓에 심볼 변경을 반영 — 이전 구독과 diff 해서 추가분만 subscribe,
+  // 빠진 종목은 unsubscribe 한다(A→B 이동 시 A 가 남아 백엔드 구독이 새는 걸 막는다).
   useEffect(() => {
     if (!enabled) return;
     const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN || symbols.length === 0) return;
-    const msg: WsClientMessage = { type: 'subscribe', symbols };
-    ws.send(JSON.stringify(msg));
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const next = new Set(symbols);
+    const prev = subscribedRef.current;
+    const added = symbols.filter((s) => !prev.has(s));
+    const removed = [...prev].filter((s) => !next.has(s));
+
+    if (added.length) {
+      ws.send(JSON.stringify({ type: 'subscribe', symbols: added } satisfies WsClientMessage));
+    }
+    if (removed.length) {
+      ws.send(JSON.stringify({ type: 'unsubscribe', symbols: removed } satisfies WsClientMessage));
+    }
+    subscribedRef.current = next;
   }, [enabled, symbols]);
 
   const subscribe = useCallback((syms: string[]) => {
