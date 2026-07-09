@@ -43,7 +43,7 @@ import {
   grpcGetSectorAllocation,
   type PriceResolver,
 } from '../grpc/portfolio.grpc-client';
-import { grpcBatchQuotes } from '../grpc/market.grpc-client';
+import { grpcBatchQuotes, grpcBatchQuoteSnapshots, type BatchQuote } from '../grpc/market.grpc-client';
 import {
   grpcListWatchlist,
   grpcAddWatchlist,
@@ -958,13 +958,27 @@ const accountRoutes: FastifyPluginAsyncTypebox = async (app) => {
     '/watchlist',
     { schema: { tags: ['account'], summary: '관심종목 목록', response: { 200: Type.Array(Quote), 500: ErrorResponse, 503: ErrorResponse, 504: ErrorResponse } } },
     async (req, reply) => {
-      // 관심목록의 "소유"는 wishlist-service(grpc), 시세(Quote)는 market 경로에서 머지한다.
+      // 관심목록의 "소유"는 wishlist-service(grpc), 시세는 market batchQuotes(Redis 캐시, 1s)로
+      // 한 번에 머지한다. 종목당 무거운 getStock(카탈로그+차트+시세) 팬아웃은 한 종목만 hang 해도
+      // Promise.all 이 30s 데드라인까지 대기하므로 쓰지 않는다.
       if (env.dataSource === 'grpc') {
         try {
           const entries = await grpcListWatchlist(resolveActor(req));
-          return Promise.all(
-            entries.map(async (entry) => (await provider.getStock(entry.symbol).catch(() => undefined)) ?? watchlistEntryToQuote(entry)),
+          const snapshots = await grpcBatchQuoteSnapshots(entries.map((e) => e.symbol)).catch(
+            () => new Map<string, BatchQuote>(),
           );
+          return entries.map((entry) => {
+            const quote = watchlistEntryToQuote(entry);
+            const snap = snapshots.get(entry.symbol);
+            if (snap && snap.price > 0) {
+              const prevClose = snap.price - snap.change;
+              quote.price = snap.price;
+              quote.change = snap.change;
+              quote.prevClose = prevClose;
+              quote.changePercent = prevClose > 0 ? (snap.change / prevClose) * 100 : 0;
+            }
+            return quote;
+          });
         } catch (e) {
           const mapped = mapGrpcError(e, req.id);
           return reply.code(mapped.statusCode as 500 | 503 | 504).send(mapped);

@@ -57,7 +57,7 @@ export async function grpcSearchStocks(query: StockSearchQuery): Promise<StockPa
 /** NOT_FOUND → undefined (404로 변환). */
 export async function grpcGetStock(code: string): Promise<StockCatalogDetail | undefined> {
   try {
-    const res = await getClient().getStock({ code, allowFallback: true });
+    const res = await getClient().getStock({ code, allowFallback: true }, { signal: AbortSignal.timeout(env.grpc.deadlineMs) });
     if (!res.stock) return undefined;
     return toDetail(res.stock, res.source);
   } catch (err) {

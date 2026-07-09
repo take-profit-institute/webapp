@@ -49,7 +49,7 @@ export interface PriceStats {
 
 export async function grpcGetPriceStats(symbol: string, windowDays = 0): Promise<PriceStats> {
   // windowDays=0 → 서버 기본값(365, 약 52주) 사용.
-  const res = await getClient().getPriceStats({ code: symbol, windowDays });
+  const res = await getClient().getPriceStats({ code: symbol, windowDays }, { signal: AbortSignal.timeout(env.grpc.deadlineMs) });
   return {
     high52w: Number(res.high),
     low52w: Number(res.low),
@@ -61,7 +61,7 @@ export async function grpcGetPriceStats(symbol: string, windowDays = 0): Promise
 
 /** 기준 시각 직전의 마지막 확정 일봉 종가. 주말/휴일이면 직전 거래일 종가가 온다. */
 export async function grpcGetPreviousClose(symbol: string, date = new Date()): Promise<{ prevClose: number; prevOpenTime?: string }> {
-  const res = await getClient().getPreviousClose({ code: symbol, date });
+  const res = await getClient().getPreviousClose({ code: symbol, date }, { signal: AbortSignal.timeout(env.grpc.deadlineMs) });
   return {
     prevClose: Number(res.prevClose),
     prevOpenTime: res.prevOpenTime?.toISOString(),

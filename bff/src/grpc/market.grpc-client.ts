@@ -44,6 +44,25 @@ export async function grpcBatchQuotes(symbols: string[]): Promise<Map<string, nu
   );
 }
 
+export type BatchQuote = { price: number; change: number };
+
+/**
+ * 여러 종목의 현재가+등락을 market-service 에서 한 번에 조회한다(1s 데드라인).
+ * price 만 필요한 곳은 {@link grpcBatchQuotes} 를, 등락까지 필요한 관심목록 등은 이 함수를 쓴다.
+ * changePercent 는 호출측에서 prevClose(=price-change) 로 유도한다.
+ */
+export async function grpcBatchQuoteSnapshots(symbols: string[]): Promise<Map<string, BatchQuote>> {
+  const uniqueSymbols = [...new Set(symbols.filter(Boolean))];
+  if (uniqueSymbols.length === 0) return new Map();
+
+  const res = await getClient().batchQuotes({ symbols: uniqueSymbols }, { signal: AbortSignal.timeout(1000) });
+  return new Map(
+    res.quotes
+      .map((quote) => [quote.symbol, { price: Number(quote.price), change: Number(quote.change) }] as const)
+      .filter(([, s]) => Number.isFinite(s.price) && s.price > 0),
+  );
+}
+
 export type MarketQuoteSnapshot = {
   symbol: string;
   price: number;
