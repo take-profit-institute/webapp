@@ -100,10 +100,11 @@ export const useAuthStore = create<AuthState>()(
   ),
 );
 
-// ── Wire the token into the API client (Authorization header + 401 refresh) ──
+// ── Wire the token into the API client (Authorization header + refresh) ──
 setAuthTokenGetter(() => useAuthStore.getState().accessToken);
-setTokenRefresher(async () => {
-  // refresh_token 의 단일 소스는 보안 저장소다.
+
+// 실제 refresh 수행부. refresh_token 의 단일 소스는 보안 저장소다.
+async function doRefresh(): Promise<string | null> {
   const rt = await secureTokenStore.getRefreshToken();
   if (!rt) return null;
   try {
@@ -116,7 +117,48 @@ setTokenRefresher(async () => {
     useAuthStore.getState().clearSession();
     return null;
   }
+}
+
+// single-flight: 동시 401 이나 프로액티브 타이머가 겹쳐도 refresh 는 한 번만 나간다.
+// rotation(1회용 refresh) 특성상 병렬 refresh 는 하나 빼고 전부 실패→clearSession 으로
+// 이어져 세션이 날아가는데, 진행 중 Promise 를 공유해 그 레이스를 없앤다.
+let inflightRefresh: Promise<string | null> | null = null;
+
+export function refreshSession(): Promise<string | null> {
+  return (inflightRefresh ??= doRefresh().finally(() => {
+    inflightRefresh = null;
+  }));
+}
+
+setTokenRefresher(refreshSession);
+
+// ── 프로액티브 refresh: 401/403 을 기다리지 않고 access 만료 전에 미리 갱신한다. ──
+// 만료 BUFFER 전에 runRefresh() 를 예약. single-flight 라 반응형 401 refresh 와 겹쳐도
+// 중복 요청은 안 나간다. 토큰이 갱신될 때마다(expiresAt 변경) 다음 주기를 다시 건다.
+const PROACTIVE_REFRESH_BUFFER_MS = 60_000; // 만료 60초 전
+let proactiveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleProactiveRefresh(): void {
+  if (typeof window === 'undefined') return;
+  if (proactiveTimer) {
+    clearTimeout(proactiveTimer);
+    proactiveTimer = null;
+  }
+  const { expiresAt, accessToken } = useAuthStore.getState();
+  if (!accessToken || !expiresAt) return; // 미로그인/로그아웃이면 예약 없음
+
+  // 이미 임박·만료면 즉시(0ms), 아니면 만료 BUFFER 전에.
+  const delay = Math.max(0, expiresAt - PROACTIVE_REFRESH_BUFFER_MS - Date.now());
+  proactiveTimer = setTimeout(() => void refreshSession(), delay);
+}
+
+// 로그인·refresh 성공으로 만료시각이 바뀔 때마다 타이머 재설정.
+useAuthStore.subscribe((state, prev) => {
+  if (state.expiresAt !== prev.expiresAt) scheduleProactiveRefresh();
 });
+
+// 부팅 시(persist 로 복구된 세션 포함) 최초 예약 — 복구된 토큰이 이미 만료됐으면 즉시 갱신.
+scheduleProactiveRefresh();
 
 type Theme = 'dark' | 'light';
 

@@ -1,8 +1,8 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatBroadcast, ChatWireMessage, PresenceEvent } from '@/lib/api-types';
-import { API_BASE_URL, refreshToken as apiRefreshToken } from '@/apis';
-import { useAuthStore } from '@/store/useStore';
+import { API_BASE_URL } from '@/apis';
+import { refreshSession, useAuthStore } from '@/store/useStore';
 
 // 채팅 WS 베이스. 시세 WS(BFF /ws)와 서버가 다르므로 별도 env.
 // dev=chatting-service 직결(ws://localhost:8090), prod=wss://<도메인>(ALB가 /chat/ws 라우팅).
@@ -14,18 +14,13 @@ export type ChatStatus = 'connecting' | 'open' | 'closed';
 /** 핸드셰이크 인증 실패(서버가 보내는 비표준 close code). chatting-service와 합의된 값. */
 const CLOSE_UNAUTHORIZED = 4401;
 
-/** 토큰 갱신 후 재연결용. 401 흐름(client.ts)과 동일 로직을 WS용으로 자체 보유. */
+/**
+ * 토큰 갱신 후 재연결용. HTTP 401 흐름(client.ts)과 동일한 공유 refresher 를 쓴다.
+ * 공유 single-flight 라 HTTP·프로액티브 refresh 와 겹쳐도 refresh 요청은 한 번만 나가고,
+ * refresh_token 도 보안 저장소(secureTokenStore)라는 단일 소스에서 읽는다.
+ */
 async function refreshAccessToken(): Promise<boolean> {
-  const rt = useAuthStore.getState().refreshToken;
-  if (!rt) return false;
-  try {
-    const res = await apiRefreshToken(rt);
-    useAuthStore.getState().setAccessToken(res.accessToken, res.expiresIn);
-    return true;
-  } catch {
-    useAuthStore.getState().clearSession();
-    return false;
-  }
+  return (await refreshSession()) != null;
 }
 
 /**
