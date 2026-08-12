@@ -131,6 +131,12 @@ jobs:
             yyubin/candle-webapp:${{ github.sha }}
           cache-from: type=gha,scope=webapp-lite
           cache-to: type=gha,mode=max,scope=webapp-lite
+      # candle-k8s-lite 의 frontend.yaml image 태그를 방금 푸시한 SHA로 갱신 → ArgoCD가 배포
+      - uses: ./.github/actions/bump-lite-image
+        with:
+          name: webapp
+          image: yyubin/candle-webapp:${{ github.sha }}
+          token: ${{ secrets.GITOPS_TOKEN }}
 
   push-admin-lite:
     needs: changes
@@ -157,6 +163,12 @@ jobs:
             yyubin/candle-admin:${{ github.sha }}
           cache-from: type=gha,scope=admin-lite
           cache-to: type=gha,mode=max,scope=admin-lite
+      # candle-k8s-lite 의 frontend.yaml image 태그를 방금 푸시한 SHA로 갱신 → ArgoCD가 배포
+      - uses: ./.github/actions/bump-lite-image
+        with:
+          name: admin
+          image: yyubin/candle-admin:${{ github.sha }}
+          token: ${{ secrets.GITOPS_TOKEN }}
 
   # webapp: 정적 export(next output=export) → S3 sync → CloudFront invalidation.
   # 컨테이너 대신 CloudFront+S3(static-site 모듈)로 서빙한다. 자격증명은 GitHub OIDC로

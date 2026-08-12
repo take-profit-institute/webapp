@@ -1,0 +1,58 @@
+# candle-k8s-lite 의 Deployment image 태그를 bump → ArgoCD가 동기화.
+#
+# bump-tag 액션은 ApplicationSet elements(.tag)를 고치는 구조라 프론트엔드에는 맞지 않는다.
+# lite의 webapp/admin은 평범한 Deployment(frontend.yaml)라 image 필드를 직접 바꾼다.
+#
+# 태그를 커밋 SHA로 고정하는 이유: :lite 같은 이동 태그로 두면 노드에 캐시된 이미지가 그대로
+# 쓰이고, 매니페스트가 안 바뀌니 ArgoCD도 롤아웃을 트리거하지 않는다.
+name: bump-lite-image
+description: Update a Deployment's image tag in candle-k8s-lite
+inputs:
+  name:
+    required: true
+    description: "Deployment 이름 (예: webapp, admin)"
+  image:
+    required: true
+    description: "전체 이미지 레퍼런스 (예: yyubin/candle-webapp:<sha>)"
+  file:
+    required: false
+    default: platform/manifests/overlays/dev/frontend.yaml
+    description: "대상 매니페스트 경로"
+  token:
+    required: true
+    description: candle-k8s-lite push 권한 PAT/App 토큰
+runs:
+  using: composite
+  steps:
+    - name: Checkout candle-k8s-lite
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ github.repository_owner }}/candle-k8s-lite
+        token: ${{ inputs.token }}
+        path: _candle-k8s-lite
+    - name: Bump & push
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd _candle-k8s-lite
+        FILE='${{ inputs.file }}'
+        NAME='${{ inputs.name }}'
+        IMAGE='${{ inputs.image }}'
+
+        # 멀티 도큐먼트 파일에서 해당 Deployment만 골라 image 교체
+        yq -i "(select(.kind == \"Deployment\" and .metadata.name == \"$NAME\")
+                | .spec.template.spec.containers[0].image) = \"$IMAGE\"" "$FILE"
+
+        # 의도한 대상이 실제로 바뀌었는지 확인 (yq는 매칭 실패해도 조용히 통과한다)
+        ACTUAL=$(yq "select(.kind == \"Deployment\" and .metadata.name == \"$NAME\")
+                     | .spec.template.spec.containers[0].image" "$FILE")
+        if [ "$ACTUAL" != "$IMAGE" ]; then
+          echo "::error::$FILE 의 Deployment/$NAME image 교체 실패 (현재: $ACTUAL)"
+          exit 1
+        fi
+
+        git config user.name "candle-ci"
+        git config user.email "ci@candle.local"
+        git add "$FILE"
+        git commit -m "deploy(lite): $NAME -> $IMAGE" || { echo "변경 없음 — skip"; exit 0; }
+        git push
