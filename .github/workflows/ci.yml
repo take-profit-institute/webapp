@@ -89,13 +89,84 @@ jobs:
           cache-from: type=gha,scope=bff-hub
           cache-to: type=gha,mode=max,scope=bff-hub
 
+  # ── lite(k3s) 배포용 정적 이미지 ─────────────────────────────────────────────
+  # lite는 S3+CloudFront 대신 클러스터 안 nginx로 서빙한다(추가 AWS 리소스 0).
+  # NEXT_PUBLIC_*는 정적 export 시점에 번들로 박히므로 lite 도메인으로 별도 빌드한다.
+  # candle-k8s-lite 의 frontend.yaml 이 :<SHA> 태그를 참조한다.
+  push-webapp-lite:
+    needs: changes
+    if: needs.changes.outputs.webapp == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: webapp/Dockerfile
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=https://api.lite.candle.io.kr
+            NEXT_PUBLIC_AUTH_BASE_URL=https://api.lite.candle.io.kr
+            NEXT_PUBLIC_WS_BASE_URL=wss://api.lite.candle.io.kr
+            NEXT_PUBLIC_CHAT_API_BASE_URL=https://api.lite.candle.io.kr
+            NEXT_PUBLIC_CHAT_WS_BASE_URL=wss://api.lite.candle.io.kr
+            NEXT_PUBLIC_OAUTH_REDIRECT_BRIDGE_URL=https://app.lite.candle.io.kr/auth/callback
+            NEXT_PUBLIC_OAUTH_NATIVE_REDIRECT_URI=com.candle.app://auth/callback
+            NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyAf6a4Z6eyjt4svQDgCglP_xdCtUsozV2w
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=candle-bfce9.firebaseapp.com
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID=candle-bfce9
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=candle-bfce9.firebasestorage.app
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=712132485233
+            NEXT_PUBLIC_FIREBASE_APP_ID=1:712132485233:web:1d160ba1748475bd103bd0
+            NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-Z9E5649TY7
+            NEXT_PUBLIC_FIREBASE_VAPID_KEY=BDviTHHrHk_L_UaMyfCrlvBr1aUG18XWx98IDociuUDaNmAxNqNrVgDqaNQ67SqVBMuZOjukMwcuwf6SVn4sQhA
+          tags: |
+            yyubin/candle-webapp:lite
+            yyubin/candle-webapp:${{ github.sha }}
+          cache-from: type=gha,scope=webapp-lite
+          cache-to: type=gha,mode=max,scope=webapp-lite
+
+  push-admin-lite:
+    needs: changes
+    if: needs.changes.outputs.admin == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: admin/Dockerfile
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=https://api.lite.candle.io.kr
+            NEXT_PUBLIC_AUTH_BASE_URL=https://api.lite.candle.io.kr
+          tags: |
+            yyubin/candle-admin:lite
+            yyubin/candle-admin:${{ github.sha }}
+          cache-from: type=gha,scope=admin-lite
+          cache-to: type=gha,mode=max,scope=admin-lite
+
   # webapp: 정적 export(next output=export) → S3 sync → CloudFront invalidation.
   # 컨테이너 대신 CloudFront+S3(static-site 모듈)로 서빙한다. 자격증명은 GitHub OIDC로
   # ci_deploy_role 을 assume (정적 키 없음). role/bucket/dist 는 Terraform output 값을
   # 레포 Secrets/Variables 에 등록한다.
   deploy-webapp:
     needs: changes
-    if: needs.changes.outputs.webapp == 'true'
+    # S3/CloudFront 리소스가 설정된 환경에서만 실행. lite는 클러스터 내 nginx로 서빙하므로
+    # 이 변수들이 비어 있고, 그 경우 조용히 건너뛴다(없는 인프라에 배포하다 실패하지 않도록).
+    if: needs.changes.outputs.webapp == 'true' && vars.WEBAPP_S3_BUCKET != ''
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -142,7 +213,7 @@ jobs:
   # webapp 과 동일 패턴 (OIDC 로 ci_deploy_role assume, 정적 키 없음).
   deploy-admin:
     needs: changes
-    if: needs.changes.outputs.admin == 'true'
+    if: needs.changes.outputs.admin == 'true' && vars.ADMIN_S3_BUCKET != ''
     runs-on: ubuntu-latest
     permissions:
       id-token: write
