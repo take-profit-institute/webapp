@@ -164,9 +164,11 @@ jobs:
   # 레포 Secrets/Variables 에 등록한다.
   deploy-webapp:
     needs: changes
-    # S3/CloudFront 리소스가 설정된 환경에서만 실행. lite는 클러스터 내 nginx로 서빙하므로
-    # 이 변수들이 비어 있고, 그 경우 조용히 건너뛴다(없는 인프라에 배포하다 실패하지 않도록).
-    if: needs.changes.outputs.webapp == 'true' && vars.WEBAPP_S3_BUCKET != ''
+    # S3+CloudFront 배포는 현재 비활성. 버킷/배포가 이 계정에 존재하지 않는다
+    # (원래 인프라는 다른 계정에 있었고, NoSuchBucket으로 실패한다).
+    # lite는 클러스터 내 nginx(push-webapp-lite)로 서빙한다.
+    # 인프라를 복구해 다시 쓰려면 레포 변수 DEPLOY_STATIC_S3=true 를 설정한다.
+    if: needs.changes.outputs.webapp == 'true' && vars.DEPLOY_STATIC_S3 == 'true'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -213,7 +215,7 @@ jobs:
   # webapp 과 동일 패턴 (OIDC 로 ci_deploy_role assume, 정적 키 없음).
   deploy-admin:
     needs: changes
-    if: needs.changes.outputs.admin == 'true' && vars.ADMIN_S3_BUCKET != ''
+    if: needs.changes.outputs.admin == 'true' && vars.DEPLOY_STATIC_S3 == 'true'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
