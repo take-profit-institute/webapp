@@ -68,6 +68,13 @@ export type {
   LearnProgressResult,
   LearnProgressSummary,
   LearnFavoriteResult,
+  // advisory
+  AdvisoryRiskTolerance,
+  AdvisoryInvestmentHorizon,
+  AdvisoryValidationStatus,
+  AdvisoryRecommendationBody,
+  AdvisoryRecommendation,
+  AdvisoryRecommendationResult,
   // user / auth
   UserProfile,
   AuthResponse,

@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, TrendingUp, Briefcase, Wallet, Trophy, Target, BookOpen, User, LogOut, ChevronLeft, ChevronRight, Star
+  LayoutDashboard, TrendingUp, Briefcase, Wallet, Trophy, Target, BookOpen, User, LogOut, ChevronLeft, ChevronRight, Star, Sparkles
 } from 'lucide-react';
 import { getAccount, logout, useApi } from '@/apis';
 import { useUIStore, useAuthStore } from '@/store/useStore';
@@ -13,6 +13,7 @@ import Image from "next/image";
 const navItems = [
   { icon: LayoutDashboard, label: '대시보드', href: '/dashboard' },
   { icon: TrendingUp, label: '시장', href: '/market' },
+  { icon: Sparkles, label: '추천', href: '/advisory' },
   { icon: Briefcase, label: '포트폴리오', href: '/portfolio' },
   { icon: Wallet, label: '잔고', href: '/wallet' },
   { icon: Trophy, label: '랭킹', href: '/ranking' },

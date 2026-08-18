@@ -1,13 +1,13 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, TrendingUp, Briefcase, Trophy, User } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Briefcase, Sparkles, User } from 'lucide-react';
 
 const navItems = [
   { icon: LayoutDashboard, label: '홈', href: '/dashboard' },
   { icon: TrendingUp, label: '시장', href: '/market' },
+  { icon: Sparkles, label: '추천', href: '/advisory' },
   { icon: Briefcase, label: '포트폴리오', href: '/portfolio' },
-  { icon: Trophy, label: '랭킹', href: '/ranking' },
   { icon: User, label: '나', href: '/mypage' },
 ];
 

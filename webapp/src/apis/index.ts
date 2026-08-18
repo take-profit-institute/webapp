@@ -14,11 +14,13 @@ export * as authApi from './auth';
 export * as socialApi from './social';
 export * as usersApi from './users';
 export * as chatApi from './chat';
+export * as advisoryApi from './advisory';
 
 export { API_BASE_URL, ApiError, apiClient, setAuthTokenGetter, setTokenRefresher } from './client';
 export { useApi } from './useApi';
 export type { UseApiResult } from './useApi';
 export { getChatRoom } from './chat';
+export { getAdvisoryRecommendations } from './advisory';
 
 // Flat re-exports for the common calls.
 export {
