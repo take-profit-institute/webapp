@@ -1,34 +1,63 @@
-# candle-k8s ApplicationSet의 서비스 image tag를 bump → ArgoCD가 동기화
+# GitOps repo의 ApplicationSet 서비스 image tag를 bump → ArgoCD가 동기화
+#
+# 대상 repo는 repo 입력으로 고른다. prod(candle-k8s)와 lite(candle-k8s-lite)가 별도 GitOps
+# repo라, 같은 ECR 이미지를 두 클러스터에 배포하려면 각각 한 번씩 호출해야 한다.
 name: bump-tag
-description: Update service image tag in candle-k8s
+description: Update service image tag in a GitOps repo's ApplicationSet
 inputs:
   service: { required: true }
   tag: { required: true }
   env: { required: true, default: dev }
   appset: { required: false, default: services, description: "services | batch" }
-  token: { required: true, description: candle-k8s push 권한 PAT/App 토큰 }
+  repo:
+    required: false
+    default: candle-k8s
+    description: "GitOps repo 이름 (candle-k8s | candle-k8s-lite)"
+  token: { required: true, description: GitOps repo push 권한 PAT/App 토큰 }
 runs:
   using: composite
   steps:
-    - name: Checkout candle-k8s
+    - name: Checkout GitOps repo
       uses: actions/checkout@v4
       with:
-        repository: ${{ github.repository_owner }}/candle-k8s
+        repository: ${{ github.repository_owner }}/${{ inputs.repo }}
         token: ${{ inputs.token }}
-        path: _candle-k8s
+        path: _gitops-${{ inputs.repo }}
     - name: Bump & push
       shell: bash
       run: |
-        cd _candle-k8s
+        set -euo pipefail
+        cd "_gitops-${{ inputs.repo }}"
         FILE="platform/applications/${{ inputs.appset }}-${{ inputs.env }}.yaml"
         SVC='${{ inputs.service }}'
+        TAG='${{ inputs.tag }}'
+
         if [ "$SVC" = "*" ]; then
-          yq -i '(.spec.generators[0].list.elements[]).tag = "${{ inputs.tag }}"' "$FILE"
+          yq -i "(.spec.generators[0].list.elements[]).tag = \"$TAG\"" "$FILE"
         else
-          yq -i "(.spec.generators[0].list.elements[] | select(.name == \"$SVC\")).tag = \"${{ inputs.tag }}\"" "$FILE"
+          yq -i "(.spec.generators[0].list.elements[] | select(.name == \"$SVC\")).tag = \"$TAG\"" "$FILE"
+
+          # yq는 select가 아무것도 못 잡아도 조용히 성공한다. lite/prod에 없는 서비스거나
+          # 이름이 어긋나면 배포가 안 됐는데 CI는 초록으로 끝난다 → 실제 반영을 확인한다.
+          ACTUAL=$(yq "(.spec.generators[0].list.elements[] | select(.name == \"$SVC\")).tag" "$FILE")
+          if [ "$ACTUAL" != "$TAG" ]; then
+            echo "::error::${{ inputs.repo }}/$FILE 에서 $SVC 태그 교체 실패 (현재: $ACTUAL)"
+            exit 1
+          fi
         fi
+
         git config user.name "candle-ci"
         git config user.email "ci@candle.local"
         git add "$FILE"
-        git commit -m "deploy(${{ inputs.env }}): ${{ inputs.service }} -> ${{ inputs.tag }}" || { echo "no change"; exit 0; }
-        git push
+        git commit -m "deploy(${{ inputs.env }}): ${{ inputs.service }} -> $TAG" || { echo "no change"; exit 0; }
+
+        # 같은 GitOps repo에 다른 서비스 CI가 동시에 push할 수 있다(백엔드/advisory-service).
+        # 경쟁에서 밀리면 rebase 후 재시도.
+        for attempt in 1 2 3; do
+          git pull --rebase origin main || true
+          if git push; then
+            exit 0
+          fi
+          sleep $((attempt * 2))
+        done
+        exit 1
