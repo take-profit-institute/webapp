@@ -27,6 +27,7 @@ import {
   createNotificationServiceClient,
   createMissionServiceClient,
   createLearnServiceClient,
+  createAdvisoryServiceClient,
   type AuthServiceClient,
   type UserServiceClient,
   type MarketServiceClient,
@@ -36,6 +37,7 @@ import {
   type NotificationServiceClient,
   type MissionServiceClient,
   type LearnServiceClient,
+  type AdvisoryServiceClient,
 } from './clients';
 
 export interface GrpcClients {
@@ -48,6 +50,7 @@ export interface GrpcClients {
   notification: NotificationServiceClient;
   mission: MissionServiceClient;
   learn: LearnServiceClient;
+  advisory: AdvisoryServiceClient;
 }
 
 declare module 'fastify' {
@@ -69,6 +72,7 @@ const grpcRegistry: FastifyPluginAsync = async (app) => {
     notification: createNotificationServiceClient(getChannel(addr.notificationAddr)),
     mission:      createMissionServiceClient(getChannel(addr.missionAddr)),
     learn:        createLearnServiceClient(getChannel(addr.learnAddr)),
+    advisory:     createAdvisoryServiceClient(getChannel(addr.advisoryAddr)),
   };
 
   app.decorate('grpc', clients);

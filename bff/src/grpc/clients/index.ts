@@ -7,6 +7,7 @@ export { createRankingServiceClient } from './ranking.client';
 export { createNotificationServiceClient } from './notification.client';
 export { createMissionServiceClient } from './mission.client';
 export { createLearnServiceClient } from './learn.client';
+export { createAdvisoryServiceClient } from './advisory.client';
 
 export type { AuthServiceClient } from './auth.client';
 export type { UserServiceClient } from './user.client';
@@ -17,3 +18,4 @@ export type { RankingServiceClient } from './ranking.client';
 export type { NotificationServiceClient } from './notification.client';
 export type { MissionServiceClient } from './mission.client';
 export type { LearnServiceClient } from './learn.client';
+export type { AdvisoryServiceClient } from './advisory.client';

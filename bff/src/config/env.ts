@@ -63,6 +63,7 @@ export const env = {
     wishlistAddr: str('GRPC_WISHLIST_ADDR', 'localhost:50061'),
     batchAddr: str('GRPC_BATCH_ADDR', 'localhost:50062'),
     newsAddr: str('GRPC_NEWS_ADDR', 'localhost:50064'),
+    advisoryAddr: str('GRPC_ADVISORY_ADDR', 'localhost:50065'),
     deadlineMs: Number(str('GRPC_DEADLINE_MS', '5000')),
   },
 } as const;
