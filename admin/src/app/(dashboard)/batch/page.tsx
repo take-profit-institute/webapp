@@ -16,6 +16,29 @@ const statusColor: Record<BatchExecution['status'], string> = {
   unknown: 'var(--text-muted)',
 };
 
+// 선택한 잡을 브라우저에 남긴다. 새로고침/재진입하면 selected가 초기화되어
+// 목록 첫 잡(batchSmokeJob)으로 돌아가는데, 그 잡은 실행 이력이 거의 없어서
+// "보던 이력이 사라졌다"로 보인다.
+const SELECTED_JOB_STORAGE_KEY = 'candle.admin.batch.selectedJob';
+
+function readStoredJob(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage.getItem(SELECTED_JOB_STORAGE_KEY) ?? '';
+  } catch {
+    // 사파리 프라이빗 모드 등 localStorage 차단 환경 — 선택 유지만 포기한다.
+    return '';
+  }
+}
+
+function storeSelectedJob(jobName: string) {
+  try {
+    window.localStorage.setItem(SELECTED_JOB_STORAGE_KEY, jobName);
+  } catch {
+    // 위와 동일 — 저장 실패가 화면 동작을 막을 이유는 없다.
+  }
+}
+
 export default function BatchPage() {
   const [jobs, setJobs] = useState<BatchJob[]>([]);
   const [selected, setSelected] = useState<string>('');
@@ -40,7 +63,10 @@ export default function BatchPage() {
     try {
       const list = await getBatchJobs();
       setJobs(list);
-      const first = selected || list[0]?.name || '';
+      // 저장된 잡이 목록에서 사라졌으면(잡 제거 등) 첫 잡으로 떨어뜨린다.
+      const stored = readStoredJob();
+      const restored = list.some((job) => job.name === stored) ? stored : '';
+      const first = selected || restored || list[0]?.name || '';
       setSelected(first);
       if (first) await loadExecutions(first);
     } catch (e) {
@@ -59,6 +85,7 @@ export default function BatchPage() {
 
   async function onSelect(jobName: string) {
     setSelected(jobName);
+    storeSelectedJob(jobName);
     await loadExecutions(jobName);
   }
 
