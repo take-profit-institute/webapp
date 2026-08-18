@@ -15,3 +15,4 @@ export * from './user';
 export * from './ws';
 export * from './chat';
 export * from './notification';
+export * from './advisory';
