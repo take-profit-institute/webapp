@@ -17,16 +17,10 @@ interface Props {
   height?: number;
 }
 
-interface ChartPoint {
-  time: string;
-  price: number;
-  raw: string; // ISO timestamp for tooltip
-}
-
-function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ChartPoint; name?: string }> }) {
+function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: IntradayTick; name?: string }> }) {
   if (!active || !payload?.length) return null;
-  const { price, raw } = payload[0].payload as ChartPoint;
-  const d = new Date(raw);
+  const { price, timestamp } = payload[0].payload;
+  const d = new Date(timestamp);
   const full = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   return (
     <div style={{
@@ -90,17 +84,23 @@ function CrosshairCursor(props: {
 }
 
 export default function IntradayChart({ ticks, currency, height = 220 }: Props) {
-  const data = useMemo<ChartPoint[]>(
-    () =>
-      ticks.map(({ price, timestamp }) => ({
-        time: new Date(timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-        price,
-        raw: timestamp,
-      })),
-    [ticks],
-  );
+  // 시리즈를 변환 없이 그대로 recharts에 넘긴다.
+  // 이전에는 매 렌더마다 전체를 map하며 포인트마다 toLocaleTimeString(Intl)을 돌렸는데,
+  // 그 결과(time)를 받는 XAxis는 hide 상태라 화면에 나오지도 않았다. 시간 포맷은 실제로
+  // 보이는 곳(툴팁)에서만 한다.
+  const { minP, maxP } = useMemo(() => {
+    // Math.min(...prices)는 원소를 전부 콜스택에 인자로 올려서, 시리즈가 길어지면
+    // 느려지는 정도가 아니라 RangeError로 차트가 터진다. 단일 패스로 대체한다.
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    for (const { price } of ticks) {
+      if (price < min) min = price;
+      if (price > max) max = price;
+    }
+    return { minP: min, maxP: max };
+  }, [ticks]);
 
-  if (data.length === 0) {
+  if (ticks.length === 0) {
     return (
       <div
         className="flex flex-col items-center justify-center gap-2"
@@ -112,20 +112,17 @@ export default function IntradayChart({ ticks, currency, height = 220 }: Props) 
     );
   }
 
-  const basePrice = data[0].price;
-  const lastPrice = data[data.length - 1].price;
+  const basePrice = ticks[0].price;
+  const lastPrice = ticks[ticks.length - 1].price;
   const isUp = lastPrice >= basePrice;
   const lineColor = isUp ? 'var(--gain)' : 'var(--loss)';
 
-  const prices = data.map((d) => d.price);
-  const minP = Math.min(...prices);
-  const maxP = Math.max(...prices);
   const pad = Math.max((maxP - minP) * 0.15, 1);
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-        <XAxis dataKey="time" hide />
+      <LineChart data={ticks} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+        <XAxis dataKey="timestamp" hide />
         <YAxis
           domain={[minP - pad, maxP + pad]}
           tick={{ fontSize: 9, fill: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}

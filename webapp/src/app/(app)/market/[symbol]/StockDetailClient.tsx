@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ArrowUpRight, ArrowDownRight, Star, Clock, MessageCircle, ExternalLink } from 'lucide-react';
@@ -27,6 +27,7 @@ import { useMarketSocket } from '@/hooks/useMarketSocket';
 import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
 import { Loader, ErrorState } from '@/components/AsyncState';
 import { formatMarketCap, formatVolume } from '@/lib/format';
+import { appendIntradayTick, bucketIntradaySeries, INTRADAY_FLUSH_MS } from '@/lib/intraday';
 import { marketChatHref } from '@/lib/market-routes';
 
 export default function StockDetailClient({ symbol }: { symbol: string }) {
@@ -44,21 +45,37 @@ export default function StockDetailClient({ symbol }: { symbol: string }) {
   useMarketSocket([symbol], marketStatus?.open === true);
   const liveQuote = useMarketStore((s) => s.liveQuotes[symbol]);
 
-  // 당일 틱 히스토리 (선언을 useEffect 앞에)
+  // 당일 틱 히스토리 (선언을 useEffect 앞에).
+  // 원본 틱을 그대로 쌓지 않고 10초 버킷으로 접어 상한을 둔다 — 정책과 이유는 lib/intraday.ts 참고.
   const [showIntraday, setShowIntraday] = useState(true);
   const [intradayTicks, setIntradayTicks] = useState<IntradayTick[]>([]);
   const { data: intradayHistory } = useApi(() => getIntradayHistory(symbol), [symbol]);
   useEffect(() => {
-    if (intradayHistory) setIntradayTicks(intradayHistory.ticks);
+    // 서버 히스토리도 실시간 append와 같은 버킷 정책을 태워야 x축 간격이 이어진다.
+    if (intradayHistory) setIntradayTicks(bucketIntradaySeries(intradayHistory.ticks));
   }, [intradayHistory]);
+
+  // 실시간 틱은 ref에 모아두고 INTRADAY_FLUSH_MS 주기로만 상태에 반영한다.
+  // 틱마다 setState하면 리렌더가 틱레이트를 그대로 따라가고 차트가 매번 전체 시리즈를 다시 그린다.
+  const pendingTickRef = useRef<IntradayTick | null>(null);
   useEffect(() => {
     if (!liveQuote || !showIntraday) return;
-    setIntradayTicks((prev) => {
-      const last = prev[prev.length - 1];
-      if (last?.timestamp === liveQuote.timestamp) return prev;
-      return [...prev, { price: liveQuote.price, timestamp: liveQuote.timestamp }];
-    });
+    pendingTickRef.current = { price: liveQuote.price, timestamp: liveQuote.timestamp };
   }, [liveQuote, showIntraday]);
+  useEffect(() => {
+    // 종목이 바뀌면 이전 종목의 잔여 틱을 버린다(새 시리즈에 섞이지 않게).
+    pendingTickRef.current = null;
+  }, [symbol]);
+  useEffect(() => {
+    if (!showIntraday) return;
+    const flush = setInterval(() => {
+      const pending = pendingTickRef.current;
+      if (!pending) return;
+      pendingTickRef.current = null;
+      setIntradayTicks((prev) => appendIntradayTick(prev, pending));
+    }, INTRADAY_FLUSH_MS);
+    return () => clearInterval(flush);
+  }, [showIntraday]);
 
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [orderMode, setOrderMode] = useState<'now' | 'reserve'>('now');
