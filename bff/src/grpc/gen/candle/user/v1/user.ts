@@ -39,6 +39,31 @@ export interface UpdateProfileResponse {
   profile?: UserProfile | undefined;
 }
 
+/**
+ * 관리자 콘솔 전용 — 전체 회원 목록 조회.
+ * GetMe/UpdateProfile과 달리 "요청 user_id == 인증된 actor" 검증이 없다(관리자는 남의 프로필을 본다).
+ * 인가 경계는 BFF의 admin 라우트 가드(ADMIN|SUPER_ADMIN JWT 검사)다 — learning-service의
+ * ListAdminContents와 같은 규약이며, gRPC 포트는 클러스터 내부(ClusterIP)에만 열려 있다.
+ */
+export interface ListAdminUsersRequest {
+  /** 0-based */
+  page: number;
+  /** 0이면 기본 20, 상한 100 */
+  size: number;
+  /** 닉네임/이메일 부분 검색. 빈 값이면 전체 */
+  query: string;
+  /** 탈퇴 여부 필터. 미지정이면 전체 */
+  deleted?: boolean | undefined;
+}
+
+export interface ListAdminUsersResponse {
+  users: UserProfile[];
+  totalCount: number;
+  /** 0-based (요청과 동일 기준) */
+  page: number;
+  size: number;
+}
+
 function createBaseUserProfile(): UserProfile {
   return { userId: "", nickname: "", profileImageUrl: "", deleted: false, audit: undefined, email: "" };
 }
@@ -493,6 +518,226 @@ export const UpdateProfileResponse: MessageFns<UpdateProfileResponse> = {
   },
 };
 
+function createBaseListAdminUsersRequest(): ListAdminUsersRequest {
+  return { page: 0, size: 0, query: "", deleted: undefined };
+}
+
+export const ListAdminUsersRequest: MessageFns<ListAdminUsersRequest> = {
+  encode(message: ListAdminUsersRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.page !== 0) {
+      writer.uint32(8).int32(message.page);
+    }
+    if (message.size !== 0) {
+      writer.uint32(16).int32(message.size);
+    }
+    if (message.query !== "") {
+      writer.uint32(26).string(message.query);
+    }
+    if (message.deleted !== undefined) {
+      writer.uint32(32).bool(message.deleted);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAdminUsersRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListAdminUsersRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.page = reader.int32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.size = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.query = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.deleted = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListAdminUsersRequest {
+    return {
+      page: isSet(object.page) ? globalThis.Number(object.page) : 0,
+      size: isSet(object.size) ? globalThis.Number(object.size) : 0,
+      query: isSet(object.query) ? globalThis.String(object.query) : "",
+      deleted: isSet(object.deleted) ? globalThis.Boolean(object.deleted) : undefined,
+    };
+  },
+
+  toJSON(message: ListAdminUsersRequest): unknown {
+    const obj: any = {};
+    if (message.page !== 0) {
+      obj.page = Math.round(message.page);
+    }
+    if (message.size !== 0) {
+      obj.size = Math.round(message.size);
+    }
+    if (message.query !== "") {
+      obj.query = message.query;
+    }
+    if (message.deleted !== undefined) {
+      obj.deleted = message.deleted;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListAdminUsersRequest>): ListAdminUsersRequest {
+    return ListAdminUsersRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListAdminUsersRequest>): ListAdminUsersRequest {
+    const message = createBaseListAdminUsersRequest();
+    message.page = object.page ?? 0;
+    message.size = object.size ?? 0;
+    message.query = object.query ?? "";
+    message.deleted = object.deleted ?? undefined;
+    return message;
+  },
+};
+
+function createBaseListAdminUsersResponse(): ListAdminUsersResponse {
+  return { users: [], totalCount: 0, page: 0, size: 0 };
+}
+
+export const ListAdminUsersResponse: MessageFns<ListAdminUsersResponse> = {
+  encode(message: ListAdminUsersResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.users) {
+      UserProfile.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.totalCount !== 0) {
+      writer.uint32(16).int32(message.totalCount);
+    }
+    if (message.page !== 0) {
+      writer.uint32(24).int32(message.page);
+    }
+    if (message.size !== 0) {
+      writer.uint32(32).int32(message.size);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAdminUsersResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListAdminUsersResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.users.push(UserProfile.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.totalCount = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.page = reader.int32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.size = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListAdminUsersResponse {
+    return {
+      users: globalThis.Array.isArray(object?.users) ? object.users.map((e: any) => UserProfile.fromJSON(e)) : [],
+      totalCount: isSet(object.totalCount)
+        ? globalThis.Number(object.totalCount)
+        : isSet(object.total_count)
+        ? globalThis.Number(object.total_count)
+        : 0,
+      page: isSet(object.page) ? globalThis.Number(object.page) : 0,
+      size: isSet(object.size) ? globalThis.Number(object.size) : 0,
+    };
+  },
+
+  toJSON(message: ListAdminUsersResponse): unknown {
+    const obj: any = {};
+    if (message.users?.length) {
+      obj.users = message.users.map((e) => UserProfile.toJSON(e));
+    }
+    if (message.totalCount !== 0) {
+      obj.totalCount = Math.round(message.totalCount);
+    }
+    if (message.page !== 0) {
+      obj.page = Math.round(message.page);
+    }
+    if (message.size !== 0) {
+      obj.size = Math.round(message.size);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListAdminUsersResponse>): ListAdminUsersResponse {
+    return ListAdminUsersResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListAdminUsersResponse>): ListAdminUsersResponse {
+    const message = createBaseListAdminUsersResponse();
+    message.users = object.users?.map((e) => UserProfile.fromPartial(e)) || [];
+    message.totalCount = object.totalCount ?? 0;
+    message.page = object.page ?? 0;
+    message.size = object.size ?? 0;
+    return message;
+  },
+};
+
 export type UserServiceDefinition = typeof UserServiceDefinition;
 export const UserServiceDefinition = {
   name: "UserService",
@@ -514,6 +759,14 @@ export const UserServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    listAdminUsers: {
+      name: "ListAdminUsers",
+      requestType: ListAdminUsersRequest as typeof ListAdminUsersRequest,
+      requestStream: false,
+      responseType: ListAdminUsersResponse as typeof ListAdminUsersResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -523,6 +776,10 @@ export interface UserServiceImplementation<CallContextExt = {}> {
     request: UpdateProfileRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<UpdateProfileResponse>>;
+  listAdminUsers(
+    request: ListAdminUsersRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ListAdminUsersResponse>>;
 }
 
 export interface UserServiceClient<CallOptionsExt = {}> {
@@ -531,6 +788,10 @@ export interface UserServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<UpdateProfileRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<UpdateProfileResponse>;
+  listAdminUsers(
+    request: DeepPartial<ListAdminUsersRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ListAdminUsersResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

@@ -203,9 +203,33 @@ export const UpdateProfileBody = Type.Object({
 export type UpdateProfileBody = Static<typeof UpdateProfileBody>;
 
 // ── Admin: User management (USER-019, USER-020) ────────────────────
+/**
+ * 관리자 콘솔 회원 목록의 계정 상태.
+ *
+ * `UserStatus`(active|suspended|withdrawn)를 쓰지 않는 이유: user-service의 `user_profiles`는
+ * 탈퇴 여부(`deleted`)만 모델링한다. 정지(suspended)는 auth-service의 `admin_accounts` 쪽
+ * 개념이라 일반 회원에는 대응하는 컬럼이 없다. 없는 상태를 계약에 넣어두면 필터를 걸었을 때
+ * 조용히 0건이 나오므로, 실제로 표현 가능한 두 값만 노출한다.
+ * 정지 기능을 붙이려면 `user_profiles`에 상태 컬럼을 먼저 추가해야 한다.
+ */
+export const AdminUserAccountStatus = Type.Union([Type.Literal('active'), Type.Literal('withdrawn')]);
+export type AdminUserAccountStatus = Static<typeof AdminUserAccountStatus>;
+
+/** 관리자 콘솔 회원 목록의 한 행. user-service `UserProfile` proto의 화면용 투영. */
+export const AdminUserSummary = Type.Object({
+  id: Type.String({ description: 'user_id' }),
+  nickname: Type.String(),
+  email: Type.String(),
+  avatar: Type.String({ description: '프로필 이미지 URL 또는 이모지' }),
+  status: AdminUserAccountStatus,
+  createdAt: Type.String({ format: 'date-time', description: '가입일' }),
+  updatedAt: Type.String({ format: 'date-time' }),
+});
+export type AdminUserSummary = Static<typeof AdminUserSummary>;
+
 export const AdminUserListQuery = Type.Object({
-  status: Type.Optional(UserStatus),
-  q: Type.Optional(Type.String({ description: '이름/이메일 검색' })),
+  status: Type.Optional(AdminUserAccountStatus),
+  q: Type.Optional(Type.String({ description: '닉네임/이메일 부분 검색' })),
   page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
   limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
 });

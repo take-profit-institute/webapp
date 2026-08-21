@@ -1,6 +1,8 @@
 import { apiClient } from './client';
 import type {
   AdminLearnStats,
+  AdminUserAccountStatus,
+  AdminUserSummary,
   AdminSendNotificationBody,
   AdminSendNotificationResult,
   AdminUpdateLearnVisibilityBody,
@@ -90,6 +92,26 @@ export async function updateUserStatus(id: string, status: AdminUserStatus): Pro
   const next = status === 'active' ? 'ACTIVE' : 'DISABLED';
   const updated = await apiClient.patch<AdminAccount>(`/api/v1/admin/accounts/${id}/status`, { status: next });
   return toRow(updated);
+}
+
+// ── App users ("전체 회원") ──────────────────────────────────────────
+// 위의 "관리자 계정"과 다른 대상이다. 이쪽은 앱을 쓰는 일반 회원(user-service `user_profiles`)으로,
+// BFF `/api/admin/users` → user-service `ListAdminUsers` gRPC를 탄다.
+// 검색/필터/페이지네이션 모두 서버가 처리한다(관리자 계정 목록과 달리 클라이언트 필터링이 아니다).
+export interface MemberListParams {
+  status?: AdminUserAccountStatus;
+  q?: string;
+  page?: number;
+  limit?: number;
+}
+
+export function getMembers(params?: MemberListParams) {
+  return apiClient.get<PaginatedResult<AdminUserSummary>>('/api/admin/users', {
+    status: params?.status,
+    q: params?.q,
+    page: params?.page?.toString(),
+    limit: params?.limit?.toString(),
+  });
 }
 
 // ── Learn ────────────────────────────────────────────────────────────

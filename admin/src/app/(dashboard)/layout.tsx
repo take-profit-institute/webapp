@@ -2,12 +2,14 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Users, BookOpen, Target, LogOut, Shield, Bell, PlayCircle } from 'lucide-react';
+import { Users, UserCog, BookOpen, Target, LogOut, Shield, Bell, PlayCircle } from 'lucide-react';
 import { useAdminStore } from '@/store/useAdminStore';
 import { setTokenGetter } from '@/apis/client';
 
 const navItems = [
-  { icon: Users, label: '관리자 계정', href: '/users' },
+  // '전체 회원'은 앱 사용자(user-service), '관리자 계정'은 콘솔 계정(auth-service)이다. 다른 대상.
+  { icon: Users, label: '전체 회원', href: '/members' },
+  { icon: UserCog, label: '관리자 계정', href: '/users' },
   { icon: BookOpen, label: '학습 콘텐츠', href: '/learn' },
   { icon: Bell, label: '알림 발송', href: '/notifications' },
   { icon: PlayCircle, label: '배치 실행', href: '/batch' },

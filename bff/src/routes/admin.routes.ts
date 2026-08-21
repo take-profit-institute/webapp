@@ -1,10 +1,12 @@
 import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import { Type } from '@sinclair/typebox';
-import { adminUser } from '../data/user';
+import { adminUser, demoUser } from '../data/user';
 import { learnContents, missions } from '../data/social';
 import { DEMO_USER_ID } from '../data/account';
 import {
   AdminLearnStats,
+  AdminUserListQuery,
+  AdminUserSummary,
   AdminUpdateLearnVisibilityBody,
   AdminUpsertLearnContentBody,
   AdminSendNotificationBody,
@@ -30,6 +32,7 @@ import {
   UserProfile,
   UserRole,
 } from '@candle/shared';
+import type { UserProfile as GrpcUserProfile } from '../grpc/gen/candle/user/v1/user';
 import { env } from '../config/env';
 import { ERROR_CODES, PublicError } from '../errors';
 import { verifyToken } from '../plugins/jwt';
@@ -54,6 +57,38 @@ function paginate<T>(arr: T[], page: number, limit: number) {
   const safePage = Math.min(Math.max(1, page), totalPages);
   const start = (safePage - 1) * limit;
   return { items: arr.slice(start, start + limit), total, page: safePage, limit, totalPages };
+}
+
+/**
+ * user-service proto UserProfile → 관리자 콘솔 행.
+ *
+ * 폴백(닉네임/아바타)은 user.routes.ts의 `toSharedProfile`과 의도적으로 같은 규칙이다 —
+ * 같은 회원이 앱 화면과 관리자 화면에서 다른 이름으로 보이면 문의 대응이 불가능해진다.
+ */
+function toAdminUserSummary(grpc: GrpcUserProfile): AdminUserSummary {
+  return {
+    id: grpc.userId,
+    nickname: grpc.nickname || `캔들${grpc.userId.replace(/-/g, '').slice(0, 8)}`,
+    email: grpc.email,
+    avatar: grpc.profileImageUrl || '🐯',
+    // user_profiles는 탈퇴(deleted)만 모델링한다 — 정지 상태는 아직 없다.
+    status: grpc.deleted ? 'withdrawn' : 'active',
+    createdAt: grpc.audit?.createdAt?.toISOString() ?? new Date(0).toISOString(),
+    updatedAt: grpc.audit?.updatedAt?.toISOString() ?? new Date(0).toISOString(),
+  };
+}
+
+/** mock 모드용 — 데모 유저를 관리자 행 모양으로 투영한다. */
+function demoUserSummary(): AdminUserSummary {
+  return {
+    id: demoUser.id,
+    nickname: demoUser.username,
+    email: demoUser.email,
+    avatar: demoUser.avatar,
+    status: 'active',
+    createdAt: demoUser.createdAt,
+    updatedAt: demoUser.createdAt,
+  };
 }
 
 const AdminLoginBody = Type.Object({
@@ -134,6 +169,61 @@ export const adminRoutes: FastifyPluginAsyncTypebox = async (app) => {
         const mapped = mapGrpcError(err, req.id);
         return reply.code(mapped.statusCode as 400 | 401 | 403 | 422 | 500 | 503).send(mapped);
       }
+    },
+  );
+
+  // ── App users (앱 회원) ─────────────────────────────────────────────
+  // 관리자 콘솔의 "전체 회원". auth-service의 관리자 계정(/api/v1/admin/accounts)과는 다른 대상이다.
+  app.get(
+    '/users',
+    {
+      schema: {
+        tags: ['admin'],
+        summary: '전체 회원 목록 (관리자)',
+        querystring: AdminUserListQuery,
+        response: {
+          200: Paginated(AdminUserSummary),
+          400: ErrorResponse,
+          401: ErrorResponse,
+          403: ErrorResponse,
+          500: ErrorResponse,
+          503: ErrorResponse,
+        },
+      },
+    },
+    async (req, reply) => {
+      const { page = 1, limit = 20, q, status } = req.query;
+      if (env.dataSource === 'grpc') {
+        try {
+          const res = await req.server.grpc.user.listAdminUsers({
+            page: page - 1, // 외부 계약은 1-based, proto는 0-based
+            size: limit,
+            query: q ?? '',
+            // status 미지정 = 전체. proto의 optional bool이라 undefined면 필드 자체가 안 나간다.
+            deleted: status === undefined ? undefined : status === 'withdrawn',
+          });
+          // size가 0으로 돌아오는 경우(빈 결과)를 대비해 요청값으로 폴백 — 0으로 나누지 않기 위해서다.
+          const size = res.size || limit;
+          return {
+            items: res.users.map(toAdminUserSummary),
+            total: res.totalCount,
+            page: res.page + 1,
+            limit: size,
+            totalPages: Math.max(1, Math.ceil(res.totalCount / size)),
+          };
+        } catch (err) {
+          const mapped = mapGrpcError(err, req.id);
+          return reply.code(mapped.statusCode as 400 | 500 | 503).send(mapped);
+        }
+      }
+      // mock: 데모 유저 한 명뿐이라 필터/페이지네이션만 흉내낸다.
+      let items = [demoUserSummary()];
+      if (status) items = items.filter((u) => u.status === status);
+      if (q) {
+        const lq = q.toLowerCase();
+        items = items.filter((u) => u.nickname.toLowerCase().includes(lq) || u.email.toLowerCase().includes(lq));
+      }
+      return paginate(items, page, limit);
     },
   );
 
