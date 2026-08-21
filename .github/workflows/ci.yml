@@ -61,18 +61,8 @@ jobs:
           appset: services
           token: ${{ secrets.GITOPS_TOKEN }}
 
-      # lite(k3s)도 같은 ECR 이미지를 쓰지만 GitOps repo가 별도라 한 번 더 bump해야 한다.
-      # 이게 없어서 lite의 bff가 7월 9일 태그에 고정돼 있었고, advisory 라우트를 추가해도
-      # 배포되지 않아 POST /api/advisory/recommendations가 404로 떨어졌다.
-      - uses: ./.github/actions/bump-tag
-        if: github.event_name != 'pull_request'
-        with:
-          service: bff
-          tag: ${{ github.sha }}
-          env: dev
-          appset: services
-          repo: candle-k8s-lite
-          token: ${{ secrets.GITOPS_TOKEN }}
+      # lite(k3s) 배포는 push-bff-lite 잡이 소유한다(Docker Hub + 자체 bump).
+      # 여기서 lite를 같이 bump하면 두 잡이 같은 필드를 서로 다른 태그로 덮어써 경쟁한다.
 
   # bff → Docker Hub (yyubin/candle-bff:dev). ECR(push-bff)와 별개로, 로컬/수동 배포에서
   # 끌어다 쓰는 이동 태그(:dev)를 Docker Hub에 올린다. Docker Hub는 ECR과 달리 태그 덮어쓰기 허용.
@@ -101,6 +91,55 @@ jobs:
           tags: yyubin/candle-bff:dev
           cache-from: type=gha,scope=bff-hub
           cache-to: type=gha,mode=max,scope=bff-hub
+
+  # bff → Docker Hub (yyubin/candle-bff:lite, :<SHA>) + candle-k8s-lite 태그 bump.
+  #
+  # lite를 push-bff(ECR)에서 떼어낸 이유:
+  #   - lite 클러스터는 gateway/webapp/admin이 이미 전부 Docker Hub를 쓴다. bff만 ECR을 타면
+  #     lite 배포가 AWS OIDC(ci_deploy_role) 성공 여부에 묶인다 — 프론트는 안 묶여 있는데.
+  #   - prod(ECR)와 lite의 롤아웃을 독립적으로 굴릴 수 있다.
+  # webapp/admin과 달리 빌드 인자는 없다. bff는 Node 서버라 설정이 전부 런타임 env
+  # (services-dev.yaml)에서 오고, 이미지 내용물은 ECR 것과 동일하다. 나뉘는 건 레지스트리와
+  # 롤아웃 시점뿐이다.
+  #
+  # 태그를 :lite 같은 이동 태그가 아니라 커밋 SHA로 고정하는 이유는 bump-lite-image 액션
+  # 주석과 같다 — 이동 태그는 노드 캐시가 그대로 쓰이고 ArgoCD도 롤아웃을 트리거하지 않는다.
+  # lite 노드(t3.xlarge)는 amd64라 amd64만 빌드한다(:dev 멀티아치는 push-bff-dockerhub 담당).
+  push-bff-lite:
+    needs: changes
+    if: needs.changes.outputs.bff == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          # 컨텍스트는 모노레포 루트(shared + bff 함께 빌드), Dockerfile 은 bff/Dockerfile
+          context: .
+          file: bff/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            yyubin/candle-bff:lite
+            yyubin/candle-bff:${{ github.sha }}
+          cache-from: type=gha,scope=bff-lite
+          cache-to: type=gha,mode=max,scope=bff-lite
+      # bff는 lite에서도 ApplicationSet element라 frontend.yaml을 고치는 bump-lite-image가 아니라
+      # elements[].tag를 고치는 bump-tag를 쓴다. 이미지 레지스트리는 services-dev.yaml의
+      # bff element에 image: "yyubin/candle-bff" 로 고정돼 있다(gateway와 같은 방식).
+      - uses: ./.github/actions/bump-tag
+        if: github.event_name != 'pull_request'
+        with:
+          service: bff
+          tag: ${{ github.sha }}
+          env: dev
+          appset: services
+          repo: candle-k8s-lite
+          token: ${{ secrets.GITOPS_TOKEN }}
 
   # ── lite(k3s) 배포용 정적 이미지 ─────────────────────────────────────────────
   # lite는 S3+CloudFront 대신 클러스터 안 nginx로 서빙한다(추가 AWS 리소스 0).
